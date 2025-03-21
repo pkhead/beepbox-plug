@@ -1,8 +1,11 @@
 #include <cplug.h>
 
 #ifdef CPLUG_WANT_GUI
+#define SOKOL_IMGUI_NO_SOKOL_APP
+#include <imgui.h>
 #include <sokol/sokol_gfx.h>
 #include <sokol/sokol_log.h>
+#include <sokol/util/sokol_imgui.h>
 #endif
 
 // Apparently denormals aren't a problem on ARM & M1?
@@ -215,11 +218,120 @@ static void drawGUI(PluginGui *gui)
 //     return false;
 // }
 
-void eventHandler(platform::Event ev, platform::PlatformData *window) {
+ImGuiKey keyToImgui(platform::Key key) {
+    switch (key) {
+        case platform::Key::Left: return ImGuiKey_LeftArrow;
+        case platform::Key::Right: return ImGuiKey_RightArrow;
+        case platform::Key::Up: return ImGuiKey_UpArrow;
+        case platform::Key::Down: return ImGuiKey_DownArrow;
+        case platform::Key::PageUp: return ImGuiKey_PageUp;
+        case platform::Key::PageDown: return ImGuiKey_PageDown;
+        case platform::Key::Home: return ImGuiKey_Home;
+        case platform::Key::End: return ImGuiKey_End;
+        case platform::Key::Insert: return ImGuiKey_Insert;
+        case platform::Key::Delete: return ImGuiKey_Delete;
+        case platform::Key::Backspace: return ImGuiKey_Backspace;
+        case platform::Key::Space: return ImGuiKey_Space;
+        case platform::Key::Enter: return ImGuiKey_Enter;
+        case platform::Key::Escape: return ImGuiKey_Escape;
+        case platform::Key::LeftControl: return ImGuiKey_LeftCtrl;
+        case platform::Key::LeftShift: return ImGuiKey_LeftShift;
+        case platform::Key::LeftAlt: return ImGuiKey_LeftAlt;
+        case platform::Key::LeftSuper: return ImGuiKey_LeftSuper;
+        case platform::Key::RightControl: return ImGuiKey_RightCtrl;
+        case platform::Key::RightShift: return ImGuiKey_RightShift;
+        case platform::Key::RightAlt: return ImGuiKey_RightAlt;
+        case platform::Key::RightSuper: return ImGuiKey_RightSuper;
+        case platform::Key::Zero: return ImGuiKey_0;
+        case platform::Key::One: return ImGuiKey_1;
+        case platform::Key::Two: return ImGuiKey_2;
+        case platform::Key::Three: return ImGuiKey_3;
+        case platform::Key::Four: return ImGuiKey_4;
+        case platform::Key::Five: return ImGuiKey_5;
+        case platform::Key::Six: return ImGuiKey_6;
+        case platform::Key::Seven: return ImGuiKey_7;
+        case platform::Key::Eight: return ImGuiKey_8;
+        case platform::Key::Nine: return ImGuiKey_9;
+        case platform::Key::A: return ImGuiKey_A;
+        case platform::Key::B: return ImGuiKey_B;
+        case platform::Key::C: return ImGuiKey_C;
+        case platform::Key::D: return ImGuiKey_D;
+        case platform::Key::E: return ImGuiKey_E;
+        case platform::Key::F: return ImGuiKey_F;
+        case platform::Key::G: return ImGuiKey_G;
+        case platform::Key::H: return ImGuiKey_H;
+        case platform::Key::I: return ImGuiKey_I;
+        case platform::Key::J: return ImGuiKey_J;
+        case platform::Key::K: return ImGuiKey_K;
+        case platform::Key::L: return ImGuiKey_L;
+        case platform::Key::M: return ImGuiKey_M;
+        case platform::Key::N: return ImGuiKey_N;
+        case platform::Key::O: return ImGuiKey_O;
+        case platform::Key::P: return ImGuiKey_P;
+        case platform::Key::Q: return ImGuiKey_Q;
+        case platform::Key::R: return ImGuiKey_R;
+        case platform::Key::S: return ImGuiKey_S;
+        case platform::Key::T: return ImGuiKey_T;
+        case platform::Key::U: return ImGuiKey_U;
+        case platform::Key::V: return ImGuiKey_V;
+        case platform::Key::W: return ImGuiKey_W;
+        case platform::Key::X: return ImGuiKey_X;
+        case platform::Key::Y: return ImGuiKey_Y;
+        case platform::Key::Z: return ImGuiKey_Z;
+        case platform::Key::Apostrophe: return ImGuiKey_Apostrophe;
+        case platform::Key::Comma: return ImGuiKey_Comma;
+        case platform::Key::Minus: return ImGuiKey_Minus;
+        case platform::Key::Period: return ImGuiKey_Period;
+        case platform::Key::Slash: return ImGuiKey_Slash;
+        case platform::Key::Semicolon: return ImGuiKey_Semicolon;
+        case platform::Key::Equal: return ImGuiKey_Equal;
+        case platform::Key::LeftBracket: return ImGuiKey_LeftBracket;
+        case platform::Key::Backslash: return ImGuiKey_Backslash;
+        case platform::Key::RightBracket: return ImGuiKey_RightBracket;
+        case platform::Key::GraveAccent: return ImGuiKey_GraveAccent;
+        case platform::Key::CapsLock: return ImGuiKey_CapsLock;
+        case platform::Key::ScrollLock: return ImGuiKey_ScrollLock;
+        case platform::Key::NumLock: return ImGuiKey_NumLock;
+        case platform::Key::PrintScreen: return ImGuiKey_PrintScreen;
+        default: return ImGuiKey_None;
+    }
+}
 
+void eventHandler(platform::Event ev, platform::PlatformData *window) {
+    switch (ev.type) {
+        case platform::Event::MouseMove:
+            simgui_add_mouse_pos_event((float)ev.x, (float)ev.y);
+            break;
+
+        case platform::Event::MouseDown:
+            simgui_add_mouse_button_event(ev.button, true);
+            break;
+
+        case platform::Event::MouseUp:
+            simgui_add_mouse_button_event(ev.button, false);
+            break;
+
+        case platform::Event::KeyDown:
+            simgui_add_key_event(keyToImgui(ev.key), true);
+            break;
+
+        case platform::Event::KeyUp:
+            simgui_add_key_event(keyToImgui(ev.key), false);
+            break;
+    }
 }
 
 void drawHandler(platform::PlatformData *window) {
+    {
+        simgui_frame_desc_t desc = {};
+        desc.width = platform::getWidth(window);
+        desc.height = platform::getHeight(window);
+        desc.delta_time = 1.0f / 60.0f; // TODO
+        simgui_new_frame(&desc);
+    }
+
+    ImGui::ShowDemoWindow();
+
     {
         sg_pass pass = {};
         pass.swapchain = platform::sokolSwapchain(window);
@@ -228,7 +340,11 @@ void drawHandler(platform::PlatformData *window) {
         sg_begin_pass(pass);
     }
 
+    simgui_render();
+
     sg_end_pass();
+
+    sg_commit();
     platform::present(window);
 }
 
@@ -245,12 +361,19 @@ void* cplug_createGUI(void* userPlugin)
     desc.logger.func = slog_func;
     sg_setup(&desc);
 
+    {
+        simgui_desc_t desc = {};
+        simgui_setup(&desc);
+    }
+
     return gui;
 }
 
 void cplug_destroyGUI(void* userGUI)
 {
     PluginGui *gui       = (PluginGui*)userGUI;
+    simgui_shutdown();
+    sg_shutdown();
     platform::close(gui->window);
 }
 

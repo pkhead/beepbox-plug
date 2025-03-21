@@ -57,6 +57,79 @@ void platform::present(platform::PlatformData *platform) {
     platform->swapchain->Present(0, 0);
 }
 
+static inline void getMousePos(platform::Event &event, LPARAM lParam) {
+    event.x = GET_X_LPARAM(lParam);
+    event.y = GET_Y_LPARAM(lParam);
+}
+
+static platform::Key winKey(WPARAM k) {
+    if (k >= 'A' && k <= 'Z') {
+        return (platform::Key) ((int)(k - 'A') + (int)platform::Key::A);
+    }
+
+    if (k >= '0' && k <= '9') {
+        return (platform::Key) ((int)(k - '0') + (int)platform::Key::Zero);
+    }
+
+    switch (k) {
+        case VK_BACK:
+            return platform::Key::Backspace;
+        case VK_TAB:
+            return platform::Key::Tab;
+        case VK_RETURN:
+            return platform::Key::Enter;
+        case VK_LSHIFT:
+            return platform::Key::LeftShift;
+        case VK_LCONTROL:
+            return platform::Key::LeftControl;
+        case VK_LMENU:
+            return platform::Key::LeftAlt;
+        case VK_RSHIFT:
+            return platform::Key::RightShift;
+        case VK_RCONTROL:
+            return platform::Key::RightControl;
+        case VK_RMENU:
+            return platform::Key::RightAlt;
+        case VK_CAPITAL:
+            return platform::Key::CapsLock;
+        case VK_ESCAPE:
+            return platform::Key::Escape;
+        case VK_SPACE:
+            return platform::Key::Space;
+        case VK_PRIOR:
+            return platform::Key::PageUp;
+        case VK_NEXT:
+            return platform::Key::PageDown;
+        case VK_END:
+            return platform::Key::End;
+        case VK_HOME:
+            return platform::Key::Home;
+        case VK_LEFT:
+            return platform::Key::Left;
+        case VK_UP:
+            return platform::Key::Up;
+        case VK_RIGHT:
+            return platform::Key::Right;
+        case VK_DOWN:
+            return platform::Key::Down;
+        case VK_SNAPSHOT:
+            return platform::Key::PrintScreen;
+        case VK_DELETE:
+            return platform::Key::Delete;
+        case VK_LWIN:
+            return platform::Key::LeftSuper;
+        case VK_RWIN:
+            return platform::Key::RightSuper;
+
+        default:
+            return platform::Key::None;
+        
+        // VK_NUMPAD*, VK_MULTIPLY, VK_ADD, VK_SUBTRACT, VK_DECIMAL, VK_DIVIDE
+        // VK_F*
+        // VK_NUMLOCK, VK_SCROLL
+    }
+}
+
 LRESULT CALLBACK MyWinProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     // fprintf(stderr, "msg: %u wParam: %llu lParam: %lld\n", uMsg, wParam, lParam);
@@ -71,30 +144,60 @@ LRESULT CALLBACK MyWinProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     {
     case WM_MOUSEMOVE:
         event.type = platform::Event::MouseMove;
-        event.x = GET_X_LPARAM(lParam);
-        event.y = GET_Y_LPARAM(lParam);
+        getMousePos(event, lParam);
         platform->evCallback(event, platform);
         // if (gui->mouseDragging)
         //     RedrawWindow(hwnd, 0, 0, RDW_INVALIDATE);
         break;
+    
     case WM_LBUTTONDOWN:
         SetCapture(hwnd);
 
         event.type = platform::Event::MouseDown;
-        event.x = GET_X_LPARAM(lParam);
-        event.y = GET_Y_LPARAM(lParam);
+        getMousePos(event, lParam);
+        event.button = 0;
         platform->evCallback(event, platform);
-
         break;
+
     case WM_LBUTTONUP:
         ReleaseCapture();
         
-        event.type = platform::Event::MouseDown;
-        event.x = GET_X_LPARAM(lParam);
-        event.y = GET_Y_LPARAM(lParam);
+        event.type = platform::Event::MouseUp;
+        getMousePos(event, lParam);
+        event.button = 0;
         platform->evCallback(event, platform);
-
         break;
+
+    case WM_RBUTTONDOWN:
+        SetCapture(hwnd);
+
+        event.type = platform::Event::MouseDown;
+        getMousePos(event, lParam);
+        event.button = 1;
+        platform->evCallback(event, platform);
+        break;
+
+    case WM_RBUTTONUP:
+        ReleaseCapture();
+        
+        event.type = platform::Event::MouseUp;
+        getMousePos(event, lParam);
+        event.button = 1;
+        platform->evCallback(event, platform);
+        break;
+
+    case WM_KEYDOWN:
+        event.type = platform::Event::KeyDown;
+        event.key = winKey(wParam);
+        if (event.key != platform::Key::None) platform->evCallback(event, platform);
+        break;
+
+    case WM_KEYUP:
+        event.type = platform::Event::KeyUp;
+        event.key = winKey(wParam);
+        if (event.key != platform::Key::None) platform->evCallback(event, platform);
+        break;
+    
     case WM_TIMER:
         // if (tickGUI(gui))
         platform->drawCallback(platform);
