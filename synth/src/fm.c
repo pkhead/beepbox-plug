@@ -56,6 +56,14 @@ feedback types:
 //     return lerpf(sin_table[index], sin_table[index+1], t);
 // }
 
+typedef struct {
+    double mult;
+    double hz_offset;
+    double amplitude_sign;
+} fm_freq_data_t;
+
+static fm_freq_data_t frequency_data[FM_FREQ_COUNT];
+
 static double operator_amplitude_curve(double amplitude) {
     return (pow(16.0, amplitude) - 1.0) / 15.0;
 }
@@ -122,10 +130,10 @@ void fm_init(fm_inst_t *inst) {
     inst->amplitudes[2] = 0;
     inst->amplitudes[3] = 0;
 
-    inst->freq_ratios[0] = 1.f;
-    inst->freq_ratios[1] = 1.f;
-    inst->freq_ratios[2] = 1.f;
-    inst->freq_ratios[3] = 1.f;
+    inst->freq_ratios[0] = 4;
+    inst->freq_ratios[1] = 4;
+    inst->freq_ratios[2] = 4;
+    inst->freq_ratios[3] = 4;
     
     inst->feedback = 0;
 }
@@ -189,11 +197,14 @@ void fm_run(fm_inst_t *src_inst, float *out_samples, size_t frame_count, int sam
         if (!voice->active) continue;
 
         for (int op = 0; op < FM_OP_COUNT; op++) {
+            fm_freq_data_t *freq_data = &frequency_data[inst.freq_ratios[op]];
+
             int associated_carrier = algo_associated_carriers[inst.algorithm][op] - 1;
-            double voice_freq = key_to_hz_d(voice->key + carrier_intervals[associated_carrier]);
+            double voice_freq = key_to_hz_d(voice->key + carrier_intervals[associated_carrier]) + freq_data->hz_offset;
+            double freq_mult = freq_data->mult * freq_data->amplitude_sign;
 
             voice->op_states[op].phase = (fmod(voice->op_states[op].phase, 1.0) + 1000) * SINE_WAVE_LENGTH;
-            voice->op_states[op].phase_delta = (voice_freq * inst.freq_ratios[op] * sample_len) * SINE_WAVE_LENGTH;
+            voice->op_states[op].phase_delta = (voice_freq * freq_mult * sample_len) * SINE_WAVE_LENGTH;
             voice->op_states[op].expression = operator_amplitude_curve((double) inst.amplitudes[op]);
 
             if (op >= inst.carrier_count) {
@@ -262,6 +273,17 @@ void fm_run(fm_inst_t *src_inst, float *out_samples, size_t frame_count, int sam
     *src_inst = inst;
 }
 
+
+
+
+
+
+
+
+//////////////////
+//     DATA     //
+//////////////////
+
 inst_param_info_t fm_param_info[FM_PARAM_COUNT] = {
     {
         .type = PARAM_UINT8,
@@ -272,11 +294,12 @@ inst_param_info_t fm_param_info[FM_PARAM_COUNT] = {
     },
 
     {
-        .type = PARAM_DOUBLE,
+        .type = PARAM_UINT8,
         .name = "Operator 1 Frequency",
-        .min_value = 1,
-        .max_value = 20,
-        .default_value = 1
+        .min_value = 0,
+        .max_value = FM_FREQ_COUNT-1,
+        .default_value = 4,
+        .no_modulation = TRUE,
     },
     {
         .type = PARAM_DOUBLE,
@@ -287,11 +310,12 @@ inst_param_info_t fm_param_info[FM_PARAM_COUNT] = {
     },
 
     {
-        .type = PARAM_DOUBLE,
+        .type = PARAM_UINT8,
         .name = "Operator 2 Frequency",
-        .min_value = 1,
-        .max_value = 20,
-        .default_value = 1
+        .min_value = 0,
+        .max_value = FM_FREQ_COUNT-1,
+        .default_value = 4,
+        .no_modulation = TRUE,
     },
     {
         .type = PARAM_DOUBLE,
@@ -302,11 +326,12 @@ inst_param_info_t fm_param_info[FM_PARAM_COUNT] = {
     },
 
     {
-        .type = PARAM_DOUBLE,
+        .type = PARAM_UINT8,
         .name = "Operator 3 Frequency",
-        .min_value = 1,
-        .max_value = 20,
-        .default_value = 1
+        .min_value = 0,
+        .max_value = FM_FREQ_COUNT-1,
+        .default_value = 4,
+        .no_modulation = TRUE,
     },
     {
         .type = PARAM_DOUBLE,
@@ -317,11 +342,12 @@ inst_param_info_t fm_param_info[FM_PARAM_COUNT] = {
     },
 
     {
-        .type = PARAM_DOUBLE,
+        .type = PARAM_UINT8,
         .name = "Operator 4 Frequency",
-        .min_value = 1,
-        .max_value = 20,
-        .default_value = 1
+        .min_value = 0,
+        .max_value = FM_FREQ_COUNT-1,
+        .default_value = 4,
+        .no_modulation = TRUE
     },
     {
         .type = PARAM_DOUBLE,
@@ -360,4 +386,48 @@ size_t fm_param_addresses[FM_PARAM_COUNT] = {
     offsetof(fm_inst_t, amplitudes[3]),
     offsetof(fm_inst_t, feedback_type),
     offsetof(fm_inst_t, feedback),
+};
+
+static fm_freq_data_t frequency_data[FM_FREQ_COUNT] = {
+    { .mult = 0.125,    .hz_offset= 0.0,      .amplitude_sign = 1.0 },
+    { .mult= 0.25,      .hz_offset= 0.0,      .amplitude_sign= 1.0 },
+    { .mult= 0.5,       .hz_offset= 0.0,      .amplitude_sign= 1.0 },
+    { .mult= 0.75,      .hz_offset= 0.0,      .amplitude_sign= 1.0 },
+    { .mult= 1.0,       .hz_offset= 0.0,      .amplitude_sign= 1.0 },
+    { .mult= 1.0,       .hz_offset= 1.5,      .amplitude_sign= -1.0 },
+    { .mult= 2.0,       .hz_offset= 0.0,      .amplitude_sign= 1.0 },
+    { .mult= 2.0,       .hz_offset= -1.3,     .amplitude_sign= -1.0 },
+    { .mult= 3.0,       .hz_offset= 0.0,      .amplitude_sign= 1.0 },
+    { .mult= 3.5,       .hz_offset= -0.05,    .amplitude_sign= 1.0 },
+    { .mult= 4.0,       .hz_offset= 0.0,      .amplitude_sign= 1.0 },
+    { .mult= 4.0,       .hz_offset= -2.4,     .amplitude_sign= -1.0 },
+    { .mult= 5.0,       .hz_offset= 0.0,      .amplitude_sign= 1.0 },
+    { .mult= 6.0,       .hz_offset= 0.0,      .amplitude_sign= 1.0 },
+    { .mult= 7.0,       .hz_offset= 0.0,      .amplitude_sign= 1.0 },
+    { .mult= 8.0,       .hz_offset= 0.0,      .amplitude_sign= 1.0 },
+    { .mult= 9.0,       .hz_offset= 0.0,      .amplitude_sign= 1.0 },
+    { .mult= 10.0,      .hz_offset= 0.0,      .amplitude_sign= 1.0 },
+    { .mult= 11.0,      .hz_offset= 0.0,      .amplitude_sign= 1.0 },
+    { .mult= 12.0,      .hz_offset= 0.0,      .amplitude_sign= 1.0 },
+    { .mult= 13.0,      .hz_offset= 0.0,      .amplitude_sign= 1.0 },
+    { .mult= 14.0,      .hz_offset= 0.0,      .amplitude_sign= 1.0 },
+    { .mult= 15.0,      .hz_offset= 0.0,      .amplitude_sign= 1.0 },
+    //ultrabox
+    { .mult= 16.0,      .hz_offset= 0.0,      .amplitude_sign= 1.0 },
+    { .mult= 17.0,      .hz_offset= 0.0,      .amplitude_sign= 1.0 },
+    //ultrabox
+    { .mult= 18.0,      .hz_offset= 0.0,      .amplitude_sign= 1.0 },
+    { .mult= 19.0,      .hz_offset= 0.0,      .amplitude_sign= 1.0 },
+    //ultrabox
+    { .mult= 20.0,      .hz_offset= 0.0,      .amplitude_sign= 1.0 },
+    { .mult= 20.0,      .hz_offset= -5.0,     .amplitude_sign= -1.0 },
+    // dogebox (maybe another mod also adds this? I got it from dogebox)
+    { .mult= 25.0,      .hz_offset= 0.0,      .amplitude_sign= 1.0 },
+    { .mult= 50.0,      .hz_offset= 0.0,      .amplitude_sign= 1.0 },
+    { .mult= 75.0,      .hz_offset= 0.0,      .amplitude_sign= 1.0 },
+    { .mult= 100.0,     .hz_offset= 0.0,      .amplitude_sign= 1.0 },
+    //50 and 100 are from dogebox
+    //128 and 256 from slarmoo's box
+    { .mult= 128.0,     .hz_offset= 0.0,      .amplitude_sign= 1.0 },
+    { .mult= 250.0,     .hz_offset= 0.0,      .amplitude_sign= 1.0},
 };

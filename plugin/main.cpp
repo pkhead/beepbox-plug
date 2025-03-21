@@ -104,9 +104,15 @@ double cplug_getParameterValue(void* ptr, uint32_t index)
 {
     Plugin *plug = (Plugin*) ptr;
 
-    double v;
-    beepbox::inst_get_param_double(plug->synth, index, &v);
-    return v;
+    if (beepbox::inst_param_info(plug->instType)[index].type == beepbox::PARAM_DOUBLE) {
+        double v;
+        beepbox::inst_get_param_double(plug->synth, index, &v);
+        return v;
+    } else {
+        int v;
+        beepbox::inst_get_param_int(plug->synth, index, &v);
+        return (double) v;
+    }
 }
 
 double cplug_getDefaultParameterValue(void* ptr, uint32_t index)
@@ -207,7 +213,9 @@ uint32_t cplug_getParameterFlags(void* ptr, uint32_t index)
     if (info[index].type == beepbox::PARAM_INT || info[index].type == beepbox::PARAM_UINT8)
         flags |= CPLUG_FLAG_PARAMETER_IS_INTEGER;
 
-    flags |= CPLUG_FLAG_PARAMETER_IS_AUTOMATABLE;
+    if (!info[index].no_modulation)
+        flags |= CPLUG_FLAG_PARAMETER_IS_AUTOMATABLE;
+
     return flags;
 }
 
@@ -343,7 +351,7 @@ struct PluginGui
     platform::PlatformData *window;
 
     int algo;
-    float freq[4];
+    int freq[4];
     float vol[4];
     int fdbkType;
     float fdbk;
@@ -459,9 +467,47 @@ void drawHandler(platform::PlatformData *window) {
     };
 
     static const char *freqRatios[] = {
-        "1x", "~1x", "2x", "~2x",
-        "3x", "4x", "5x", "6x", "7x",
-        "8x", "9x", "11x", "13x", "16x", "20x"
+        "0.12×",
+        "0.25×",
+        "0.5×",
+        "0.75×",
+        "1×",
+        "~1×",
+        "2×",
+        "~2×",
+        "3×",
+        "3.5×",
+        "4×",
+        "~4×",
+        "5×",
+        "6×",
+        "7×",
+        "8×",
+        "9×",
+        "10×",
+        "11×",
+        "12×",
+        "13×",
+        "14×",
+        "15×",
+        //ultrabox
+        "16×",
+        "17×",
+        //ultrabox
+        "18×",
+        "19×",
+        //ultrabox
+        "20×",
+        "~20×",
+        // dogebox (maybe another mod also adds this? I got it from dogebox)
+        "25×",
+        "50×",
+        "75×",
+        "100×",
+        //50 and 100 are from dogebox
+        //128 and 256 from slarmoo's box
+        "128x",
+        "256x",
     };
 
     static const char *algoNames[] = {
@@ -494,13 +540,13 @@ void drawHandler(platform::PlatformData *window) {
         Plugin *plug = gui->plugin;
 
         gui->algo = (int)       cplug_getParameterValue(plug, FM_PARAM_ALGORITHM);
-        gui->freq[0] = (float)  cplug_getParameterValue(plug, FM_PARAM_FREQ1);
+        gui->freq[0] = (int)  cplug_getParameterValue(plug, FM_PARAM_FREQ1);
         gui->vol[0] = (float)   cplug_getParameterValue(plug, FM_PARAM_VOLUME1) * 15.f;
-        gui->freq[1] = (float)  cplug_getParameterValue(plug, FM_PARAM_FREQ2);
+        gui->freq[1] = (int)  cplug_getParameterValue(plug, FM_PARAM_FREQ2);
         gui->vol[1] = (float)   cplug_getParameterValue(plug, FM_PARAM_VOLUME2) * 15.f;
-        gui->freq[2] = (float)  cplug_getParameterValue(plug, FM_PARAM_FREQ3);
+        gui->freq[2] = (int)  cplug_getParameterValue(plug, FM_PARAM_FREQ3);
         gui->vol[2] = (float)   cplug_getParameterValue(plug, FM_PARAM_VOLUME3) * 15.f;
-        gui->freq[3] = (float)  cplug_getParameterValue(plug, FM_PARAM_FREQ4);
+        gui->freq[3] = (int)  cplug_getParameterValue(plug, FM_PARAM_FREQ4);
         gui->vol[3] = (float)   cplug_getParameterValue(plug, FM_PARAM_VOLUME4) * 15.f;
         gui->fdbkType = (int)   cplug_getParameterValue(plug, FM_PARAM_FEEDBACK_TYPE);
         gui->fdbk = (float)     cplug_getParameterValue(plug, FM_PARAM_FEEDBACK_VOLUME) * 15.f;
@@ -557,12 +603,16 @@ void drawHandler(platform::PlatformData *window) {
 
                     ImGui::SameLine();
                     ImGui::SetNextItemWidth(algoEndX - ImGui::GetCursorPosX() - ImGui::GetStyle().ItemSpacing.x);
-                    if (ImGui::BeginCombo("##freq", freqRatios[0], ImGuiComboFlags_HeightLargest)) {
-                        for (int i = 0; i < sizeof(freqRatios) / sizeof(*freqRatios); i++) {
-                            ImGui::Selectable(freqRatios[i]);
-                        }
-                        ImGui::EndCombo();
+                    //ImGui::Text("%i", gui->freq[op]);
+                    if (ImGui::Combo("##freq", &gui->freq[op], freqRatios, FM_FREQ_COUNT, ImGuiComboFlags_HeightLargest)) {
+                        sendParamEventFromMain(plug, CPLUG_EVENT_PARAM_CHANGE_UPDATE, FM_PARAM_FREQ1 + op * 2, gui->freq[op]);
                     }
+                    // if (ImGui::BeginCombo("##freq", freqRatios[gui->freq[op]], ImGuiComboFlags_HeightLargest)) {
+                    //     for (int i = 0; i < sizeof(freqRatios) / sizeof(*freqRatios); i++) {
+                    //         ImGui::Selectable(freqRatios[i]);
+                    //     }
+                    //     ImGui::EndCombo();
+                    // }
 
                     ImGui::SameLine();
                     ImGui::SetNextItemWidth(-FLT_MIN);

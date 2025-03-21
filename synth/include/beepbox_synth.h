@@ -37,6 +37,7 @@ typedef struct {
     inst_param_type_t type;
     const char *name;
 
+    uint8_t no_modulation;
     double min_value;
     double max_value;
     double default_value;

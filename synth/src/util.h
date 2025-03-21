@@ -6,6 +6,9 @@
 #define PI2 (2.0 * 3.14159265359)
 #define PI2f (float)(2.f * 3.14159265359f)
 
+#define FALSE 0
+#define TRUE 1
+
 // SINE_WAVE_LENGTH must be a power of 2!
 #define SINE_WAVE_LENGTH 256
 extern float sine_wave_f[SINE_WAVE_LENGTH];

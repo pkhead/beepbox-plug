@@ -2,7 +2,7 @@
 #define _fm_data_h_
 
 #define FM_PARAM_COUNT 11
-
+#define FM_FREQ_COUNT 35
 #define FM_PARAM_ALGORITHM          0
 #define FM_PARAM_FREQ1              1
 #define FM_PARAM_VOLUME1            2
