@@ -334,8 +334,8 @@ void sendParamEventFromMain(Plugin *plugin, uint32_t type, uint32_t paramIdx, do
 
 #define GUI_DEFAULT_WIDTH 240
 #define GUI_DEFAULT_HEIGHT 360
-#define GUI_RATIO_X 16
-#define GUI_RATIO_Y 9
+#define GUI_RATIO_X 2
+#define GUI_RATIO_Y 3
 
 struct PluginGui
 {
@@ -493,45 +493,87 @@ void drawHandler(platform::PlatformData *window) {
         PluginGui *gui = (PluginGui*) platform::getUserdata(window);
         Plugin *plug = gui->plugin;
 
+        gui->algo = (int)       cplug_getParameterValue(plug, FM_PARAM_ALGORITHM);
+        gui->freq[0] = (float)  cplug_getParameterValue(plug, FM_PARAM_FREQ1);
+        gui->vol[0] = (float)   cplug_getParameterValue(plug, FM_PARAM_VOLUME1) * 15.f;
+        gui->freq[1] = (float)  cplug_getParameterValue(plug, FM_PARAM_FREQ2);
+        gui->vol[1] = (float)   cplug_getParameterValue(plug, FM_PARAM_VOLUME2) * 15.f;
+        gui->freq[2] = (float)  cplug_getParameterValue(plug, FM_PARAM_FREQ3);
+        gui->vol[2] = (float)   cplug_getParameterValue(plug, FM_PARAM_VOLUME3) * 15.f;
+        gui->freq[3] = (float)  cplug_getParameterValue(plug, FM_PARAM_FREQ4);
+        gui->vol[3] = (float)   cplug_getParameterValue(plug, FM_PARAM_VOLUME4) * 15.f;
+        gui->fdbkType = (int)   cplug_getParameterValue(plug, FM_PARAM_FEEDBACK_TYPE);
+        gui->fdbk = (float)     cplug_getParameterValue(plug, FM_PARAM_FEEDBACK_VOLUME) * 15.f;
+
+        static bool showAbout = false;
+
+        if (ImGui::BeginMainMenuBar()) {
+            if (ImGui::BeginMenu("Options")) {
+                ImGui::MenuItem("Advanced Frequency");
+                ImGui::EndMenu();
+            }
+
+            if (ImGui::BeginMenu("Presets")) {
+                ImGui::MenuItem("Test");
+                ImGui::EndMenu();
+            }
+
+            if (ImGui::MenuItem("About")) {
+                showAbout = !showAbout;
+            }
+
+            ImGui::EndMainMenuBar();
+        }
+
         ImGuiViewport *viewport = ImGui::GetMainViewport();
-        ImGui::SetNextWindowPos(ImVec2());
-        ImGui::SetNextWindowSize(viewport->Size);
+        ImGui::SetNextWindowPos(viewport->WorkPos);
+        ImGui::SetNextWindowSize(viewport->WorkSize);
 
-        if (ImGui::Begin("fm", NULL, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar)) {
-            // algorithm
-            ImGui::AlignTextToFramePadding();
-            ImGui::Text("Algorithm");
-
-            ImGui::SameLine();
-            float algoEndX = ImGui::GetCursorPosX();
-            ImGui::SetNextItemWidth(-FLT_MIN);
-            if (ImGui::Combo("##algo", &gui->algo, algoNames, 13)) {
-                sendParamEventFromMain(plug, CPLUG_EVENT_PARAM_CHANGE_UPDATE, FM_PARAM_ALGORITHM, (double)gui->algo);
-            }
-
-            for (int op = 0; op < 4; op++) {
+        ImGuiWindowFlags winFlags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar;
+        if (showAbout) {
+            ImGui::Begin("about", NULL, winFlags);
+            ImGui::Text("emulation of beepbox instruments");
+            ImGui::Text("author: pkhead");
+            ImGui::Text("original: john nesky (shaktool)");
+            ImGui::Text("libraries: CPLUG, Dear ImGui");
+            ImGui::End();
+        } else {
+            if (ImGui::Begin("fm", NULL, winFlags)) {
+                // algorithm
                 ImGui::AlignTextToFramePadding();
-                ImGui::Text("%s", name[op]);
-                ImGui::PushID(op);
+                ImGui::Text("Algorithm");
 
                 ImGui::SameLine();
-                ImGui::SetNextItemWidth(algoEndX - ImGui::GetCursorPosX() - ImGui::GetStyle().ItemSpacing.x);
-                if (ImGui::BeginCombo("##freq", freqRatios[0], ImGuiComboFlags_HeightLargest)) {
-                    for (int i = 0; i < sizeof(freqRatios) / sizeof(*freqRatios); i++) {
-                        ImGui::Selectable(freqRatios[i]);
-                    }
-                    ImGui::EndCombo();
-                }
-
-                ImGui::SameLine();
+                float algoEndX = ImGui::GetCursorPosX();
                 ImGui::SetNextItemWidth(-FLT_MIN);
-                if (ImGui::SliderFloat("##vol", &gui->vol[op], 0.0f, 15.0f, "%.0f")) {
-                    sendParamEventFromMain(plug, CPLUG_EVENT_PARAM_CHANGE_UPDATE, FM_PARAM_VOLUME1 + op * 2, (double)gui->vol[op] / 15.f);
+                if (ImGui::Combo("##algo", &gui->algo, algoNames, 13)) {
+                    sendParamEventFromMain(plug, CPLUG_EVENT_PARAM_CHANGE_UPDATE, FM_PARAM_ALGORITHM, (double)gui->algo);
                 }
-                ImGui::PopID();
-            }
 
-        } ImGui::End();
+                for (int op = 0; op < 4; op++) {
+                    ImGui::AlignTextToFramePadding();
+                    ImGui::Text("%s", name[op]);
+                    ImGui::PushID(op);
+
+                    ImGui::SameLine();
+                    ImGui::SetNextItemWidth(algoEndX - ImGui::GetCursorPosX() - ImGui::GetStyle().ItemSpacing.x);
+                    if (ImGui::BeginCombo("##freq", freqRatios[0], ImGuiComboFlags_HeightLargest)) {
+                        for (int i = 0; i < sizeof(freqRatios) / sizeof(*freqRatios); i++) {
+                            ImGui::Selectable(freqRatios[i]);
+                        }
+                        ImGui::EndCombo();
+                    }
+
+                    ImGui::SameLine();
+                    ImGui::SetNextItemWidth(-FLT_MIN);
+                    if (ImGui::SliderFloat("##vol", &gui->vol[op], 0.0f, 15.0f, "%.0f")) {
+                        sendParamEventFromMain(plug, CPLUG_EVENT_PARAM_CHANGE_UPDATE, FM_PARAM_VOLUME1 + op * 2, (double)gui->vol[op] / 15.f);
+                    }
+                    ImGui::PopID();
+                }
+
+            } ImGui::End();
+        }
     }
 
     {
@@ -554,18 +596,6 @@ void* cplug_createGUI(void* userPlugin)
 {
     Plugin *plugin = (Plugin*)userPlugin;
     PluginGui *gui    = new PluginGui;
-
-    gui->algo = (int)       cplug_getParameterValue(plugin, FM_PARAM_ALGORITHM);
-    gui->freq[0] = (float)  cplug_getParameterValue(plugin, FM_PARAM_FREQ1);
-    gui->vol[0] = (float)   cplug_getParameterValue(plugin, FM_PARAM_VOLUME1) * 15.f;
-    gui->freq[1] = (float)  cplug_getParameterValue(plugin, FM_PARAM_FREQ2);
-    gui->vol[1] = (float)   cplug_getParameterValue(plugin, FM_PARAM_VOLUME2) * 15.f;
-    gui->freq[2] = (float)  cplug_getParameterValue(plugin, FM_PARAM_FREQ3);
-    gui->vol[2] = (float)   cplug_getParameterValue(plugin, FM_PARAM_VOLUME3) * 15.f;
-    gui->freq[3] = (float)  cplug_getParameterValue(plugin, FM_PARAM_FREQ4);
-    gui->vol[3] = (float)   cplug_getParameterValue(plugin, FM_PARAM_VOLUME4) * 15.f;
-    gui->fdbkType = (int)   cplug_getParameterValue(plugin, FM_PARAM_FEEDBACK_TYPE);
-    gui->fdbk = (float)     cplug_getParameterValue(plugin, FM_PARAM_FEEDBACK_VOLUME) * 15.f;
 
     gui->plugin = plugin;
     gui->window = platform::init(GUI_DEFAULT_WIDTH, GUI_DEFAULT_HEIGHT, CPLUG_PLUGIN_NAME, eventHandler, drawHandler);
