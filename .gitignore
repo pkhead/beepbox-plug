@@ -1,6 +1,7 @@
 /.cache
 /build
 
-/build.cmd
+/.vscode
+/build.ps1
 
 .DS_Store
