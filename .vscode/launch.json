@@ -1,0 +1,18 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        // {
+        //     "name": "Debug C++",
+        //     "type": "lldb",
+        //     "program": "build/beepbox_standalone.exe",
+        //     "request": "launch"
+        // }
+        {
+            "name": "Debug C++",
+            "type": "cppvsdbg",
+            "program": "build/beepbox_standalone.exe",
+            "request": "launch",
+            "cwd":"${workspaceRoot}"
+        }
+    ]
+}

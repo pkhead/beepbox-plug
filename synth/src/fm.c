@@ -206,8 +206,6 @@ void fm_run(fm_inst_t *src_inst, float *out_samples, size_t frame_count, int sam
 
     float feedback_amplitude = 0.3f * SINE_WAVE_LENGTH * ((float)inst.feedback / 15.f);
 
-    const float modulator_expression_mult = SINE_WAVE_LENGTH * 1.5f;
-
     for (size_t frame = 0; frame < frame_count; frame++) {
         float final_sample = 0.f;
 
@@ -216,7 +214,7 @@ void fm_run(fm_inst_t *src_inst, float *out_samples, size_t frame_count, int sam
             if (!voice->active) continue;
 
             // calculate operator 1
-            float sample = algo_func(voice, feedback_amplitude);
+            float sample = (float) algo_func(voice, feedback_amplitude);
             // voice->op_states[1].output = fm_calc_op(
             //     voice->op_states[1].phase,
             //     voice->op_states[1].expression

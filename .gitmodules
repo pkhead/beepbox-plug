@@ -1,6 +1,9 @@
-[submodule "imgui_juce"]
-	path = imgui_juce
-	url = https://github.com/Krasjet/imgui_juce
 [submodule "imgui"]
 	path = imgui
 	url = https://github.com/ocornut/imgui
+[submodule "CPLUG"]
+	path = CPLUG
+	url = https://github.com/Tremus/CPLUG
+[submodule "sokol"]
+	path = sokol
+	url = https://github.com/floooh/sokol/
