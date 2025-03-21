@@ -1,4 +1,5 @@
 #include <cplug.h>
+#include <beepbox_synth.h>
 
 #ifdef CPLUG_WANT_GUI
 #define SOKOL_IMGUI_NO_SOKOL_APP
@@ -30,7 +31,9 @@
 static_assert((int)CPLUG_NUM_PARAMS == kParameterCount, "Must be equal");
 
 struct Plugin {
-    float phase;
+    int sampleRate;
+    float* processBlock;
+    beepbox::inst_t *synth;
 };
 
 void cplug_libraryLoad(){};
@@ -38,12 +41,19 @@ void cplug_libraryUnload(){};
 
 void* cplug_createPlugin() {
     Plugin *plug = new Plugin;
-    plug->phase = 0.f;
+    plug->sampleRate = 0;
+    plug->processBlock = nullptr;
+    plug->synth = nullptr;
+
     return plug;
 }
 
 void cplug_destroyPlugin(void *ptr) {
     Plugin *plug = (Plugin*)ptr;
+
+    if (plug->processBlock) delete[] plug->processBlock;
+    if (plug->synth) beepbox::inst_destroy(plug->synth);
+    
     delete plug;
 }
 
@@ -144,14 +154,66 @@ uint32_t cplug_getTailInSamples(void* ptr) { return 0; }
 
 void cplug_setSampleRateAndBlockSize(void* ptr, double sampleRate, uint32_t maxBlockSize)
 {
-    // MyPlugin* plugin      = (MyPlugin*)ptr;
-    // plugin->sampleRate    = (float)sampleRate;
-    // plugin->maxBufferSize = maxBlockSize;
+    Plugin *plugin = (Plugin*) ptr;
+    plugin->sampleRate = (int) sampleRate;
+    plugin->processBlock = new float[maxBlockSize * 2];
+    plugin->synth = beepbox::inst_new(beepbox::INSTRUMENT_FM, (int)plugin->sampleRate, 2);
 }
 
 void cplug_process(void* ptr, CplugProcessContext* ctx)
 {
     DISABLE_DENORMALS
+
+    Plugin *plug = (Plugin*) ptr;
+    CPLUG_LOG_ASSERT(plug->processBlock != nullptr);
+    CPLUG_LOG_ASSERT(plug->synth != nullptr);
+     
+    CplugEvent event;
+    uint32_t frame = 0;
+    while (ctx->dequeueEvent(ctx, &event, frame)) {
+        switch (event.type) {
+            case CPLUG_EVENT_MIDI: {
+                constexpr uint8_t MIDI_NOTE_OFF         = 0x80;
+                constexpr uint8_t MIDI_NOTE_ON          = 0x90;
+                //static const uint8_t MIDI_NOTE_PITCH_WHEEL = 0xe0;
+
+                if ((event.midi.status & 0xf0) == MIDI_NOTE_ON)
+                {
+                    int note = event.midi.data1;
+                    int velocity = event.midi.data2;
+                    beepbox::inst_midi_on(plug->synth, note, velocity);
+                }
+                if ((event.midi.status & 0xf0) == MIDI_NOTE_OFF)
+                {
+                    int note = event.midi.data1;
+                    int velocity = event.midi.data2;
+                    beepbox::inst_midi_off(plug->synth, note, velocity);
+                }
+                
+                break;
+            }
+
+            case CPLUG_EVENT_PROCESS_AUDIO: {
+                float **output = ctx->getAudioOutput(ctx, 0);
+                CPLUG_LOG_ASSERT(output != NULL)
+                CPLUG_LOG_ASSERT(output[0] != NULL);
+                CPLUG_LOG_ASSERT(output[1] != NULL);
+
+                uint32_t blockSize = event.processAudio.endFrame - frame;
+                beepbox::inst_run(plug->synth, plug->processBlock, (size_t)blockSize);
+
+                int j = 0;
+                for (uint32_t i = 0; i < blockSize; i++) {
+                    output[0][frame+i] = plug->processBlock[j++];
+                    output[1][frame+i] = plug->processBlock[j++];
+                }
+
+                frame = event.processAudio.endFrame;
+
+                break;
+            }
+        }
+    }
     
     ENABLE_DENORMALS
 }
@@ -179,44 +241,6 @@ struct PluginGui
     Plugin *plugin;
     platform::PlatformData *window;
 };
-
-static void drawGUI(PluginGui *gui)
-{
-    // my_assert(gui->width > 0);
-    // my_assert(gui->height > 0);
-    // drawRect(gui, 0, gui->width, 0, gui->height, 0xC0C0C0, 0xC0C0C0);
-    // drawRect(gui, 10, 40, 10, 40, 0x000000, 0xC0C0C0);
-
-    // double paramFloat = gui->plugin->paramValuesMain[kParameterFloat];
-    // paramFloat        = cplug_normaliseParameterValue(gui->plugin, kParameterFloat, paramFloat);
-
-    // drawRect(gui, 10, 40, 10 + 30 * (1.0 - paramFloat), 40, 0x000000, 0x000000);
-}
-
-// bool tickGUI(PluginGui *gui)
-// {
-//     // FLOAT color[4] = {1.f, 0.f, 0.f, 1.f};
-//     // gui->devcon->ClearRenderTargetView(gui->backbuffer, color);
-//     // gui->swapchain->Present(0, 0);
-
-//     {
-//         sg_pass pass = {};
-//         pass.swapchain.d3d11.render_view = gui->backbuffer;
-//         pass.swapchain.width = gui->width;
-//         pass.swapchain.height = gui->height;
-//         pass.swapchain.color_format = SG_PIXELFORMAT_RGBA8UI;
-//         pass.swapchain.depth_format = SG_PIXELFORMAT_NONE;
-//         pass.swapchain.sample_count = 1;
-//         pass.action.colors[0].load_action = SG_LOADACTION_CLEAR;
-//         pass.action.colors[0].clear_value = {1.0f, 0.0f, 0.0f, 1.0f};
-//         sg_begin_pass(&pass);
-//     }
-    
-//     sg_end_pass();
-//     gui->swapchain->Present(0, 0);
-
-//     return false;
-// }
 
 ImGuiKey keyToImgui(platform::Key key) {
     switch (key) {
