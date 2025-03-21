@@ -2,7 +2,7 @@
 #include "util.h"
 
 float sine_wave_f[SINE_WAVE_LENGTH];
-float sine_wave_d[SINE_WAVE_LENGTH];
+double sine_wave_d[SINE_WAVE_LENGTH];
 static int need_init_wavetables = 1;
 
 void init_wavetables() {

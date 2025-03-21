@@ -14,6 +14,8 @@ namespace beepbox {
 extern "C" {
 #endif
 
+#include "../src/fm_data.h"
+
 typedef enum {
     INSTRUMENT_CHIP,
     INSTRUMENT_FM,
@@ -28,30 +30,35 @@ typedef enum {
 typedef enum {
     PARAM_UINT8,
     PARAM_INT,
-    PARAM_FLOAT
+    PARAM_DOUBLE
 } inst_param_type_t;
 
 typedef struct {
     inst_param_type_t type;
     const char *name;
 
-    float min_value;
-    float max_value;
-    float default_value;
+    double min_value;
+    double max_value;
+    double default_value;
 } inst_param_info_t;
 
-typedef void inst_t;
+typedef struct inst_t inst_t;
 
-inst_t* inst_new(inst_type_t inst_type, int sample_rate, int channel_count);
+const int inst_param_count(inst_type_t type);
+const inst_param_info_t* inst_param_info(inst_type_t type);
+
+inst_t* inst_new(inst_type_t inst_type);
 void inst_destroy(inst_t* inst);
 
-const inst_param_info_t* inst_list_params(const inst_t* inst, int *count);
+inst_type_t inst_type(inst_t *inst);
+
+void inst_set_sample_rate(inst_t *inst, int sample_rate);
 
 int inst_set_param_int(inst_t* inst, int index, int value);
-int inst_set_param_float(inst_t* inst, int index, float value);
+int inst_set_param_double(inst_t* inst, int index, double value);
 
 int inst_get_param_int(inst_t* inst, int index, int *value);
-float inst_get_param_float(inst_t* inst, int index, float *value);
+int inst_get_param_double(inst_t* inst, int index, double *value);
 
 void inst_midi_on(inst_t *inst, int key, int velocity);
 void inst_midi_off(inst_t *inst, int key, int velocity);

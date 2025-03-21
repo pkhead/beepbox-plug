@@ -3,16 +3,34 @@
 #include <stdlib.h>
 #include "public.h"
 #include "fm.h"
-#include "inst_info.h"
 #include "util.h"
 
-inst_t* inst_new(inst_type_t inst_type, int sample_rate, int channel_count) {
+const int inst_param_count(inst_type_t type) {
+    switch (type) {
+        case INSTRUMENT_FM:
+            return FM_PARAM_COUNT;
+
+        default:
+            return 0;
+    }
+}
+
+const inst_param_info_t* inst_param_info(inst_type_t type) {
+    switch (type) {
+        case INSTRUMENT_FM:
+            return fm_param_info;
+
+        default:
+            return NULL;
+    }
+}
+
+inst_t* inst_new(inst_type_t inst_type) {
     init_wavetables();
 
     inst_t *inst = malloc(sizeof(inst_t));
     inst->type = inst_type;
-    inst->sample_rate = sample_rate;
-    inst->channel_count = channel_count;
+    inst->sample_rate = 0;
 
     switch (inst_type) {
         case INSTRUMENT_FM:
@@ -31,15 +49,8 @@ void inst_destroy(inst_t* inst) {
     free(inst);
 }
 
-const inst_param_info_t* inst_list_params(const inst_t* inst, int *count) {
-    switch (inst->type) {
-        case INSTRUMENT_FM:
-            *count = FM_PARAM_COUNT;
-            return fm_param_info;
-
-        default:
-            return NULL;
-    }
+void inst_set_sample_rate(inst_t *inst, int sample_rate) {
+    inst->sample_rate = sample_rate;
 }
 
 static int param_helper(inst_t *inst, int index, void **addr, inst_param_info_t *info) {
@@ -66,7 +77,7 @@ int inst_set_param_int(inst_t* inst, int index, int value) {
 
     int val_clamped = value;
     if (info.min_value != info.max_value) {
-        val_clamped = (int)clampf((float)value, info.min_value, info.max_value);
+        val_clamped = (int)clampd((double)value, info.min_value, info.max_value);
     }
     
     switch (info.type) {
@@ -78,15 +89,15 @@ int inst_set_param_int(inst_t* inst, int index, int value) {
             *((int*)addr) = clampi(val_clamped, INT_MIN, INT_MAX);
             break;
 
-        case PARAM_FLOAT:
-            *((float*)addr) = (float)val_clamped;
+        case PARAM_DOUBLE:
+            *((double*)addr) = (double)val_clamped;
             break;
     }
 
     return 0;
 }
 
-int inst_set_param_float(inst_t* inst, int index, float value) {
+int inst_set_param_double(inst_t* inst, int index, double value) {
     void *addr;
     inst_param_info_t info;
 
@@ -95,7 +106,7 @@ int inst_set_param_float(inst_t* inst, int index, float value) {
 
     float val_clamped = value;
     if (info.min_value != info.max_value) {
-        val_clamped = clampf(value, info.min_value, info.max_value);
+        val_clamped = clampd(value, info.min_value, info.max_value);
     }
     
     switch (info.type) {
@@ -103,8 +114,8 @@ int inst_set_param_float(inst_t* inst, int index, float value) {
         case PARAM_INT:
             return 1;
 
-        case PARAM_FLOAT:
-            *((float*)addr) = val_clamped;
+        case PARAM_DOUBLE:
+            *((double*)addr) = val_clamped;
             break;
     }
 
@@ -127,14 +138,14 @@ int inst_get_param_int(inst_t* inst, int index, int *value) {
             *value = *((int*)addr);
             break;
 
-        case PARAM_FLOAT:
+        case PARAM_DOUBLE:
             return 1;
     }
 
     return 0;
 }
 
-float inst_get_param_float(inst_t* inst, int index, float *value) {
+int inst_get_param_double(inst_t* inst, int index, double *value) {
     void *addr;
     inst_param_info_t info;
 
@@ -143,15 +154,15 @@ float inst_get_param_float(inst_t* inst, int index, float *value) {
 
     switch (info.type) {
         case PARAM_UINT8:
-            *value = (float) *((uint8_t*)addr);
+            *value = (double) *((uint8_t*)addr);
             break;
 
         case PARAM_INT:
-            *value = (float) *((int*)addr);
+            *value = (double) *((int*)addr);
             break;
 
-        case PARAM_FLOAT:
-            *value = *((float*)addr);
+        case PARAM_DOUBLE:
+            *value = *((double*)addr);
             break;
     }
 
@@ -181,7 +192,7 @@ void inst_midi_off(inst_t *inst, int key, int velocity) {
 void inst_run(inst_t* inst, float *out_samples, size_t frame_count) {
     switch (inst->type) {
         case INSTRUMENT_FM:
-            fm_run(&inst->fm, out_samples, frame_count, inst->sample_rate, inst->channel_count);
+            fm_run(&inst->fm, out_samples, frame_count, inst->sample_rate);
             break;
 
         default:

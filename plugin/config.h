@@ -31,22 +31,6 @@ static const unsigned kAudioUnitProperty_UserPlugin = 'plug';
 #define CPLUG_CLAP_DESCRIPTION "Emulation of BeepBox's synth"
 #define CPLUG_CLAP_FEATURES CLAP_PLUGIN_FEATURE_INSTRUMENT, CLAP_PLUGIN_FEATURE_STEREO
 
-// Examples of using common parameter types
-enum Parameters
-{
-    kParameterAlgorithm,
-    kParameterOp1Freq,
-    kParameterOp1Vol,
-    kParameterOp2Freq,
-    kParameterOp2Vol,
-    kParameterOp3Freq,
-    kParameterOp3Vol,
-    kParameterOp4Freq,
-    kParameterOp4Vol,
-    
-    kParameterCount
-};
-
-#define CPLUG_NUM_PARAMS 9
+#define CPLUG_NUM_PARAMS 11
 
 #endif // PLUGIN_CONFIG_H

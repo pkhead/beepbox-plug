@@ -3,8 +3,9 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include "inst_info.h"
+#include "../include/beepbox_synth.h"
 #include "util.h"
+#include "fm_data.h"
 
 #define FM_MAX_VOICES 8
 #define FM_OP_COUNT 4
@@ -30,11 +31,11 @@ typedef struct {
 
 typedef struct {
     uint8_t algorithm;
-    float freq_ratios[FM_OP_COUNT];
-    float amplitudes[FM_OP_COUNT];
+    double freq_ratios[FM_OP_COUNT];
+    double amplitudes[FM_OP_COUNT];
 
     uint8_t feedback_type;
-    uint8_t feedback;
+    double feedback;
 
     int carrier_count;
     fm_voice_t voices[FM_MAX_VOICES];
@@ -50,9 +51,8 @@ static inline double fm_calc_op(const double phase_mix, const double expression)
 void fm_init(fm_inst_t *inst);
 int fm_midi_on(fm_inst_t *inst, int key, int velocity);
 void fm_midi_off(fm_inst_t *inst, int key, int velocity);
-void fm_run(fm_inst_t *src_inst, float *out_samples, size_t frame_count, int sample_rate, int channel_count);
+void fm_run(fm_inst_t *src_inst, float *out_samples, size_t frame_count, int sample_rate);
 
-#define FM_PARAM_COUNT 11
 extern inst_param_info_t fm_param_info[FM_PARAM_COUNT];
 extern size_t fm_param_addresses[FM_PARAM_COUNT];
 

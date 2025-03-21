@@ -28,12 +28,18 @@
 #define ENABLE_DENORMALS fesetenv(&_fenv);
 #endif
 
-static_assert((int)CPLUG_NUM_PARAMS == kParameterCount, "Must be equal");
+static_assert((int)CPLUG_NUM_PARAMS == FM_PARAM_COUNT, "Must be equal");
 
 struct Plugin {
     int sampleRate;
     float* processBlock;
+
+    beepbox::inst_type_t instType;
     beepbox::inst_t *synth;
+
+    cplug_atomic_i32 mainToAudioHead;
+    cplug_atomic_i32 mainToAudioTail;
+    CplugEvent       mainToAudioQueue[CPLUG_EVENT_QUEUE_SIZE];
 };
 
 void cplug_libraryLoad(){};
@@ -41,9 +47,12 @@ void cplug_libraryUnload(){};
 
 void* cplug_createPlugin() {
     Plugin *plug = new Plugin;
+    memset(plug, 0, sizeof(Plugin));
+
+    plug->instType = beepbox::INSTRUMENT_FM;
     plug->sampleRate = 0;
     plug->processBlock = nullptr;
-    plug->synth = nullptr;
+    plug->synth = beepbox::inst_new(plug->instType);
 
     return plug;
 }
@@ -52,7 +61,7 @@ void cplug_destroyPlugin(void *ptr) {
     Plugin *plug = (Plugin*)ptr;
 
     if (plug->processBlock) delete[] plug->processBlock;
-    if (plug->synth) beepbox::inst_destroy(plug->synth);
+    beepbox::inst_destroy(plug->synth);
     
     delete plug;
 }
@@ -87,66 +96,119 @@ const char* cplug_getOutputBusName(void* ptr, uint32_t idx)
 
 const char* cplug_getParameterName(void* ptr, uint32_t index)
 {
-    static const char* param_names[] = {
-        "Algorithm",
-        "Operator 1 Freq.",
-        "Operator 1 Vol.",
-        "Operator 2 Freq.",
-        "Operator 2 Vol.",
-        "Operator 3 Freq.",
-        "Operator 3 Vol.",
-        "Operator 4 Freq.",
-        "Operator 4 Vol.",
-    };
-
-    static_assert((sizeof(param_names) / sizeof(param_names[0])) == kParameterCount, "Invalid length");
-    return param_names[index];
+    Plugin *plug = (Plugin*)ptr;
+    return beepbox::inst_param_info(plug->instType)[index].name;
 }
 
 double cplug_getParameterValue(void* ptr, uint32_t index)
 {
-    return 0.0;
+    Plugin *plug = (Plugin*) ptr;
+
+    double v;
+    beepbox::inst_get_param_double(plug->synth, index, &v);
+    return v;
 }
 
 double cplug_getDefaultParameterValue(void* ptr, uint32_t index)
 {
-    return 0.0;
+    Plugin *plug = (Plugin*) ptr;
+
+    if (index < beepbox::inst_param_count(plug->instType)) return 0.0;
+
+    const beepbox::inst_param_info_t *info = beepbox::inst_param_info(plug->instType);
+    return (double) info[index].default_value;
 }
 
 void cplug_setParameterValue(void* ptr, uint32_t index, double value)
 {
-    return;
+    Plugin *plug = (Plugin*) ptr;
+
+    if (beepbox::inst_param_info(plug->instType)[index].type == beepbox::PARAM_DOUBLE) {
+        beepbox::inst_set_param_double(plug->synth, index, value);
+    } else {
+        beepbox::inst_set_param_int(plug->synth, index, (int)value);
+    }
 }
 
 double cplug_denormaliseParameterValue(void* ptr, uint32_t index, double normalised)
 {
-    return normalised;
+    Plugin *plug = (Plugin*) ptr;
+    auto &info = beepbox::inst_param_info(plug->instType)[index];
+
+    double denormalized = normalised * (info.max_value - info.min_value) + info.min_value;
+
+    if (denormalized < info.min_value)
+        denormalized = info.min_value;
+    if (denormalized > info.max_value)
+        denormalized = info.max_value;
+
+    return denormalized;
 }
 
 double cplug_normaliseParameterValue(void* ptr, uint32_t index, double denormalised)
 {
-    return denormalised;
+    Plugin *plug = (Plugin*) ptr;
+    auto &info = beepbox::inst_param_info(plug->instType)[index];
+
+    double normalized = (denormalised - info.min_value) / (info.max_value - info.min_value);
+    assert(normalized == normalized); // inf/nan check
+
+    if (normalized < 0.0)
+        normalized = 0.0;
+    if (normalized > 1.0)
+        normalized = 1.0;
+    
+    return normalized;
 }
 
 double cplug_parameterStringToValue(void* ptr, uint32_t index, const char* str)
 {
-    return 0.0;
+    Plugin *plug = (Plugin*) ptr;
+    double value;
+    int pType = beepbox::inst_param_info(plug->instType)[index].type;
+
+    if (pType == beepbox::PARAM_INT || pType == beepbox::PARAM_UINT8)
+        value = (double)atoi(str);
+    else
+        value = atof(str);
+
+    return value;
 }
 
 void cplug_parameterValueToString(void* ptr, uint32_t index, char* buf, size_t bufsize, double value)
 {
-    
+    Plugin *plug = (Plugin*) ptr;
+    int pType = beepbox::inst_param_info(plug->instType)[index].type;
+
+    if (pType == beepbox::PARAM_INT || pType == beepbox::PARAM_UINT8) {
+        snprintf(buf, bufsize, "%d", (int)value);
+    } else {
+        snprintf(buf, bufsize, "%.2f", value);
+    }
 }
 
 void cplug_getParameterRange(void* ptr, uint32_t index, double* min, double* max)
 {
-    *min = 0.0;
-    *max = 1.0;
+    Plugin *plug = (Plugin*) ptr;
+
+    if (index < beepbox::inst_param_count(plug->instType)) return;
+
+    const beepbox::inst_param_info_t *info = beepbox::inst_param_info(plug->instType);
+    *min = info[index].min_value;
+    *max = info[index].max_value;
 }
 
 uint32_t cplug_getParameterFlags(void* ptr, uint32_t index)
 {
-    return 0;
+    Plugin *plug = (Plugin*) ptr;
+    const beepbox::inst_param_info_t *info = beepbox::inst_param_info(plug->instType);
+
+    uint32_t flags = 0;
+    if (info[index].type == beepbox::PARAM_INT || info[index].type == beepbox::PARAM_UINT8)
+        flags |= CPLUG_FLAG_PARAMETER_IS_INTEGER;
+
+    flags |= CPLUG_FLAG_PARAMETER_IS_AUTOMATABLE;
+    return flags;
 }
 
 uint32_t cplug_getLatencyInSamples(void* ptr) { return 0; }
@@ -157,7 +219,7 @@ void cplug_setSampleRateAndBlockSize(void* ptr, double sampleRate, uint32_t maxB
     Plugin *plugin = (Plugin*) ptr;
     plugin->sampleRate = (int) sampleRate;
     plugin->processBlock = new float[maxBlockSize * 2];
-    plugin->synth = beepbox::inst_new(beepbox::INSTRUMENT_FM, (int)plugin->sampleRate, 2);
+    beepbox::inst_set_sample_rate(plugin->synth, (int)sampleRate);
 }
 
 void cplug_process(void* ptr, CplugProcessContext* ctx)
@@ -167,11 +229,32 @@ void cplug_process(void* ptr, CplugProcessContext* ctx)
     Plugin *plug = (Plugin*) ptr;
     CPLUG_LOG_ASSERT(plug->processBlock != nullptr);
     CPLUG_LOG_ASSERT(plug->synth != nullptr);
+
+    // Audio thread has chance to respond to incoming GUI events before being sent to the host
+    int head = cplug_atomic_load_i32(&plug->mainToAudioHead) & CPLUG_EVENT_QUEUE_MASK;
+    int tail = cplug_atomic_load_i32(&plug->mainToAudioTail);
+
+    while (tail != head)
+    {
+        CplugEvent* event = &plug->mainToAudioQueue[tail];
+
+        if (event->type == CPLUG_EVENT_PARAM_CHANGE_UPDATE)
+            cplug_setParameterValue(plug, event->parameter.idx, event->parameter.value);
+
+        ctx->enqueueEvent(ctx, event, 0);
+
+        tail++;
+        tail &= CPLUG_EVENT_QUEUE_MASK;
+    }
+    cplug_atomic_exchange_i32(&plug->mainToAudioTail, tail);
      
     CplugEvent event;
     uint32_t frame = 0;
     while (ctx->dequeueEvent(ctx, &event, frame)) {
         switch (event.type) {
+            case CPLUG_EVENT_PARAM_CHANGE_UPDATE:
+                cplug_setParameterValue(plug, event.parameter.idx, event.parameter.value);
+                break;
             case CPLUG_EVENT_MIDI: {
                 constexpr uint8_t MIDI_NOTE_OFF         = 0x80;
                 constexpr uint8_t MIDI_NOTE_ON          = 0x90;
@@ -181,7 +264,11 @@ void cplug_process(void* ptr, CplugProcessContext* ctx)
                 {
                     int note = event.midi.data1;
                     int velocity = event.midi.data2;
-                    beepbox::inst_midi_on(plug->synth, note, velocity);
+
+                    if (velocity == 0)
+                        beepbox::inst_midi_off(plug->synth, note, velocity);
+                    else
+                        beepbox::inst_midi_on(plug->synth, note, velocity);
                 }
                 if ((event.midi.status & 0xf0) == MIDI_NOTE_OFF)
                 {
@@ -228,10 +315,24 @@ void cplug_loadState(void* userPlugin, const void* stateCtx, cplug_readProc read
     
 }
 
+void sendParamEventFromMain(Plugin *plugin, uint32_t type, uint32_t paramIdx, double value)
+{
+    int         mainToAudioHead = cplug_atomic_load_i32(&plugin->mainToAudioHead) & CPLUG_EVENT_QUEUE_MASK;
+    CplugEvent* paramEvent      = &plugin->mainToAudioQueue[mainToAudioHead];
+    paramEvent->parameter.type  = type;
+    paramEvent->parameter.idx   = paramIdx;
+    paramEvent->parameter.value = value;
+
+    cplug_atomic_fetch_add_i32(&plugin->mainToAudioHead, 1);
+    cplug_atomic_fetch_and_i32(&plugin->mainToAudioHead, CPLUG_EVENT_QUEUE_MASK);
+
+    // request_flush from CLAP host? Doesn't seem to be required
+}
+
 #ifdef CPLUG_WANT_GUI
 #include "platform.hpp"
 
-#define GUI_DEFAULT_WIDTH 640
+#define GUI_DEFAULT_WIDTH 240
 #define GUI_DEFAULT_HEIGHT 360
 #define GUI_RATIO_X 16
 #define GUI_RATIO_Y 9
@@ -240,6 +341,12 @@ struct PluginGui
 {
     Plugin *plugin;
     platform::PlatformData *window;
+
+    int algo;
+    float freq[4];
+    float vol[4];
+    int fdbkType;
+    float fdbk;
 };
 
 ImGuiKey keyToImgui(platform::Key key) {
@@ -346,6 +453,33 @@ void eventHandler(platform::Event ev, platform::PlatformData *window) {
 }
 
 void drawHandler(platform::PlatformData *window) {
+    // operator parameters
+    static const char *name[] = {
+        "1.", "2.", "3.", "4."
+    };
+
+    static const char *freqRatios[] = {
+        "1x", "~1x", "2x", "~2x",
+        "3x", "4x", "5x", "6x", "7x",
+        "8x", "9x", "11x", "13x", "16x", "20x"
+    };
+
+    static const char *algoNames[] = {
+        "1 <- (2 3 4)",
+        "1 <- (2 3 <- 4)",
+        "1 <- 2 <- (3 4)",
+        "1 <- (2 3) <- 4",
+        "1 <- 2 <- 3 <- 4",
+        "1 <- 3  2 <- 4",
+        "1  2 <- (3 4)",
+        "1  2 <- 3 <- 4",
+        "(1 2) <- 3 <- 4",
+        "(1 2) <- (3 4)",
+        "1  2  3 <- 4",
+        "(1 2 3) <- 4",
+        "1  2  3  4",
+    };
+
     {
         simgui_frame_desc_t desc = {};
         desc.width = platform::getWidth(window);
@@ -354,13 +488,57 @@ void drawHandler(platform::PlatformData *window) {
         simgui_new_frame(&desc);
     }
 
-    ImGui::ShowDemoWindow();
+    // imgui
+    {
+        PluginGui *gui = (PluginGui*) platform::getUserdata(window);
+        Plugin *plug = gui->plugin;
+
+        ImGuiViewport *viewport = ImGui::GetMainViewport();
+        ImGui::SetNextWindowPos(ImVec2());
+        ImGui::SetNextWindowSize(viewport->Size);
+
+        if (ImGui::Begin("fm", NULL, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar)) {
+            // algorithm
+            ImGui::AlignTextToFramePadding();
+            ImGui::Text("Algorithm");
+
+            ImGui::SameLine();
+            float algoEndX = ImGui::GetCursorPosX();
+            ImGui::SetNextItemWidth(-FLT_MIN);
+            if (ImGui::Combo("##algo", &gui->algo, algoNames, 13)) {
+                sendParamEventFromMain(plug, CPLUG_EVENT_PARAM_CHANGE_UPDATE, FM_PARAM_ALGORITHM, (double)gui->algo);
+            }
+
+            for (int op = 0; op < 4; op++) {
+                ImGui::AlignTextToFramePadding();
+                ImGui::Text("%s", name[op]);
+                ImGui::PushID(op);
+
+                ImGui::SameLine();
+                ImGui::SetNextItemWidth(algoEndX - ImGui::GetCursorPosX() - ImGui::GetStyle().ItemSpacing.x);
+                if (ImGui::BeginCombo("##freq", freqRatios[0], ImGuiComboFlags_HeightLargest)) {
+                    for (int i = 0; i < sizeof(freqRatios) / sizeof(*freqRatios); i++) {
+                        ImGui::Selectable(freqRatios[i]);
+                    }
+                    ImGui::EndCombo();
+                }
+
+                ImGui::SameLine();
+                ImGui::SetNextItemWidth(-FLT_MIN);
+                if (ImGui::SliderFloat("##vol", &gui->vol[op], 0.0f, 15.0f, "%.0f")) {
+                    sendParamEventFromMain(plug, CPLUG_EVENT_PARAM_CHANGE_UPDATE, FM_PARAM_VOLUME1 + op * 2, (double)gui->vol[op] / 15.f);
+                }
+                ImGui::PopID();
+            }
+
+        } ImGui::End();
+    }
 
     {
         sg_pass pass = {};
         pass.swapchain = platform::sokolSwapchain(window);
         pass.action.colors[0].load_action = SG_LOADACTION_CLEAR;
-        pass.action.colors[0].clear_value = {1.0f, 0.0f, 0.0f, 1.0f};
+        pass.action.colors[0].clear_value = {0.0f, 0.0f, 0.0f, 1.0f};
         sg_begin_pass(pass);
     }
 
@@ -377,8 +555,21 @@ void* cplug_createGUI(void* userPlugin)
     Plugin *plugin = (Plugin*)userPlugin;
     PluginGui *gui    = new PluginGui;
 
+    gui->algo = (int)       cplug_getParameterValue(plugin, FM_PARAM_ALGORITHM);
+    gui->freq[0] = (float)  cplug_getParameterValue(plugin, FM_PARAM_FREQ1);
+    gui->vol[0] = (float)   cplug_getParameterValue(plugin, FM_PARAM_VOLUME1) * 15.f;
+    gui->freq[1] = (float)  cplug_getParameterValue(plugin, FM_PARAM_FREQ2);
+    gui->vol[1] = (float)   cplug_getParameterValue(plugin, FM_PARAM_VOLUME2) * 15.f;
+    gui->freq[2] = (float)  cplug_getParameterValue(plugin, FM_PARAM_FREQ3);
+    gui->vol[2] = (float)   cplug_getParameterValue(plugin, FM_PARAM_VOLUME3) * 15.f;
+    gui->freq[3] = (float)  cplug_getParameterValue(plugin, FM_PARAM_FREQ4);
+    gui->vol[3] = (float)   cplug_getParameterValue(plugin, FM_PARAM_VOLUME4) * 15.f;
+    gui->fdbkType = (int)   cplug_getParameterValue(plugin, FM_PARAM_FEEDBACK_TYPE);
+    gui->fdbk = (float)     cplug_getParameterValue(plugin, FM_PARAM_FEEDBACK_VOLUME) * 15.f;
+
     gui->plugin = plugin;
     gui->window = platform::init(GUI_DEFAULT_WIDTH, GUI_DEFAULT_HEIGHT, CPLUG_PLUGIN_NAME, eventHandler, drawHandler);
+    platform::setUserdata(gui->window, gui);
 
     sg_desc desc = {};
     desc.environment = platform::sokolEnvironment(gui->window);

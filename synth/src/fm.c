@@ -6,7 +6,6 @@
 
 #include "fm.h"
 #include "fm_algo.h"
-#include "inst_info.h"
 #include "util.h"
 
 /*
@@ -116,7 +115,7 @@ void fm_init(fm_inst_t *inst) {
         inst->voices[i].active = 0;
     }
 
-    inst->algorithm = 12;
+    inst->algorithm = 0;
 
     inst->amplitudes[0] = 1;
     inst->amplitudes[1] = 0;
@@ -173,7 +172,7 @@ void fm_midi_off(fm_inst_t *inst, int key, int velocity) {
     }
 }
 
-void fm_run(fm_inst_t *src_inst, float *out_samples, size_t frame_count, int sample_rate, int channel_count) {
+void fm_run(fm_inst_t *src_inst, float *out_samples, size_t frame_count, int sample_rate) {
     const float sample_len = 1.f / sample_rate;
 
     static double carrier_intervals[] = {0.0, 0.04, -0.073, 0.091};
@@ -204,7 +203,7 @@ void fm_run(fm_inst_t *src_inst, float *out_samples, size_t frame_count, int sam
         }
     }
 
-    float feedback_amplitude = 0.3f * SINE_WAVE_LENGTH * ((float)inst.feedback / 15.f);
+    double feedback_amplitude = 0.3 * SINE_WAVE_LENGTH * inst.feedback;
 
     for (size_t frame = 0; frame < frame_count; frame++) {
         float final_sample = 0.f;
@@ -244,8 +243,9 @@ void fm_run(fm_inst_t *src_inst, float *out_samples, size_t frame_count, int sam
             }
         }
 
-        for (int c = 0; c < channel_count; c++)
-            *out_samples++ = final_sample;
+        // assume two channels
+        *out_samples++ = final_sample;
+        *out_samples++ = final_sample;
     }
 
     // convert from operable values
@@ -272,14 +272,14 @@ inst_param_info_t fm_param_info[FM_PARAM_COUNT] = {
     },
 
     {
-        .type = PARAM_FLOAT,
+        .type = PARAM_DOUBLE,
         .name = "Operator 1 Frequency",
         .min_value = 1,
         .max_value = 20,
         .default_value = 1
     },
     {
-        .type = PARAM_FLOAT,
+        .type = PARAM_DOUBLE,
         .name = "Operator 1 Volume",
         .min_value = 0,
         .max_value = 1,
@@ -287,14 +287,14 @@ inst_param_info_t fm_param_info[FM_PARAM_COUNT] = {
     },
 
     {
-        .type = PARAM_FLOAT,
+        .type = PARAM_DOUBLE,
         .name = "Operator 2 Frequency",
         .min_value = 1,
         .max_value = 20,
         .default_value = 1
     },
     {
-        .type = PARAM_FLOAT,
+        .type = PARAM_DOUBLE,
         .name = "Operator 2 Volume",
         .min_value = 0,
         .max_value = 1,
@@ -302,14 +302,14 @@ inst_param_info_t fm_param_info[FM_PARAM_COUNT] = {
     },
 
     {
-        .type = PARAM_FLOAT,
+        .type = PARAM_DOUBLE,
         .name = "Operator 3 Frequency",
         .min_value = 1,
         .max_value = 20,
         .default_value = 1
     },
     {
-        .type = PARAM_FLOAT,
+        .type = PARAM_DOUBLE,
         .name = "Operator 3 Volume",
         .min_value = 0,
         .max_value = 1,
@@ -317,14 +317,14 @@ inst_param_info_t fm_param_info[FM_PARAM_COUNT] = {
     },
 
     {
-        .type = PARAM_FLOAT,
+        .type = PARAM_DOUBLE,
         .name = "Operator 4 Frequency",
         .min_value = 1,
         .max_value = 20,
         .default_value = 1
     },
     {
-        .type = PARAM_FLOAT,
+        .type = PARAM_DOUBLE,
         .name = "Operator 4 Volume",
         .min_value = 0,
         .max_value = 1,
@@ -340,7 +340,7 @@ inst_param_info_t fm_param_info[FM_PARAM_COUNT] = {
     },
 
     {
-        .type = PARAM_FLOAT,
+        .type = PARAM_DOUBLE,
         .name = "Feedback Volume",
         .min_value = 0,
         .max_value = 1,

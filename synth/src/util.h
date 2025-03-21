@@ -9,7 +9,7 @@
 // SINE_WAVE_LENGTH must be a power of 2!
 #define SINE_WAVE_LENGTH 256
 extern float sine_wave_f[SINE_WAVE_LENGTH];
-extern float sine_wave_d[SINE_WAVE_LENGTH];
+extern double sine_wave_d[SINE_WAVE_LENGTH];
 extern void init_wavetables();
 
 static inline float lerpf(float min, float max, float t) {
@@ -17,6 +17,12 @@ static inline float lerpf(float min, float max, float t) {
 }
 
 static inline float clampf(float v, float min, float max) {
+    if (v > max) return max;
+    if (v < min) return min;
+    return v;
+}
+
+static inline double clampd(double v, double min, double max) {
     if (v > max) return max;
     if (v < min) return min;
     return v;

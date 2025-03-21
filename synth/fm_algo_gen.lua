@@ -250,12 +250,12 @@ do
 
     local func_count = 0
     for algo_index, _ in ipairs(algorithms) do
-        table.insert(algo_signatures, ("double fm_algo%02d%02d(fm_voice_t *voice, const float feedback_amp)"):format(algo_index-1, 0))
+        table.insert(algo_signatures, ("double fm_algo%02d%02d(fm_voice_t *voice, const double feedback_amp)"):format(algo_index-1, 0))
         -- lines[#lines+1] = algo_signatures[algo_index] .. ";"
         func_count = func_count + 1
     end
 
-    lines[#lines+1] = "typedef double (*fm_algo_func_t)(fm_voice_t *voice, const float feedback_amp);"
+    lines[#lines+1] = "typedef double (*fm_algo_func_t)(fm_voice_t *voice, const double feedback_amp);"
     lines[#lines+1] = "extern fm_algo_func_t fm_algorithm_table["..func_count.."];"
 
     lines[#lines+1] = "#endif"
