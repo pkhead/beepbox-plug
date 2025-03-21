@@ -33,12 +33,12 @@ juce_add_plugin(BeepboxPlugin
 juce_generate_juce_header(BeepboxPlugin)
 
 add_subdirectory(imgui_juce)
+add_subdirectory(synth)
 
 target_sources(BeepboxPlugin
     PRIVATE
-
-        src/plugin_editor.cpp
-        src/plugin_processor.cpp)
+        plugin/plugin_editor.cpp
+        plugin/plugin_processor.cpp)
 
 target_link_libraries(BeepboxPlugin
     PRIVATE
@@ -46,6 +46,7 @@ target_link_libraries(BeepboxPlugin
         juce::juce_opengl
         imgui
         imgui_impl_juce
+        beepbox_synth
 
     PUBLIC
         juce::juce_recommended_config_flags

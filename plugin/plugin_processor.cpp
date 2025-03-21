@@ -1,5 +1,6 @@
 #include "plugin_processor.hpp"
 #include "plugin_editor.hpp"
+#include <beepbox_synth.h>
 
 //==============================================================================
 AudioPluginAudioProcessor::AudioPluginAudioProcessor()
@@ -12,7 +13,6 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
                      #endif
                        )
 {
-    
 }
 
 AudioPluginAudioProcessor::~AudioPluginAudioProcessor()
@@ -89,13 +89,21 @@ void AudioPluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPer
 {
     // Use this method as the place to do any pre-playback
     // initialisation that you need..
-    juce::ignoreUnused (sampleRate, samplesPerBlock);
+    constexpr int channel_count = 2;
+
+    synth = beepbox::inst_new(beepbox::INSTRUMENT_FM, (int)sampleRate, channel_count);
+    interleaved_block = new float[samplesPerBlock * channel_count];
 }
 
 void AudioPluginAudioProcessor::releaseResources()
 {
     // When playback stops, you can use this as an opportunity to free up any
     // spare memory, etc.
+    beepbox::inst_destroy(synth);
+    synth = nullptr;
+
+    delete[] interleaved_block;
+    interleaved_block = nullptr;
 }
 
 bool AudioPluginAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -128,38 +136,36 @@ void AudioPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     juce::ignoreUnused (midiMessages);
 
     juce::ScopedNoDenormals noDenormals;
+
     auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
 
-    // In case we have more outputs than inputs, this code clears any output
-    // channels that didn't contain input data, (because these aren't
-    // guaranteed to be empty - they may contain garbage).
-    // This is here to avoid people getting screaming feedback
-    // when they first compile a plugin, but obviously you don't need to keep
-    // this code if your algorithm always overwrites all the output channels.
-    for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
-        buffer.clear (i, 0, buffer.getNumSamples());
+    assert(totalNumInputChannels == 0);
+    assert(totalNumOutputChannels == 2);
+    assert(synth);
+    assert(interleaved_block);
 
-    static double phase = 0.f;
-    const double sample_length = 1.0 / getSampleRate();
-
-    // This is the place where you'd normally do the guts of your plugin's
-    // audio processing...
-    // Make sure to reset the state if your inner loop is processing
-    // the samples and the outer loop is handling the channels.
-    // Alternatively, you can process the samples with the channels
-    // interleaved by keeping the same state.
     float *left_channel = buffer.getWritePointer(0);
     float *right_channel = buffer.getWritePointer(1);
 
+    for (const auto metadata : midiMessages) {
+        auto message = metadata.getMessage();
+        const auto time = metadata.samplePosition;
+        
+        if (message.isNoteOn()) {
+            beepbox::inst_midi_on(synth, message.getNoteNumber(), message.getVelocity());
+        } else if (message.isNoteOff()) {
+            beepbox::inst_midi_off(synth, message.getNoteNumber(), message.getVelocity());
+        }
+    }
+
+    beepbox::inst_run(synth, interleaved_block, buffer.getNumSamples());
+
+    int j = 0;
     for (int i = 0; i < buffer.getNumSamples(); i++)
     {
-        phase += 220.0 * juce::MathConstants<double>::twoPi * sample_length;
-        
-        float sample = ((float) sin(phase)) * 0.2f;
-
-        *left_channel++ = sample;
-        *right_channel++ = sample;
+        *left_channel++ = interleaved_block[j++];
+        *right_channel++ = interleaved_block[j++];
     }
 }
 
