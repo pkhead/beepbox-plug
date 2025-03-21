@@ -19,7 +19,7 @@ typedef struct {
 inst_t* inst_new(inst_type_t inst_type, int sample_rate, int channel_count);
 void inst_destroy(inst_t* inst);
 
-const inst_param_info_t* inst_list_params(const inst_t* inst, size_t *count);
+const inst_param_info_t* inst_list_params(const inst_t* inst, int *count);
 
 int inst_set_param_int(inst_t* inst, int index, int value);
 int inst_set_param_float(inst_t* inst, int index, float value);

@@ -57,8 +57,8 @@ feedback types:
 //     return lerpf(sin_table[index], sin_table[index+1], t);
 // }
 
-static float operator_amplitude_curve(float amplitude) {
-    return (powf(16.0f, amplitude / 15.0f) - 1.0f) / 15.0f;
+static double operator_amplitude_curve(double amplitude) {
+    return (pow(16.0, amplitude) - 1.0) / 15.0;
 }
 
 static void setup_algorithm(fm_inst_t *inst) {
@@ -118,7 +118,7 @@ void fm_init(fm_inst_t *inst) {
 
     inst->algorithm = 12;
 
-    inst->amplitudes[0] = 15;
+    inst->amplitudes[0] = 1;
     inst->amplitudes[1] = 0;
     inst->amplitudes[2] = 0;
     inst->amplitudes[3] = 0;
@@ -195,7 +195,7 @@ void fm_run(fm_inst_t *src_inst, float *out_samples, size_t frame_count, int sam
 
             voice->op_states[op].phase = (fmod(voice->op_states[op].phase, 1.0) + 1000) * SINE_WAVE_LENGTH;
             voice->op_states[op].phase_delta = (voice_freq * inst.freq_ratios[op] * sample_len) * SINE_WAVE_LENGTH;
-            voice->op_states[op].expression = operator_amplitude_curve(inst.amplitudes[op]);
+            voice->op_states[op].expression = operator_amplitude_curve((double) inst.amplitudes[op]);
 
             if (op >= inst.carrier_count) {
                 voice->op_states[op].expression *= SINE_WAVE_LENGTH * 1.5f;
@@ -281,11 +281,11 @@ inst_param_info_t fm_param_info[FM_PARAM_COUNT] = {
         .default_value = 1
     },
     {
-        .type = PARAM_UINT8,
+        .type = PARAM_FLOAT,
         .name = "Operator 1 Volume",
         .min_value = 0,
-        .max_value = 15,
-        .default_value = 15
+        .max_value = 1,
+        .default_value = 1
     },
 
     {
@@ -296,10 +296,10 @@ inst_param_info_t fm_param_info[FM_PARAM_COUNT] = {
         .default_value = 1
     },
     {
-        .type = PARAM_UINT8,
+        .type = PARAM_FLOAT,
         .name = "Operator 2 Volume",
         .min_value = 0,
-        .max_value = 15,
+        .max_value = 1,
         .default_value = 0
     },
 
@@ -311,10 +311,10 @@ inst_param_info_t fm_param_info[FM_PARAM_COUNT] = {
         .default_value = 1
     },
     {
-        .type = PARAM_UINT8,
+        .type = PARAM_FLOAT,
         .name = "Operator 3 Volume",
         .min_value = 0,
-        .max_value = 15,
+        .max_value = 1,
         .default_value = 0
     },
 
@@ -326,10 +326,10 @@ inst_param_info_t fm_param_info[FM_PARAM_COUNT] = {
         .default_value = 1
     },
     {
-        .type = PARAM_UINT8,
+        .type = PARAM_FLOAT,
         .name = "Operator 4 Volume",
         .min_value = 0,
-        .max_value = 15,
+        .max_value = 1,
         .default_value = 0
     },
 
@@ -342,10 +342,10 @@ inst_param_info_t fm_param_info[FM_PARAM_COUNT] = {
     },
 
     {
-        .type = PARAM_UINT8,
+        .type = PARAM_FLOAT,
         .name = "Feedback Volume",
         .min_value = 0,
-        .max_value = 15,
+        .max_value = 1,
         .default_value = 0
     }
 };

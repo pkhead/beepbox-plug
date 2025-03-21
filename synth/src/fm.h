@@ -31,7 +31,7 @@ typedef struct {
 typedef struct {
     uint8_t algorithm;
     float freq_ratios[FM_OP_COUNT];
-    uint8_t amplitudes[FM_OP_COUNT];
+    float amplitudes[FM_OP_COUNT];
 
     uint8_t feedback_type;
     uint8_t feedback;

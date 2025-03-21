@@ -31,7 +31,7 @@ void inst_destroy(inst_t* inst) {
     free(inst);
 }
 
-const inst_param_info_t* inst_list_params(const inst_t* inst, size_t *count) {
+const inst_param_info_t* inst_list_params(const inst_t* inst, int *count) {
     switch (inst->type) {
         case INSTRUMENT_FM:
             *count = FM_PARAM_COUNT;
@@ -42,7 +42,7 @@ const inst_param_info_t* inst_list_params(const inst_t* inst, size_t *count) {
     }
 }
 
-static inline int param_helper(inst_t *inst, int index, void **addr, inst_param_info_t *info) {
+static int param_helper(inst_t *inst, int index, void **addr, inst_param_info_t *info) {
     switch (inst->type) {
         case INSTRUMENT_FM:
             if (index < 0 || index >= FM_PARAM_COUNT) return 1;
@@ -93,7 +93,7 @@ int inst_set_param_float(inst_t* inst, int index, float value) {
     if (param_helper(inst, index, &addr, &info))
         return 1;
 
-    int val_clamped = value;
+    float val_clamped = value;
     if (info.min_value != info.max_value) {
         val_clamped = clampf(value, info.min_value, info.max_value);
     }

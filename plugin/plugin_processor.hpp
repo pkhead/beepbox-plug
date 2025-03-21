@@ -43,6 +43,24 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
+    inline beepbox::inst_t *getSynth() { return synth; }
+
+    struct {
+        juce::AudioParameterInt *algorithm;
+
+        juce::AudioParameterFloat *op1_freq;
+        juce::AudioParameterFloat *op1_vol;
+
+        juce::AudioParameterFloat *op2_freq;
+        juce::AudioParameterFloat *op2_vol;
+
+        juce::AudioParameterFloat *op3_freq;
+        juce::AudioParameterFloat *op3_vol;
+
+        juce::AudioParameterFloat *op4_freq;
+        juce::AudioParameterFloat *op4_vol;
+    } param;
+
 private:
     beepbox::inst_t *synth = nullptr;
     float *interleaved_block = nullptr;

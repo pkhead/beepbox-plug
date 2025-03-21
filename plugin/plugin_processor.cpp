@@ -13,6 +13,41 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
                      #endif
                        )
 {
+    addParameter(param.algorithm = new juce::AudioParameterInt("algorithm",
+        "Algorithm",
+        0, 12, 0));
+
+    addParameter(param.op1_freq = new juce::AudioParameterFloat("freq1",
+        "Operator 1 Frequency",
+        1.f, 20.f, 1.f));
+
+    addParameter(param.op1_vol = new juce::AudioParameterFloat("vol1",
+        "Operator 1 Volume",
+        0.f, 1.f, 1.f));
+
+    addParameter(param.op2_freq = new juce::AudioParameterFloat("freq2",
+        "Operator 2 Frequency",
+        1.f, 20.f, 1.f));
+
+    addParameter(param.op2_vol = new juce::AudioParameterFloat("vol2",
+        "Operator 2 Volume",
+        0.f, 1.f, 0.f));
+
+    addParameter(param.op3_freq = new juce::AudioParameterFloat("freq3",
+        "Operator 3 Frequency",
+        1.f, 20.f, 1.f));
+
+    addParameter(param.op3_vol = new juce::AudioParameterFloat("vol3",
+        "Operator 3 Volume",
+        0.f, 1.f, 0.f));
+
+    addParameter(param.op4_freq = new juce::AudioParameterFloat("freq4",
+        "Operator 4 Frequency",
+        1.f, 20.f, 1.f));
+
+    addParameter(param.op4_vol = new juce::AudioParameterFloat("vol4",
+        "Operator 4 Volume",
+        0.f, 1.f, 0.f));
 }
 
 AudioPluginAudioProcessor::~AudioPluginAudioProcessor()
@@ -158,6 +193,16 @@ void AudioPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             beepbox::inst_midi_off(synth, message.getNoteNumber(), message.getVelocity());
         }
     }
+    
+    beepbox::inst_set_param_int(synth, 0, *param.algorithm);
+    beepbox::inst_set_param_float(synth, 1, *param.op1_freq);
+    beepbox::inst_set_param_float(synth, 2, *param.op1_vol);
+    beepbox::inst_set_param_float(synth, 3, *param.op2_freq);
+    beepbox::inst_set_param_float(synth, 4, *param.op2_vol);
+    beepbox::inst_set_param_float(synth, 5, *param.op3_freq);
+    beepbox::inst_set_param_float(synth, 6, *param.op3_vol);
+    beepbox::inst_set_param_float(synth, 7, *param.op4_freq);
+    beepbox::inst_set_param_float(synth, 8, *param.op4_vol);
 
     beepbox::inst_run(synth, interleaved_block, buffer.getNumSamples());
 

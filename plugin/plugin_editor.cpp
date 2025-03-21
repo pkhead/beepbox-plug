@@ -5,7 +5,7 @@
 
 //==============================================================================
 AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAudioProcessor& p)
-    : AudioProcessorEditor (&p), processorRef (p)
+    : AudioProcessorEditor (&p), processor(p)
 {
     setOpaque(true);
     setWantsKeyboardFocus(true);
@@ -15,8 +15,6 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     gl_context.setRenderer(this);
     gl_context.attachTo(*this);
     gl_context.setContinuousRepainting(true);
-
-    juce::ignoreUnused (processorRef);
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
@@ -72,6 +70,29 @@ void AudioPluginAudioProcessorEditor::openGLContextClosing()
     ImGui::DestroyContext();
 }
 
+template <typename T>
+void imguiParam(T *param);
+
+template <>
+void imguiParam(juce::AudioParameterFloat *param) {
+    float v = *param;
+    float min = param->convertFrom0to1(0);
+    float max = param->convertFrom0to1(1);
+
+    if (ImGui::SliderFloat(param->name.toRawUTF8(), &v, min, max))
+        *param = v;
+}
+
+template <>
+void imguiParam(juce::AudioParameterInt *param) {
+    int v = *param;
+    int min = (int) param->convertFrom0to1(0);
+    int max = (int) param->convertFrom0to1(1);
+
+    if (ImGui::SliderInt(param->name.toRawUTF8(), &v, min, max))
+        *param = v;
+}
+
 void AudioPluginAudioProcessorEditor::drawImGui()
 {
     ImGuiViewport *viewport = ImGui::GetMainViewport();
@@ -80,7 +101,19 @@ void AudioPluginAudioProcessorEditor::drawImGui()
 
     if (ImGui::Begin("window", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoSavedSettings))
     {
-        ImGui::Text("Hello, world!");
+        imguiParam(processor.param.algorithm);
+
+        imguiParam(processor.param.op1_freq);
+        imguiParam(processor.param.op1_vol);
+
+        imguiParam(processor.param.op2_freq);
+        imguiParam(processor.param.op2_vol);
+
+        imguiParam(processor.param.op3_freq);
+        imguiParam(processor.param.op3_vol);
+
+        imguiParam(processor.param.op4_freq);
+        imguiParam(processor.param.op4_vol);
     }
     ImGui::End();
 
