@@ -44,7 +44,8 @@ endif()
 
 
 set(BEEPBOX_SOURCES
-    plugin/main.cpp
+    plugin/plugin.cpp
+    plugin/gui.cpp
     plugin/sokol.cpp
     plugin/platform.cpp
 )
