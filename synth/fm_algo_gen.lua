@@ -244,15 +244,18 @@ end
 
 -- generate header
 local algo_signatures = {}
+local func_count = 0
 
 do
     local lines = {"#ifndef _fm_algo_h_", "#define _fm_algo_h_", "#include \"fm.h\"", ""}
 
-    local func_count = 0
     for algo_index, _ in ipairs(algorithms) do
-        table.insert(algo_signatures, ("double fm_algo%02d%02d(fm_voice_t *voice, const double feedback_amp)"):format(algo_index-1, 0))
-        -- lines[#lines+1] = algo_signatures[algo_index] .. ";"
-        func_count = func_count + 1
+        algo_signatures[algo_index] = {}
+
+        for fdbk_index, _ in ipairs(feedback_types) do
+            table.insert(algo_signatures[algo_index], ("double fm_algo%02d%02d(fm_voice_t *voice, const double feedback_amp)"):format(algo_index-1, fdbk_index-1))
+            func_count = func_count + 1
+        end
     end
 
     lines[#lines+1] = "typedef double (*fm_algo_func_t)(fm_voice_t *voice, const double feedback_amp);"
@@ -267,34 +270,44 @@ do
     local lines = {"#include \"fm_algo.h\""}
 
     for algo_index, algo_data in ipairs(algorithms) do    
-        lines[#lines+1] = algo_signatures[algo_index] .. " {"
-        for op=4, 1, -1 do
-            local mod_gen_list = {}
-            for _, mod_op in ipairs(algo_data["op" .. op] or {}) do
-                mod_gen_list[#mod_gen_list+1] = " + "
-                mod_gen_list[#mod_gen_list+1] = "voice->op_states["..(mod_op-1).."].output"
+        for fdb_index, fdb_data in ipairs(feedback_types) do
+            lines[#lines+1] = algo_signatures[algo_index][fdb_index] .. " {"
+            for op=4, 1, -1 do
+                local mod_gen_list = {}
+                for _, mod_op in ipairs(algo_data["op" .. op] or {}) do
+                    mod_gen_list[#mod_gen_list+1] = " + "
+                    mod_gen_list[#mod_gen_list+1] = "op"..(mod_op-1).."_scaled"
+                end
+                local mod_gen = table.concat(mod_gen_list)
+
+                local fdb_str
+                if fdb_data["op"..op] then
+                    fdb_str = " + feedback_amp * voice->op_states["..(fdb_data["op"..op]-1).."].output"
+                else
+                    fdb_str = ""
+                end
+
+                lines[#lines+1] = "    double op"..(op-1).."_scaled = voice->op_states["..(op-1).."].expression * (voice->op_states[" .. (op-1) .. "].output = fm_calc_op("
+                lines[#lines+1] = "        voice->op_states["..(op-1).."].phase" .. mod_gen .. fdb_str
+                lines[#lines+1] = "    ));"
             end
-            local mod_gen = table.concat(mod_gen_list)
 
-            lines[#lines+1] = "    voice->op_states[" .. (op-1) .. "].output = fm_calc_op("
-            lines[#lines+1] = "        voice->op_states["..(op-1).."].phase" .. mod_gen .. ","
-            lines[#lines+1] = "        voice->op_states["..(op-1).."].expression"
-            lines[#lines+1] = "    );"
+            local carriers = {}
+            for i=1, algo_data.carriers do
+                table.insert(carriers, "op"..(i-1).."_scaled")
+            end
+
+            lines[#lines+1] = "    return " .. table.concat(carriers, " + ") .. ";"
+            lines[#lines+1] = "}"
         end
-
-        local carriers = {}
-        for i=1, algo_data.carriers do
-            table.insert(carriers, "voice->op_states["..(i-1).."].output")
-        end
-
-        lines[#lines+1] = "    return " .. table.concat(carriers, " + ") .. ";"
-        lines[#lines+1] = "}"
     end
 
-    lines[#lines+1] = "fm_algo_func_t fm_algorithm_table["..(#algo_signatures).."] = {"
+    lines[#lines+1] = "fm_algo_func_t fm_algorithm_table["..(func_count).."] = {"
 
     for algo_index, algo_data in ipairs(algorithms) do
-        lines[#lines+1] = ("    fm_algo%02d%02d,"):format(algo_index - 1, 0)
+        for fdb_index, fdb_data in ipairs(feedback_types) do
+            lines[#lines+1] = ("    fm_algo%02d%02d,"):format(algo_index - 1, fdb_index - 1)
+        end
     end
 
     lines[#lines+1] = "};"

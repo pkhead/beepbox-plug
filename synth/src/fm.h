@@ -15,6 +15,8 @@ typedef struct {
     double phase_delta;
     double expression;
     double output;
+    double prev_pitch_expression;
+    uint8_t has_prev_pitch_expression;
 } fm_voice_opstate_t;
 
 typedef struct {
@@ -24,6 +26,7 @@ typedef struct {
     int key;
     float volume;
     
+    double expression;
     fm_voice_opstate_t op_states[FM_OP_COUNT];
 
     float last_sample;
@@ -41,11 +44,11 @@ typedef struct {
     fm_voice_t voices[FM_MAX_VOICES];
 } fm_inst_t;
 
-static inline double fm_calc_op(const double phase_mix, const double expression) {
+static inline double fm_calc_op(const double phase_mix) {
     const int phase_int = (int) phase_mix;
     const int index = phase_int & (SINE_WAVE_LENGTH - 1);
     const double sample = sine_wave_d[index];
-    return expression * (sample + (sine_wave_d[index+1] - sample) * (phase_mix - phase_int));
+    return sample + (sine_wave_d[index+1] - sample) * (phase_mix - phase_int);
 }
 
 void fm_init(fm_inst_t *inst);

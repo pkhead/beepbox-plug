@@ -8,6 +8,9 @@
 #include "fm_algo.h"
 #include "util.h"
 
+#define NOMINMAX
+#include <windows.h>
+
 /*
 algorithms:
 0.  1 <- (2 3 4)
@@ -163,7 +166,9 @@ int fm_midi_on(fm_inst_t *inst, int key, int velocity) {
             .phase = 0.f,
             .phase_delta = 0.f,
             .expression = 0.f,
-            .output = 0.f
+            .output = 0.f,
+            .prev_pitch_expression = 0.f,
+            .has_prev_pitch_expression = FALSE
         };
     }
 
@@ -189,32 +194,73 @@ void fm_run(fm_inst_t *src_inst, float *out_samples, size_t frame_count, int sam
     fm_inst_t inst = *src_inst;
 
     setup_algorithm(&inst);
-    fm_algo_func_t algo_func = fm_algorithm_table[inst.algorithm];
+    fm_algo_func_t algo_func = fm_algorithm_table[inst.algorithm * FM_FEEDBACK_TYPE_COUNT + inst.feedback_type];
 
-    // convert to operable values
+    static const int EXPRESSION_REFERENCE_PITCH = 16; // A low "E" as a MIDI pitch.
+    static const double PITCH_DAMPING = 48;
+
+    // precalculation/volume balancing/etc
     for (int i = 0; i < FM_MAX_VOICES; i++) {
         fm_voice_t *voice = inst.voices + i;
         if (!voice->active) continue;
 
+        double sine_expr_boost = 1.0;
+        double total_carrier_expr = 0.0;
+
         for (int op = 0; op < FM_OP_COUNT; op++) {
+            // john nesky: I'm adding 1000 to the phase to ensure that it's never negative even when modulated
+            // by other waves because negative numbers don't work with the modulus operator very well.
+            voice->op_states[op].phase = (fmod(voice->op_states[op].phase, 1.0) + 1000) * SINE_WAVE_LENGTH;
+
             fm_freq_data_t *freq_data = &frequency_data[inst.freq_ratios[op]];
 
-            int associated_carrier = algo_associated_carriers[inst.algorithm][op] - 1;
-            double voice_freq = key_to_hz_d(voice->key + carrier_intervals[associated_carrier]) + freq_data->hz_offset;
-            double freq_mult = freq_data->mult * freq_data->amplitude_sign;
+            int associated_carrier_idx = algo_associated_carriers[inst.algorithm][op] - 1;
+            const double freq_mult = freq_data->mult;
+            const double pitch = (double)voice->key + carrier_intervals[associated_carrier_idx];
+            const double base_freq = key_to_hz_d(pitch);
+            const double hz_offset = freq_data->hz_offset;
+            const double freq = freq_mult * base_freq + hz_offset;
 
-            voice->op_states[op].phase = (fmod(voice->op_states[op].phase, 1.0) + 1000) * SINE_WAVE_LENGTH;
-            voice->op_states[op].phase_delta = (voice_freq * freq_mult * sample_len) * SINE_WAVE_LENGTH;
-            voice->op_states[op].expression = operator_amplitude_curve((double) inst.amplitudes[op]);
+            voice->op_states[op].phase_delta = freq * sample_len * SINE_WAVE_LENGTH;
 
-            if (op >= inst.carrier_count) {
-                voice->op_states[op].expression *= SINE_WAVE_LENGTH * 1.5f;
+            const double amplitude_curve = operator_amplitude_curve((double) inst.amplitudes[op]);
+            const double amplitude_mult = amplitude_curve * freq_data->amplitude_sign;
+            double expression = amplitude_mult;
+
+            if (op < inst.carrier_count) {
+                // carrier
+                double pitch_expression;
+                if (voice->op_states[op].has_prev_pitch_expression) {
+                    pitch_expression = voice->op_states[op].prev_pitch_expression;
+                } else {
+                    pitch_expression = pow(2.0, -(pitch - EXPRESSION_REFERENCE_PITCH) / PITCH_DAMPING);
+                }
+                voice->op_states[op].has_prev_pitch_expression = TRUE;
+                voice->op_states[op].prev_pitch_expression = pitch_expression;
+
+                expression *= pitch_expression;
+                total_carrier_expr += amplitude_curve;
+            } else {
+                // modulator
+                expression *= SINE_WAVE_LENGTH * 1.5;
+                sine_expr_boost *= 1.0 - min(1.0, inst.amplitudes[op]);
             }
-            // TODO: beepbox seems to adjust volume of carrier based on its key pitch
+
+            voice->op_states[op].expression = expression;
         }
+
+        sine_expr_boost *= (pow(2.0, (2.0 - 1.4 * inst.feedback)) - 1.0) / 3.0;
+        sine_expr_boost *= 1.0 - min(1.0, max(0.0, total_carrier_expr - 1) / 2.0);
+        sine_expr_boost = 1.0 + sine_expr_boost * 3.0;
+
+        voice->expression = /*0.03*/ 0.1 * sine_expr_boost;
     }
 
-    double feedback_amplitude = 0.3 * SINE_WAVE_LENGTH * inst.feedback;
+    double feedback_amplitude = SINE_WAVE_LENGTH * 0.3 * inst.feedback;
+
+    // static char buf[64];
+    // snprintf(buf, 64, "%f\n", feedback_amplitude);
+    // OutputDebugString(buf);
 
     for (size_t frame = 0; frame < frame_count; frame++) {
         float final_sample = 0.f;
@@ -224,7 +270,7 @@ void fm_run(fm_inst_t *src_inst, float *out_samples, size_t frame_count, int sam
             if (!voice->active) continue;
 
             // calculate operator 1
-            float sample = (float) algo_func(voice, feedback_amplitude);
+            float sample = (float) (algo_func(voice, feedback_amplitude) * voice->expression);
             // voice->op_states[1].output = fm_calc_op(
             //     voice->op_states[1].phase,
             //     voice->op_states[1].expression
@@ -361,7 +407,7 @@ inst_param_info_t fm_param_info[FM_PARAM_COUNT] = {
         .type = PARAM_UINT8,
         .name = "Feedback Type",
         .min_value = 0,
-        .max_value = 17,
+        .max_value = FM_FEEDBACK_TYPE_COUNT-1,
         .default_value = 0
     },
 

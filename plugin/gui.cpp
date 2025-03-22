@@ -210,6 +210,27 @@ void drawHandler(platform::Window *window) {
         "1 2 3 4",
     };
 
+    static const char *feedbackNames[] = {
+        "1⟲",
+		"2⟲",
+		"3⟲",
+		"4⟲",
+		"1⟲ 2⟲",
+		"3⟲ 4⟲",
+		"1⟲ 2⟲ 3⟲",
+		"2⟲ 3⟲ 4⟲",
+		"1⟲ 2⟲ 3⟲ 4⟲",
+		"1→2",
+		"1→3",
+		"1→4",
+		"2→3",
+		"2→4",
+		"3→4",
+		"1→3 2→4",
+		"1→4 2→3",
+		"1→2→3→4",
+    };
+
     {
         simgui_frame_desc_t desc = {};
         desc.width = platform::getWidth(window);
@@ -270,6 +291,7 @@ void drawHandler(platform::Window *window) {
                     sendParamEventFromMain(plug, CPLUG_EVENT_PARAM_CHANGE_UPDATE, FM_PARAM_ALGORITHM, (double)gui->algo);
                 }
 
+                // operator parameters
                 for (int op = 0; op < 4; op++) {
                     ImGui::AlignTextToFramePadding();
                     ImGui::Text("%s", name[op]);
@@ -294,6 +316,28 @@ void drawHandler(platform::Window *window) {
                         sendParamEventFromMain(plug, CPLUG_EVENT_PARAM_CHANGE_UPDATE, FM_PARAM_VOLUME1 + op * 2, (double)gui->vol[op] / 15.f);
                     }
                     ImGui::PopID();
+                }
+
+                // feedback type
+                ImGui::AlignTextToFramePadding();
+                ImGui::Text("Feedback");
+
+                ImGui::SameLine();
+                float feedbackEndX = ImGui::GetCursorPosX();
+                ImGui::SetNextItemWidth(-FLT_MIN);
+                if (ImGui::Combo("##fdbk", &gui->fdbkType, feedbackNames, FM_FEEDBACK_TYPE_COUNT)) {
+                    sendParamEventFromMain(plug, CPLUG_EVENT_PARAM_CHANGE_UPDATE, FM_PARAM_FEEDBACK_TYPE, (double)gui->fdbkType);
+                }
+
+                // feedback volume
+                ImGui::AlignTextToFramePadding();
+                ImGui::Text("Fdbk Vol");
+                
+                ImGui::SameLine();
+                ImGui::SetCursorPosX(feedbackEndX);
+                ImGui::SetNextItemWidth(-FLT_MIN);
+                if (ImGui::SliderFloat("##vol", &gui->fdbk, 0.0f, 15.0f, "%.0f")) {
+                    sendParamEventFromMain(plug, CPLUG_EVENT_PARAM_CHANGE_UPDATE, FM_PARAM_FEEDBACK_VOLUME, (double)gui->fdbk / 15.f);
                 }
 
             } ImGui::End();

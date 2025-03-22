@@ -43,6 +43,18 @@ static inline int signf(float v) {
     return 0;
 }
 
+// wtf i'm not even including any windows headers
+#undef min
+#undef max
+
+static inline double min(double a, double b) {
+    return a < b ? a : b;
+}
+
+static inline double max(double a, double b) {
+    return a > b ? a : b;
+}
+
 inline float key_to_hz_f(int key) {
     return powf(2.f, (key - 69) / 12.f) * 440.f;
 }

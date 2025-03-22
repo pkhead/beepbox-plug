@@ -205,6 +205,8 @@ uint32_t cplug_getTailInSamples(void* ptr) { return 0; }
 void cplug_setSampleRateAndBlockSize(void* ptr, double sampleRate, uint32_t maxBlockSize)
 {
     Plugin *plugin = (Plugin*) ptr;
+    delete[] plugin->processBlock;
+    
     plugin->sampleRate = (int) sampleRate;
     plugin->processBlock = new float[maxBlockSize * 2];
     beepbox::inst_set_sample_rate(plugin->synth, (int)sampleRate);
