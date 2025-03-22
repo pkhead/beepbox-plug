@@ -171,8 +171,6 @@ LRESULT CALLBACK MyWinProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         event.type = platform::Event::MouseMove;
         getMousePos(event, lParam);
         window->evCallback(event, window);
-        // if (gui->mouseDragging)
-        //     RedrawWindow(hwnd, 0, 0, RDW_INVALIDATE);
         break;
     
     case WM_LBUTTONDOWN:
@@ -224,7 +222,6 @@ LRESULT CALLBACK MyWinProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         break;
     
     case WM_TIMER:
-        // if (tickGUI(gui))
         window->drawCallback(window);
         RedrawWindow(hwnd, 0, 0, RDW_INVALIDATE);
         break;
@@ -244,7 +241,6 @@ platform::Window* platform::createWindow(int width, int height, const char *name
     platform->height = height;
     platform->evCallback = evCallback;
     platform->drawCallback = drawCallback;
-    //gui->img    = (uint32_t*)realloc(gui->img, gui->width * gui->height * sizeof(*gui->img));
 
     LARGE_INTEGER timenow;
     QueryPerformanceCounter(&timenow);
@@ -298,18 +294,6 @@ platform::Window* platform::createWindow(int width, int height, const char *name
         platform->swapchain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&pBackBuffer);
         s_device->CreateRenderTargetView(pBackBuffer, NULL, &platform->backbuffer);
         pBackBuffer->Release();
-
-        // gui->devcon->OMSetRenderTargets(1, &gui->backbuffer, NULL);
-
-        // D3D11_VIEWPORT viewport;
-        // ZeroMemory(&viewport, sizeof(D3D11_VIEWPORT));
-
-        // viewport.TopLeftX = 0;
-        // viewport.TopLeftY = 0;
-        // viewport.Width = 800;
-        // viewport.Height = 600;
-
-        // gui->devcon->RSSetViewports(1, &viewport);
     }
 
     return platform;
@@ -318,8 +302,6 @@ platform::Window* platform::createWindow(int width, int height, const char *name
 void platform::closeWindow(Window *platform) {
     platform->swapchain->Release();
     platform->backbuffer->Release();
-    // platform->dev->Release();
-    // platform->devcon->Release();
 
     DestroyWindow(platform->hwnd);
     UnregisterClassA(platform->uniqueClassName, NULL);

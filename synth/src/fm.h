@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include "../include/beepbox_synth.h"
 #include "../include/beepbox_instrument_data.h"
-#include "util.h"
+#include "wavetables.h"
 
 #define FM_MAX_VOICES 8
 #define FM_OP_COUNT 4

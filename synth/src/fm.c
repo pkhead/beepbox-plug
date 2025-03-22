@@ -1,15 +1,12 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
-#include <stdio.h>
 #include <math.h>
 
 #include "fm.h"
 #include "fm_algo.h"
 #include "util.h"
-
-#define NOMINMAX
-#include <windows.h>
+#include "wavetables.h"
 
 /*
 algorithms:
@@ -49,16 +46,6 @@ feedback types:
 17. 1 -> 2 -> 3 -> 4
 */
 
-// static float lu_sinf(float v) {
-//     static float m = 1.f / PI2 * SIN_LOOKUP_LENGTH;
-
-//     float indexf = fmodf(v, PI2) * m;
-//     int index = (int)indexf;
-//     float t = indexf - index;
-
-//     return lerpf(sin_table[index], sin_table[index+1], t);
-// }
-
 typedef struct {
     double mult;
     double hz_offset;
@@ -66,6 +53,12 @@ typedef struct {
 } fm_freq_data_t;
 
 static fm_freq_data_t frequency_data[FM_FREQ_COUNT];
+static int algo_associated_carriers[FM_ALGORITHM_COUNT][4];
+static double carrier_intervals[FM_OP_COUNT];
+
+#define EXPRESSION_REFERENCE_PITCH 16 // A low "E" as a MIDI pitch.
+#define PITCH_DAMPING 48
+#define VOICE_BASE_EXPRESSION 0.1 // 0.03 (original value, but i felt like it was too quiet)
 
 static double operator_amplitude_curve(double amplitude) {
     return (pow(16.0, amplitude) - 1.0) / 15.0;
@@ -102,22 +95,6 @@ static void setup_algorithm(fm_inst_t *inst) {
             inst->carrier_count = 0;
     }
 }
-
-static int algo_associated_carriers[][4] = {
-    { 1, 1, 1, 1 },
-    { 1, 1, 1, 1 },
-    { 1, 1, 1, 1 },
-    { 1, 1, 1, 1 },
-    { 1, 1, 1, 1 },
-    { 1, 2, 1, 2 },
-    { 1, 2, 2, 2 },
-    { 1, 2, 2, 2 },
-    { 1, 2, 2, 2 },
-    { 1, 2, 2, 2 },
-    { 1, 2, 3, 3 },
-    { 1, 2, 3, 3 },
-    { 1, 2, 3, 4 }
-};
 
 void fm_init(fm_inst_t *inst) {    
     memset(inst, 0, sizeof(*inst));
@@ -186,18 +163,13 @@ void fm_midi_off(fm_inst_t *inst, int key, int velocity) {
 }
 
 void fm_run(fm_inst_t *src_inst, float *out_samples, size_t frame_count, int sample_rate) {
-    const float sample_len = 1.f / sample_rate;
-
-    static double carrier_intervals[] = {0.0, 0.04, -0.073, 0.091};
+    const double sample_len = 1.f / sample_rate;
 
     // create copy of instrument on stack, for cache optimization purposes
     fm_inst_t inst = *src_inst;
 
     setup_algorithm(&inst);
     fm_algo_func_t algo_func = fm_algorithm_table[inst.algorithm * FM_FEEDBACK_TYPE_COUNT + inst.feedback_type];
-
-    static const int EXPRESSION_REFERENCE_PITCH = 16; // A low "E" as a MIDI pitch.
-    static const double PITCH_DAMPING = 48;
 
     // precalculation/volume balancing/etc
     for (int i = 0; i < FM_MAX_VOICES; i++) {
@@ -253,14 +225,10 @@ void fm_run(fm_inst_t *src_inst, float *out_samples, size_t frame_count, int sam
         sine_expr_boost *= 1.0 - min(1.0, max(0.0, total_carrier_expr - 1) / 2.0);
         sine_expr_boost = 1.0 + sine_expr_boost * 3.0;
 
-        voice->expression = /*0.03*/ 0.1 * sine_expr_boost;
+        voice->expression = VOICE_BASE_EXPRESSION * sine_expr_boost;
     }
 
     double feedback_amplitude = SINE_WAVE_LENGTH * 0.3 * inst.feedback;
-
-    // static char buf[64];
-    // snprintf(buf, 64, "%f\n", feedback_amplitude);
-    // OutputDebugString(buf);
 
     for (size_t frame = 0; frame < frame_count; frame++) {
         float final_sample = 0.f;
@@ -269,27 +237,12 @@ void fm_run(fm_inst_t *src_inst, float *out_samples, size_t frame_count, int sam
             fm_voice_t *voice = inst.voices + i;
             if (!voice->active) continue;
 
-            // calculate operator 1
             float sample = (float) (algo_func(voice, feedback_amplitude) * voice->expression);
-            // voice->op_states[1].output = fm_calc_op(
-            //     voice->op_states[1].phase,
-            //     voice->op_states[1].expression
-            // );
-
-            // // calculate operator 0
-            // voice->op_states[0].output = fm_calc_op(
-            //     voice->op_states[0].phase + voice->op_states[1].output + feedback_amplitude * voice->op_states[0].output,
-            //     voice->op_states[0].expression
-            // );
-
-            // float sample = voice->op_states[0].output;
 
             voice->op_states[0].phase += voice->op_states[0].phase_delta;
             voice->op_states[1].phase += voice->op_states[1].phase_delta;
             voice->op_states[2].phase += voice->op_states[2].phase_delta;
-            voice->op_states[3].phase += voice->op_states[3].phase_delta;
-            
-            //float sample = inst.amplitudes[0] * lu_sinf(voice->phase[0] + inst.amplitudes[1] * lu_sinf(voice->phase[1]));
+            voice->op_states[3].phase += voice->op_states[3].phase_delta;            
 
             // when released, end voice on zero crossing
             if (voice->released && signf(sample) != signf(voice->last_sample)) {
@@ -477,3 +430,21 @@ static fm_freq_data_t frequency_data[FM_FREQ_COUNT] = {
     { .mult= 128.0,     .hz_offset= 0.0,      .amplitude_sign= 1.0 },
     { .mult= 250.0,     .hz_offset= 0.0,      .amplitude_sign= 1.0},
 };
+
+static int algo_associated_carriers[FM_ALGORITHM_COUNT][4] = {
+    { 1, 1, 1, 1 },
+    { 1, 1, 1, 1 },
+    { 1, 1, 1, 1 },
+    { 1, 1, 1, 1 },
+    { 1, 1, 1, 1 },
+    { 1, 2, 1, 2 },
+    { 1, 2, 2, 2 },
+    { 1, 2, 2, 2 },
+    { 1, 2, 2, 2 },
+    { 1, 2, 2, 2 },
+    { 1, 2, 3, 3 },
+    { 1, 2, 3, 3 },
+    { 1, 2, 3, 4 }
+};
+
+static double carrier_intervals[] = {0.0, 0.04, -0.073, 0.091};

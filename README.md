@@ -11,6 +11,11 @@ The project itself comes with two modules:
 - User interface
 
 ### To be implemented:
+- Envelopes
+- Presets
+- Themes
+- Linux/Mac support
+- dynamic linking for synth lib
 - Instruments:
     - Chip wave
     - FM6 (from mods)
@@ -20,11 +25,19 @@ The project itself comes with two modules:
     - Spectrum
     - Picked string
     - Supersaw
-- Envelopes
-- Presets
-- Themes
-- Linux/Mac support
-- dynamic linking for synth lib
+- Modifiers:
+    - Transition type
+    - Chord type?
+    - Pitch shift/detune
+    - Vibrato
+    - Note filter
+- Effects:
+    - Distortion
+    - Bitcrusher
+    - Panning
+    - Chorus (or is this a modifier?)
+    - Echo
+    - Reverb
 
 # Building
 ## Building the synth code

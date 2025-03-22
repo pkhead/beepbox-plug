@@ -9,12 +9,6 @@
 #define FALSE 0
 #define TRUE 1
 
-// SINE_WAVE_LENGTH must be a power of 2!
-#define SINE_WAVE_LENGTH 256
-extern float sine_wave_f[SINE_WAVE_LENGTH];
-extern double sine_wave_d[SINE_WAVE_LENGTH];
-extern void init_wavetables();
-
 static inline float lerpf(float min, float max, float t) {
     return (max - min) * t + min;
 }

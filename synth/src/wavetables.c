@@ -1,5 +1,6 @@
 #include <math.h>
 #include "util.h"
+#include "wavetables.h"
 
 float sine_wave_f[SINE_WAVE_LENGTH];
 double sine_wave_d[SINE_WAVE_LENGTH];
