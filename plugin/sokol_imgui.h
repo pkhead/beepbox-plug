@@ -491,6 +491,27 @@ typedef struct simgui_font_tex_desc_t {
     void *userdata;
 } simgui_font_tex_desc_t;
 
+typedef struct {
+    ImGuiContext *context;
+    uint32_t init_cookie;
+    simgui_desc_t desc;
+    float cur_dpi_scale;
+    sg_buffer vbuf;
+    sg_buffer ibuf;
+    sg_image font_img;
+    sg_sampler font_smp;
+    sg_image def_img;       // used as default image for user images
+    sg_sampler def_smp;     // used as default sampler for user images
+    sg_shader def_shd;
+    sg_pipeline def_pip;
+    // separate shader and pipeline for unfilterable user images
+    sg_shader shd_unfilterable;
+    sg_pipeline pip_unfilterable;
+    sg_range vertices;
+    sg_range indices;
+    bool is_osx;
+} _simgui_state_t;
+
 SOKOL_IMGUI_API_DECL void simgui_setup(const simgui_desc_t* desc);
 SOKOL_IMGUI_API_DECL void simgui_new_frame(const simgui_frame_desc_t* desc);
 SOKOL_IMGUI_API_DECL void simgui_render(void);
@@ -514,6 +535,10 @@ SOKOL_IMGUI_API_DECL int simgui_map_keycode(sapp_keycode keycode);  // returns I
 SOKOL_IMGUI_API_DECL void simgui_shutdown(void);
 SOKOL_IMGUI_API_DECL void simgui_create_fonts_texture(const simgui_font_tex_desc_t* desc);
 SOKOL_IMGUI_API_DECL void simgui_destroy_fonts_texture(void);
+
+SOKOL_IMGUI_API_DECL void simgui_save_global_state(_simgui_state_t *out);
+SOKOL_IMGUI_API_DECL void simgui_restore_global_state(const _simgui_state_t *in);
+SOKOL_IMGUI_API_DECL void simgui_set_current_context(void);
 
 #ifdef __cplusplus
 } // extern "C"
@@ -588,26 +613,7 @@ typedef struct {
     uint8_t _pad_8[8];
 } _simgui_vs_params_t;
 
-typedef struct {
-    uint32_t init_cookie;
-    simgui_desc_t desc;
-    float cur_dpi_scale;
-    sg_buffer vbuf;
-    sg_buffer ibuf;
-    sg_image font_img;
-    sg_sampler font_smp;
-    sg_image def_img;       // used as default image for user images
-    sg_sampler def_smp;     // used as default sampler for user images
-    sg_shader def_shd;
-    sg_pipeline def_pip;
-    // separate shader and pipeline for unfilterable user images
-    sg_shader shd_unfilterable;
-    sg_pipeline pip_unfilterable;
-    sg_range vertices;
-    sg_range indices;
-    bool is_osx;
-} _simgui_state_t;
-static _simgui_state_t _simgui;
+thread_local _simgui_state_t _simgui;
 
 /*
     Embedded source code compiled with:
@@ -2358,14 +2364,16 @@ SOKOL_API_IMPL void simgui_setup(const simgui_desc_t* desc) {
 
     // initialize Dear ImGui
     #if defined(__cplusplus)
-        ImGui::CreateContext();
+        _simgui.context = ImGui::CreateContext();
+        ImGui::SetCurrentContext(_simgui.context);
         ImGui::StyleColorsDark();
         ImGuiIO* io = &ImGui::GetIO();
         if (!_simgui.desc.no_default_font) {
             io->Fonts->AddFontDefault();
         }
     #else
-        _SIMGUI_CFUNC(CreateContext)(NULL);
+        _simgui.context = _SIMGUI_CFUNC(CreateContext)(NULL);
+        ImGui::SetCurrentContext(_simgui.context);
         _SIMGUI_CFUNC(StyleColorsDark)(_SIMGUI_CFUNC(GetStyle)());
         ImGuiIO* io = _SIMGUI_CFUNC(GetIO)();
         if (!_simgui.desc.no_default_font) {
@@ -2609,6 +2617,18 @@ SOKOL_API_IMPL void simgui_destroy_fonts_texture(void) {
     sg_destroy_image(_simgui.font_img);
     _simgui.font_smp.id = SG_INVALID_ID;
     _simgui.font_img.id = SG_INVALID_ID;
+}
+
+SOKOL_API_IMPL void simgui_set_current_context(void) {
+    ImGui::SetCurrentContext(_simgui.context);
+}
+
+SOKOL_API_IMPL void simgui_save_global_state(_simgui_state_t *out) {
+    *out = _simgui;
+}
+
+SOKOL_API_IMPL void simgui_restore_global_state(const _simgui_state_t *in) {
+    _simgui = *in;
 }
 
 SOKOL_API_IMPL void simgui_shutdown(void) {

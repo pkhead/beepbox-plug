@@ -144,24 +144,27 @@ namespace platform {
         int y;
     };
 
-    struct PlatformData;
+    struct Window;
 
-    typedef void (*EventHandler)(Event event, PlatformData *platform);
-    typedef void (*DrawHandler)(PlatformData *platform);
+    typedef void (*EventHandler)(Event event, Window *platform);
+    typedef void (*DrawHandler)(Window *platform);
 
-    extern sg_swapchain sokolSwapchain(PlatformData *platform);
-    extern sg_environment sokolEnvironment(PlatformData *platform);
-    extern void present(PlatformData *data);
+    extern sg_swapchain sokolSwapchain(Window *platform);
+    extern sg_environment sokolEnvironment();
+    extern void present(Window *data);
 
-    PlatformData* init(int width, int height, const char *name, EventHandler event, DrawHandler draw);
-    void close(PlatformData *data);
+    void setup();
+    void shutdown();
 
-    void setUserdata(PlatformData *platform, void *ud);
-    void *getUserdata(PlatformData *platform);
+    Window* createWindow(int width, int height, const char *name, EventHandler event, DrawHandler draw);
+    void closeWindow(Window *window);
 
-    int getWidth(PlatformData *platform);
-    int getHeight(PlatformData *platform);
+    void setUserdata(Window *window, void *ud);
+    void *getUserdata(Window *window);
 
-    void setVisible(PlatformData *platform, bool visible);
-    void setParent(PlatformData *platform, void *parentHandle);
+    int getWidth(Window *window);
+    int getHeight(Window *window);
+
+    void setVisible(Window *window, bool visible);
+    void setParent(Window *window, void *parentHandle);
 }

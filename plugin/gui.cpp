@@ -17,7 +17,10 @@
 struct PluginGui
 {
     Plugin *plugin;
-    platform::PlatformData *window;
+    platform::Window *window;
+    _simgui_state_t simgui_state;
+
+    bool showAbout;
 
     int algo;
     int freq[4];
@@ -105,7 +108,12 @@ ImGuiKey keyToImgui(platform::Key key) {
     }
 }
 
-void eventHandler(platform::Event ev, platform::PlatformData *window) {
+void eventHandler(platform::Event ev, platform::Window *window) {
+    PluginGui *gui = (PluginGui*) platform::getUserdata(window);
+
+    simgui_restore_global_state(&gui->simgui_state);
+    simgui_set_current_context();
+
     switch (ev.type) {
         case platform::Event::MouseMove:
             simgui_add_mouse_pos_event((float)ev.x, (float)ev.y);
@@ -127,9 +135,17 @@ void eventHandler(platform::Event ev, platform::PlatformData *window) {
             simgui_add_key_event(keyToImgui(ev.key), false);
             break;
     }
+
+    simgui_save_global_state(&gui->simgui_state);
 }
 
-void drawHandler(platform::PlatformData *window) {
+void drawHandler(platform::Window *window) {
+    PluginGui *gui = (PluginGui*) platform::getUserdata(window);
+    Plugin *plug = gui->plugin;
+
+    simgui_restore_global_state(&gui->simgui_state);
+    simgui_set_current_context();
+
     // operator parameters
     static const char *name[] = {
         "1.", "2.", "3.", "4."
@@ -204,9 +220,6 @@ void drawHandler(platform::PlatformData *window) {
 
     // imgui
     {
-        PluginGui *gui = (PluginGui*) platform::getUserdata(window);
-        Plugin *plug = gui->plugin;
-
         gui->algo = (int)       cplug_getParameterValue(plug, FM_PARAM_ALGORITHM);
         gui->freq[0] = (int)  cplug_getParameterValue(plug, FM_PARAM_FREQ1);
         gui->vol[0] = (float)   cplug_getParameterValue(plug, FM_PARAM_VOLUME1) * 15.f;
@@ -219,21 +232,14 @@ void drawHandler(platform::PlatformData *window) {
         gui->fdbkType = (int)   cplug_getParameterValue(plug, FM_PARAM_FEEDBACK_TYPE);
         gui->fdbk = (float)     cplug_getParameterValue(plug, FM_PARAM_FEEDBACK_VOLUME) * 15.f;
 
-        static bool showAbout = false;
-
         if (ImGui::BeginMainMenuBar()) {
-            if (ImGui::BeginMenu("Options")) {
-                ImGui::MenuItem("Advanced Frequency");
-                ImGui::EndMenu();
-            }
-
             if (ImGui::BeginMenu("Presets")) {
                 ImGui::MenuItem("Test");
                 ImGui::EndMenu();
             }
 
             if (ImGui::MenuItem("About")) {
-                showAbout = !showAbout;
+                gui->showAbout = !gui->showAbout;
             }
 
             ImGui::EndMainMenuBar();
@@ -244,7 +250,7 @@ void drawHandler(platform::PlatformData *window) {
         ImGui::SetNextWindowSize(viewport->WorkSize);
 
         ImGuiWindowFlags winFlags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar;
-        if (showAbout) {
+        if (gui->showAbout) {
             ImGui::Begin("about", NULL, winFlags);
             ImGui::Text("emulation of beepbox instruments");
             ImGui::Text("author: pkhead");
@@ -308,6 +314,8 @@ void drawHandler(platform::PlatformData *window) {
 
     sg_commit();
     platform::present(window);
+
+    simgui_save_global_state(&gui->simgui_state);
 }
 
 static uint8_t leftArrowSymbol[] = {
@@ -402,19 +410,28 @@ static void symbol_patch(unsigned char *pixels, int width, int height, void *use
     }
 }
 
+int openGuiCount = 0;
+
 void* cplug_createGUI(void* userPlugin)
 {
     Plugin *plugin = (Plugin*)userPlugin;
     PluginGui *gui    = new PluginGui;
+    gui->showAbout = false;
+
+    if (openGuiCount == 0) {
+        platform::setup();
+    }
 
     gui->plugin = plugin;
-    gui->window = platform::init(GUI_DEFAULT_WIDTH, GUI_DEFAULT_HEIGHT, CPLUG_PLUGIN_NAME, eventHandler, drawHandler);
+    gui->window = platform::createWindow(GUI_DEFAULT_WIDTH, GUI_DEFAULT_HEIGHT, CPLUG_PLUGIN_NAME, eventHandler, drawHandler);
     platform::setUserdata(gui->window, gui);
 
-    sg_desc desc = {};
-    desc.environment = platform::sokolEnvironment(gui->window);
-    desc.logger.func = slog_func;
-    sg_setup(&desc);
+    if (openGuiCount == 0) {
+        sg_desc desc = {};
+        desc.environment = platform::sokolEnvironment();
+        desc.logger.func = slog_func;
+        sg_setup(&desc);
+    }
 
     {
         simgui_desc_t desc = {};
@@ -438,15 +455,26 @@ void* cplug_createGUI(void* userPlugin)
         simgui_create_fonts_texture(&desc);
     }
 
+    simgui_save_global_state(&gui->simgui_state);
+
+    openGuiCount++;
     return gui;
 }
 
 void cplug_destroyGUI(void* userGUI)
 {
     PluginGui *gui       = (PluginGui*)userGUI;
+
+    simgui_restore_global_state(&gui->simgui_state);
+    simgui_set_current_context();
     simgui_shutdown();
-    sg_shutdown();
-    platform::close(gui->window);
+    
+    platform::closeWindow(gui->window);
+
+    if (--openGuiCount == 0) {
+        sg_shutdown();
+        platform::shutdown();
+    }
 }
 
 void cplug_setParent(void* userGUI, void* newParent)

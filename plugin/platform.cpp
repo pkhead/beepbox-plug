@@ -8,14 +8,17 @@
 #include <windows.h>
 #include <windowsx.h>
 #include <d3d11.h>
+#include <dxgi1_2.h>
+
 #pragma comment (lib, "d3d11.lib")
+#pragma comment (lib, "dxgi.lib")
 #else
 #error "win32 support only!"
 #endif
 
 namespace platform {
-    struct PlatformData {
-        HWND window;
+    struct Window {
+        HWND hwnd;
         char uniqueClassName[64];
 
         int width;
@@ -23,38 +26,60 @@ namespace platform {
         platform::EventHandler evCallback;
         platform::DrawHandler drawCallback;
 
-        IDXGISwapChain *swapchain;
-        ID3D11Device *dev;
-        ID3D11DeviceContext *devcon;
+        IDXGISwapChain1 *swapchain;
         ID3D11RenderTargetView *backbuffer;
 
         void *userdata;
     };
 }
 
-sg_environment platform::sokolEnvironment(platform::PlatformData *platform) {
+ID3D11Device *s_device;
+ID3D11DeviceContext *s_devcon;
+IDXGIFactory2 *s_dxgiFactory;
+
+void platform::setup() {
+    D3D_FEATURE_LEVEL featureLevel;
+    HRESULT s = D3D11CreateDevice(
+        NULL,
+        D3D_DRIVER_TYPE_HARDWARE,
+        NULL, NULL, NULL, NULL, D3D11_SDK_VERSION,
+        &s_device, &featureLevel, &s_devcon
+    );
+    assert(s == S_OK);
+
+    s = CreateDXGIFactory(__uuidof(IDXGIFactory2), (void**)&s_dxgiFactory);
+    assert(s == S_OK);
+}
+
+void platform::shutdown() {
+    s_device->Release();
+    s_devcon->Release();
+    s_dxgiFactory->Release();
+}
+
+sg_environment platform::sokolEnvironment() {
     sg_environment env = {};
-    env.d3d11.device = platform->dev;
-    env.d3d11.device_context = platform->devcon;
+    env.d3d11.device = s_device;
+    env.d3d11.device_context = s_devcon;
     env.defaults.color_format = SG_PIXELFORMAT_RGBA8UI;
     env.defaults.depth_format = SG_PIXELFORMAT_NONE;
     env.defaults.sample_count = 1;
     return env;
 }
 
-sg_swapchain platform::sokolSwapchain(platform::PlatformData *platform) {
+sg_swapchain platform::sokolSwapchain(platform::Window *window) {
     sg_swapchain sw = {};
-    sw.d3d11.render_view = platform->backbuffer;
-    sw.width = platform->width;
-    sw.height = platform->height;
+    sw.d3d11.render_view = window->backbuffer;
+    sw.width = window->width;
+    sw.height = window->height;
     sw.color_format = SG_PIXELFORMAT_RGBA8UI;
     sw.depth_format = SG_PIXELFORMAT_NONE;
     sw.sample_count = 1;
     return sw;
 }
 
-void platform::present(platform::PlatformData *platform) {
-    platform->swapchain->Present(0, 0);
+void platform::present(platform::Window *window) {
+    window->swapchain->Present(0, 0);
 }
 
 static inline void getMousePos(platform::Event &event, LPARAM lParam) {
@@ -135,8 +160,8 @@ LRESULT CALLBACK MyWinProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     // fprintf(stderr, "msg: %u wParam: %llu lParam: %lld\n", uMsg, wParam, lParam);
 
     // NOTE: Might be NULL during initialisation
-    platform::PlatformData *platform = (platform::PlatformData*)GetWindowLongPtrA(hwnd, 0);
-    if (platform == NULL) return DefWindowProcA(hwnd, uMsg, wParam, lParam);
+    platform::Window *window = (platform::Window*)GetWindowLongPtrA(hwnd, 0);
+    if (window == NULL) return DefWindowProcA(hwnd, uMsg, wParam, lParam);
 
     platform::Event event;
 
@@ -145,7 +170,7 @@ LRESULT CALLBACK MyWinProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     case WM_MOUSEMOVE:
         event.type = platform::Event::MouseMove;
         getMousePos(event, lParam);
-        platform->evCallback(event, platform);
+        window->evCallback(event, window);
         // if (gui->mouseDragging)
         //     RedrawWindow(hwnd, 0, 0, RDW_INVALIDATE);
         break;
@@ -156,7 +181,7 @@ LRESULT CALLBACK MyWinProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         event.type = platform::Event::MouseDown;
         getMousePos(event, lParam);
         event.button = 0;
-        platform->evCallback(event, platform);
+        window->evCallback(event, window);
         break;
 
     case WM_LBUTTONUP:
@@ -165,7 +190,7 @@ LRESULT CALLBACK MyWinProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         event.type = platform::Event::MouseUp;
         getMousePos(event, lParam);
         event.button = 0;
-        platform->evCallback(event, platform);
+        window->evCallback(event, window);
         break;
 
     case WM_RBUTTONDOWN:
@@ -174,7 +199,7 @@ LRESULT CALLBACK MyWinProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         event.type = platform::Event::MouseDown;
         getMousePos(event, lParam);
         event.button = 1;
-        platform->evCallback(event, platform);
+        window->evCallback(event, window);
         break;
 
     case WM_RBUTTONUP:
@@ -183,24 +208,24 @@ LRESULT CALLBACK MyWinProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         event.type = platform::Event::MouseUp;
         getMousePos(event, lParam);
         event.button = 1;
-        platform->evCallback(event, platform);
+        window->evCallback(event, window);
         break;
 
     case WM_KEYDOWN:
         event.type = platform::Event::KeyDown;
         event.key = winKey(wParam);
-        if (event.key != platform::Key::None) platform->evCallback(event, platform);
+        if (event.key != platform::Key::None) window->evCallback(event, window);
         break;
 
     case WM_KEYUP:
         event.type = platform::Event::KeyUp;
         event.key = winKey(wParam);
-        if (event.key != platform::Key::None) platform->evCallback(event, platform);
+        if (event.key != platform::Key::None) window->evCallback(event, window);
         break;
     
     case WM_TIMER:
         // if (tickGUI(gui))
-        platform->drawCallback(platform);
+        window->drawCallback(window);
         RedrawWindow(hwnd, 0, 0, RDW_INVALIDATE);
         break;
     default:
@@ -212,9 +237,8 @@ LRESULT CALLBACK MyWinProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 #define MY_TIMER_ID 1
 
-platform::PlatformData* platform::init(int width, int height, const char *name, platform::EventHandler evCallback, platform::DrawHandler drawCallback) {
-    platform::PlatformData *platform = new platform::PlatformData;
-    memset(platform, 0, sizeof(platform::PlatformData));
+platform::Window* platform::createWindow(int width, int height, const char *name, platform::EventHandler evCallback, platform::DrawHandler drawCallback) {
+    platform::Window *platform = new platform::Window {};
 
     platform->width  = width;
     platform->height = height;
@@ -236,7 +260,7 @@ platform::PlatformData* platform::init(int width, int height, const char *name, 
     ATOM result      = RegisterClassExA(&wc);
     assert(result != 0);
 
-    platform->window = CreateWindowExA(
+    platform->hwnd = CreateWindowExA(
         0L,
         platform->uniqueClassName,
         CPLUG_PLUGIN_NAME,
@@ -251,33 +275,28 @@ platform::PlatformData* platform::init(int width, int height, const char *name, 
         NULL);
     DWORD err = GetLastError();
     (void)err;
-    assert(platform->window != NULL);
+    assert(platform->hwnd != NULL);
 
-    SetWindowLongPtrA((HWND)platform->window, 0, (LONG_PTR)platform);
+    SetWindowLongPtrA((HWND)platform->hwnd, 0, (LONG_PTR)platform);
 
-    // initialize d3d11
+    // initialize swapchain/backbuffer
     {
-        DXGI_SWAP_CHAIN_DESC scd;
+        DXGI_SWAP_CHAIN_DESC1 scd;
         ZeroMemory(&scd, sizeof(scd));
 
         scd.BufferCount = 1;
-        scd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        scd.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
         scd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-        scd.OutputWindow = platform->window;
         scd.SampleDesc.Count = 1;
-        scd.Windowed = TRUE;
-
-        D3D11CreateDeviceAndSwapChain(
-            NULL,
-            D3D_DRIVER_TYPE_HARDWARE,
-            NULL, NULL, NULL, NULL,
-            D3D11_SDK_VERSION,
-            &scd, &platform->swapchain, &platform->dev, NULL, &platform->devcon
-        );
+        
+        HRESULT hr = s_dxgiFactory->CreateSwapChainForHwnd(
+            s_device,
+            platform->hwnd, &scd, NULL, NULL, &platform->swapchain);
+        assert(hr == S_OK);
 
         ID3D11Texture2D *pBackBuffer;
         platform->swapchain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&pBackBuffer);
-        platform->dev->CreateRenderTargetView(pBackBuffer, NULL, &platform->backbuffer);
+        s_device->CreateRenderTargetView(pBackBuffer, NULL, &platform->backbuffer);
         pBackBuffer->Release();
 
         // gui->devcon->OMSetRenderTargets(1, &gui->backbuffer, NULL);
@@ -296,56 +315,56 @@ platform::PlatformData* platform::init(int width, int height, const char *name, 
     return platform;
 }
 
-void platform::close(PlatformData *platform) {
+void platform::closeWindow(Window *platform) {
     platform->swapchain->Release();
     platform->backbuffer->Release();
-    platform->dev->Release();
-    platform->devcon->Release();
+    // platform->dev->Release();
+    // platform->devcon->Release();
 
-    DestroyWindow(platform->window);
+    DestroyWindow(platform->hwnd);
     UnregisterClassA(platform->uniqueClassName, NULL);
     delete platform;
 }
 
-void platform::setParent(platform::PlatformData *platform, void* newParent)
+void platform::setParent(platform::Window *window, void* newParent)
 {
-    HWND oldParent = GetParent(platform->window);
+    HWND oldParent = GetParent(window->hwnd);
     if (oldParent)
     {
-        KillTimer(platform->window, MY_TIMER_ID);
+        KillTimer(window->hwnd, MY_TIMER_ID);
 
-        SetParent(platform->window, NULL);
-        DefWindowProcA(platform->window, WM_UPDATEUISTATE, UIS_CLEAR, WS_CHILD);
-        DefWindowProcA(platform->window, WM_UPDATEUISTATE, UIS_SET, WS_POPUP);
+        SetParent(window->hwnd, NULL);
+        DefWindowProcA(window->hwnd, WM_UPDATEUISTATE, UIS_CLEAR, WS_CHILD);
+        DefWindowProcA(window->hwnd, WM_UPDATEUISTATE, UIS_SET, WS_POPUP);
     }
 
     if (newParent)
     {
-        SetParent(platform->window, (HWND)newParent);
+        SetParent(window->hwnd, (HWND)newParent);
         //memcpy(gui->plugin->paramValuesMain, gui->plugin->paramValuesAudio, sizeof(gui->plugin->paramValuesMain));
-        DefWindowProcA(platform->window, WM_UPDATEUISTATE, UIS_CLEAR, WS_POPUP);
-        DefWindowProcA(platform->window, WM_UPDATEUISTATE, UIS_SET, WS_CHILD);
+        DefWindowProcA(window->hwnd, WM_UPDATEUISTATE, UIS_CLEAR, WS_POPUP);
+        DefWindowProcA(window->hwnd, WM_UPDATEUISTATE, UIS_SET, WS_CHILD);
 
-        SetTimer(platform->window, MY_TIMER_ID, 10, NULL);
+        SetTimer(window->hwnd, MY_TIMER_ID, 10, NULL);
     }
 }
 
-void platform::setUserdata(PlatformData *platform, void *ud) {
-    platform->userdata = ud;
+void platform::setUserdata(platform::Window *window, void *ud) {
+    window->userdata = ud;
 }
 
-void* platform::getUserdata(PlatformData *platform) {
-    return platform->userdata;
+void* platform::getUserdata(Window *window) {
+    return window->userdata;
 }
 
-int platform::getWidth(PlatformData *platform) {
-    return platform->width;
+int platform::getWidth(Window *window) {
+    return window->width;
 }
 
-int platform::getHeight(PlatformData *platform) {
-    return platform->height;
+int platform::getHeight(Window *window) {
+    return window->height;
 }
 
-void platform::setVisible(PlatformData *platform, bool visible) {
-    ShowWindow(platform->window, visible ? SW_SHOW : SW_HIDE);
+void platform::setVisible(Window *window, bool visible) {
+    ShowWindow(window->hwnd, visible ? SW_SHOW : SW_HIDE);
 }
