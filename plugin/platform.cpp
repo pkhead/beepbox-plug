@@ -209,6 +209,13 @@ LRESULT CALLBACK MyWinProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         window->evCallback(event, window);
         break;
 
+    case WM_MOUSEWHEEL:
+        event.type = platform::Event::MouseWheel;
+        event.x = 0;
+        event.y = GET_WHEEL_DELTA_WPARAM(wParam) / WHEEL_DELTA;
+        window->evCallback(event, window);
+        break;
+    
     case WM_KEYDOWN:
         event.type = platform::Event::KeyDown;
         event.key = winKey(wParam);
@@ -220,6 +227,7 @@ LRESULT CALLBACK MyWinProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         event.key = winKey(wParam);
         if (event.key != platform::Key::None) window->evCallback(event, window);
         break;
+
     
     case WM_TIMER:
         window->drawCallback(window);

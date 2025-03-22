@@ -131,6 +131,7 @@ namespace platform {
             MouseDown,
             MouseUp,
             MouseMove,
+            MouseWheel,
             KeyDown,
             KeyUp,
         } type;

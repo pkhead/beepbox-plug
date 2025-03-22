@@ -126,6 +126,10 @@ void eventHandler(platform::Event ev, platform::Window *window) {
         case platform::Event::MouseUp:
             simgui_add_mouse_button_event(ev.button, false);
             break;
+        
+        case platform::Event::MouseWheel:
+            simgui_add_mouse_wheel_event(0.f, ev.y);
+            break;
 
         case platform::Event::KeyDown:
             simgui_add_key_event(keyToImgui(ev.key), true);
