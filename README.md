@@ -23,13 +23,14 @@ The project itself comes with two modules:
 - Envelopes
 - Presets
 - Themes
+- Linux/Mac support
 - dynamic linking for synth lib
 
 # Building
 ## Building the synth code
 Requirements:
 - C11-compliant compiler
-- CMake + build system (Ninja, Makefile, MSVC, e.t.c)
+- CMake + build system (Ninja, Makefile, MSVC, e.t.c.)
 
 ```bash
 cd synth
@@ -47,7 +48,7 @@ cmake --build .
 Requirements:
 - C11-compliant compiler (for synth code)
 - C++ compiler
-- CMake + build system (Ninja, Makefile, MSVC, e.t.c)
+- CMake + build system (Ninja, Makefile, MSVC, e.t.c.)
 
 ```bash
 mkdir build
@@ -57,7 +58,7 @@ cd build
 # possible arguments to pass:
 #   -DBUILD_STANDALONE=1
 #   -DBUILD_VST3=1
-#   -DBUILD_STANDALONE=1
+#   -DBUILD_CLAP=1
 cmake ..
 
 # compile the executable/vst3/clapplugin
