@@ -7,6 +7,7 @@
 #include "fm_algo.h"
 #include "util.h"
 #include "wavetables.h"
+#include "instrument.h"
 
 /*
 algorithms:
@@ -118,18 +119,20 @@ void fm_init(fm_inst_t *inst) {
     inst->feedback = 0;
 }
 
-int fm_midi_on(fm_inst_t *inst, int key, int velocity) {
+int fm_midi_on(inst_t *inst, int key, int velocity) {
+    fm_inst_t *const fm = inst->fm;
+
     float velocity_f = velocity / 127.f;
 
     int voice_index = 0;
 
     for (int i = 0; i < FM_MAX_VOICES; i++) {
-        if (inst->voices[i].active) continue;
+        if (fm->voices[i].active) continue;
         voice_index = i;
         break;
     }
 
-    fm_voice_t *voice = inst->voices + voice_index;
+    fm_voice_t *voice = fm->voices + voice_index;
     *voice = (fm_voice_t) {
         .active = 1,
         .released = 0,
@@ -152,9 +155,11 @@ int fm_midi_on(fm_inst_t *inst, int key, int velocity) {
     return voice_index;
 }
 
-void fm_midi_off(fm_inst_t *inst, int key, int velocity) {
+void fm_midi_off(inst_t *inst, int key, int velocity) {
+    fm_inst_t *const fm = inst->fm;
+    
     for (int i = 0; i < FM_MAX_VOICES; i++) {
-        fm_voice_t *voice = &inst->voices[i];
+        fm_voice_t *voice = &fm->voices[i];
         if (voice->active && !voice->released && voice->key == key) {
             voice->released = 1;
             break;
@@ -162,11 +167,11 @@ void fm_midi_off(fm_inst_t *inst, int key, int velocity) {
     }
 }
 
-void fm_run(fm_inst_t *src_inst, float *out_samples, size_t frame_count, int sample_rate) {
+void fm_run(inst_t *src_inst, float *out_samples, size_t frame_count, int sample_rate) {
     const double sample_len = 1.f / sample_rate;
 
     // create copy of instrument on stack, for cache optimization purposes
-    fm_inst_t inst = *src_inst;
+    fm_inst_t inst = *src_inst->fm;
 
     setup_algorithm(&inst);
     fm_algo_func_t algo_func = fm_algorithm_table[inst.algorithm * FM_FEEDBACK_TYPE_COUNT + inst.feedback_type];
@@ -269,7 +274,7 @@ void fm_run(fm_inst_t *src_inst, float *out_samples, size_t frame_count, int sam
         }
     }
 
-    *src_inst = inst;
+    *src_inst->fm = inst;
 }
 
 

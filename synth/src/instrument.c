@@ -1,7 +1,8 @@
 #include <limits.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include "public.h"
+#include <string.h>
+#include "instrument.h"
 #include "fm.h"
 #include "util.h"
 
@@ -29,12 +30,17 @@ inst_t* inst_new(inst_type_t inst_type) {
     init_wavetables();
 
     inst_t *inst = malloc(sizeof(inst_t));
-    inst->type = inst_type;
-    inst->sample_rate = 0;
+    *inst = (inst_t) {
+        .type = inst_type,
+        .sample_rate = 0,
+        .fade_in = 0.0,
+        .fade_out = 0.0
+    };
 
     switch (inst_type) {
         case INSTRUMENT_FM:
-            fm_init(&inst->fm);
+            inst->fm = malloc(sizeof(fm_inst_t));
+            fm_init(inst->fm);
             break;
 
         default:
@@ -46,6 +52,7 @@ inst_t* inst_new(inst_type_t inst_type) {
 }
 
 void inst_destroy(inst_t* inst) {
+    free(inst->fm);
     free(inst);
 }
 
@@ -58,7 +65,7 @@ static int param_helper(inst_t *inst, int index, void **addr, inst_param_info_t 
         case INSTRUMENT_FM:
             if (index < 0 || index >= FM_PARAM_COUNT) return 1;
             *info = fm_param_info[index];
-            *addr = (void*)(((uint8_t*)&inst->fm) + fm_param_addresses[index]);
+            *addr = (void*)(((uint8_t*)inst->fm) + fm_param_addresses[index]);
             break;
 
         default:
@@ -172,7 +179,7 @@ int inst_get_param_double(inst_t* inst, int index, double *value) {
 void inst_midi_on(inst_t *inst, int key, int velocity) {
     switch (inst->type) {
         case INSTRUMENT_FM:
-            fm_midi_on(&inst->fm, key, velocity);
+            fm_midi_on(inst, key, velocity);
             break;
 
         default: break;
@@ -182,7 +189,7 @@ void inst_midi_on(inst_t *inst, int key, int velocity) {
 void inst_midi_off(inst_t *inst, int key, int velocity) {
     switch (inst->type) {
         case INSTRUMENT_FM:
-            fm_midi_off(&inst->fm, key, velocity);
+            fm_midi_off(inst, key, velocity);
             break;
 
         default: break;
@@ -192,7 +199,7 @@ void inst_midi_off(inst_t *inst, int key, int velocity) {
 void inst_run(inst_t* inst, float *out_samples, size_t frame_count) {
     switch (inst->type) {
         case INSTRUMENT_FM:
-            fm_run(&inst->fm, out_samples, frame_count, inst->sample_rate);
+            fm_run(inst, out_samples, frame_count, inst->sample_rate);
             break;
 
         default:

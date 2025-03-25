@@ -5,7 +5,7 @@ set(CMAKE_C_STANDARD 11)
 add_library(beepbox_synth STATIC
     src/fm_algo.c
     src/fm.c
-    src/public.c
+    src/instrument.c
     src/wavetables.c
 )
 

@@ -52,9 +52,9 @@ static inline double fm_calc_op(const double phase_mix) {
 }
 
 void fm_init(fm_inst_t *inst);
-int fm_midi_on(fm_inst_t *inst, int key, int velocity);
-void fm_midi_off(fm_inst_t *inst, int key, int velocity);
-void fm_run(fm_inst_t *src_inst, float *out_samples, size_t frame_count, int sample_rate);
+int fm_midi_on(inst_t *inst, int key, int velocity);
+void fm_midi_off(inst_t *inst, int key, int velocity);
+void fm_run(inst_t *inst, float *out_samples, size_t frame_count, int sample_rate);
 
 extern inst_param_info_t fm_param_info[FM_PARAM_COUNT];
 extern size_t fm_param_addresses[FM_PARAM_COUNT];
