@@ -253,13 +253,13 @@ do
         algo_signatures[algo_index] = {}
 
         for fdbk_index, _ in ipairs(feedback_types) do
-            table.insert(algo_signatures[algo_index], ("double fm_algo%02d%02d(fm_voice_t *voice, const double feedback_amp)"):format(algo_index-1, fdbk_index-1))
+            table.insert(algo_signatures[algo_index], ("double fm_algo%02d%02d(fm_voice_s *voice, const double feedback_amp)"):format(algo_index-1, fdbk_index-1))
             func_count = func_count + 1
         end
     end
 
-    lines[#lines+1] = "typedef double (*fm_algo_func_t)(fm_voice_t *voice, const double feedback_amp);"
-    lines[#lines+1] = "extern fm_algo_func_t fm_algorithm_table["..func_count.."];"
+    lines[#lines+1] = "typedef double (*fm_algo_f)(fm_voice_s *voice, const double feedback_amp);"
+    lines[#lines+1] = "extern fm_algo_f fm_algorithm_table["..func_count.."];"
 
     lines[#lines+1] = "#endif"
 
@@ -302,7 +302,7 @@ do
         end
     end
 
-    lines[#lines+1] = "fm_algo_func_t fm_algorithm_table["..(func_count).."] = {"
+    lines[#lines+1] = "fm_algo_f fm_algorithm_table["..(func_count).."] = {"
 
     for algo_index, algo_data in ipairs(algorithms) do
         for fdb_index, fdb_data in ipairs(feedback_types) do

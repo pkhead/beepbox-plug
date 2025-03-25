@@ -5,16 +5,16 @@
 #include "../include/beepbox_synth.h"
 #include "fm.h"
 
-typedef struct inst_t {
-    inst_type_t type;
+typedef struct inst {
+    inst_type_e type;
     int sample_rate;
 
-    double fade_in;
+    double fade_in; // double in range of 0-9
     double fade_out;
 
     union {
-        fm_inst_t *fm;
+        fm_inst_s *fm;
     };
-} inst_t;
+} inst_s;
 
 #endif

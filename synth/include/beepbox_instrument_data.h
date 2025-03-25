@@ -20,16 +20,23 @@
 #define FM_ALGORITHM_COUNT 13
 #define FM_FEEDBACK_TYPE_COUNT 18
 
-#define FM_PARAM_ALGORITHM          0
-#define FM_PARAM_FREQ1              1
-#define FM_PARAM_VOLUME1            2
-#define FM_PARAM_FREQ2              3
-#define FM_PARAM_VOLUME2            4
-#define FM_PARAM_FREQ3              5
-#define FM_PARAM_VOLUME3            6
-#define FM_PARAM_FREQ4              7
-#define FM_PARAM_VOLUME4            8
-#define FM_PARAM_FEEDBACK_TYPE      9
-#define FM_PARAM_FEEDBACK_VOLUME    10
+typedef enum {
+    PARAM_FADE_IN,
+    PARAM_FADE_OUT
+} inst_param_e;
+
+typedef enum {
+    FM_PARAM_ALGORITHM,          // 0
+    FM_PARAM_FREQ1,              // 1
+    FM_PARAM_VOLUME1,            // 2
+    FM_PARAM_FREQ2,              // 3
+    FM_PARAM_VOLUME2,            // 4
+    FM_PARAM_FREQ3,              // 5
+    FM_PARAM_VOLUME3,            // 6
+    FM_PARAM_FREQ4,              // 7
+    FM_PARAM_VOLUME4,            // 8
+    FM_PARAM_FEEDBACK_TYPE,      // 9
+    FM_PARAM_FEEDBACK_VOLUME,    // 10
+} fm_param_e;
 
 #endif

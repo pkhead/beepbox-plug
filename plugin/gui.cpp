@@ -14,6 +14,8 @@
 #define GUI_RATIO_X 2
 #define GUI_RATIO_Y 3
 
+using namespace beepbox;
+
 struct PluginGui
 {
     Plugin *plugin;

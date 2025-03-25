@@ -17,7 +17,7 @@ typedef struct {
     double output;
     double prev_pitch_expression;
     uint8_t has_prev_pitch_expression;
-} fm_voice_opstate_t;
+} fm_voice_opstate_s;
 
 typedef struct {
     uint8_t active;
@@ -27,10 +27,10 @@ typedef struct {
     float volume;
     
     double expression;
-    fm_voice_opstate_t op_states[FM_OP_COUNT];
+    fm_voice_opstate_s op_states[FM_OP_COUNT];
 
     float last_sample;
-} fm_voice_t;
+} fm_voice_s;
 
 typedef struct {
     uint8_t algorithm;
@@ -41,8 +41,8 @@ typedef struct {
     double feedback;
 
     int carrier_count;
-    fm_voice_t voices[FM_MAX_VOICES];
-} fm_inst_t;
+    fm_voice_s voices[FM_MAX_VOICES];
+} fm_inst_s;
 
 static inline double fm_calc_op(const double phase_mix) {
     const int phase_int = (int) phase_mix;
@@ -51,12 +51,12 @@ static inline double fm_calc_op(const double phase_mix) {
     return sample + (sine_wave_d[index+1] - sample) * (phase_mix - phase_int);
 }
 
-void fm_init(fm_inst_t *inst);
-int fm_midi_on(inst_t *inst, int key, int velocity);
-void fm_midi_off(inst_t *inst, int key, int velocity);
-void fm_run(inst_t *inst, float *out_samples, size_t frame_count, int sample_rate);
+void fm_init(fm_inst_s *inst);
+int fm_midi_on(inst_s *inst, int key, int velocity);
+void fm_midi_off(inst_s *inst, int key, int velocity);
+void fm_run(inst_s *inst, float *out_samples, size_t frame_count, int sample_rate);
 
-extern inst_param_info_t fm_param_info[FM_PARAM_COUNT];
+extern inst_param_info_s fm_param_info[FM_PARAM_COUNT];
 extern size_t fm_param_addresses[FM_PARAM_COUNT];
 
 #endif

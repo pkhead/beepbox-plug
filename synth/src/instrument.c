@@ -6,7 +6,7 @@
 #include "fm.h"
 #include "util.h"
 
-const int inst_param_count(inst_type_t type) {
+const int inst_param_count(inst_type_e type) {
     switch (type) {
         case INSTRUMENT_FM:
             return FM_PARAM_COUNT;
@@ -16,7 +16,7 @@ const int inst_param_count(inst_type_t type) {
     }
 }
 
-const inst_param_info_t* inst_param_info(inst_type_t type) {
+const inst_param_info_s* inst_param_info(inst_type_e type) {
     switch (type) {
         case INSTRUMENT_FM:
             return fm_param_info;
@@ -26,11 +26,11 @@ const inst_param_info_t* inst_param_info(inst_type_t type) {
     }
 }
 
-inst_t* inst_new(inst_type_t inst_type) {
+inst_s* inst_new(inst_type_e inst_type) {
     init_wavetables();
 
-    inst_t *inst = malloc(sizeof(inst_t));
-    *inst = (inst_t) {
+    inst_s *inst = malloc(sizeof(inst_s));
+    *inst = (inst_s) {
         .type = inst_type,
         .sample_rate = 0,
         .fade_in = 0.0,
@@ -39,7 +39,7 @@ inst_t* inst_new(inst_type_t inst_type) {
 
     switch (inst_type) {
         case INSTRUMENT_FM:
-            inst->fm = malloc(sizeof(fm_inst_t));
+            inst->fm = malloc(sizeof(fm_inst_s));
             fm_init(inst->fm);
             break;
 
@@ -51,16 +51,16 @@ inst_t* inst_new(inst_type_t inst_type) {
     return inst;
 }
 
-void inst_destroy(inst_t* inst) {
+void inst_destroy(inst_s* inst) {
     free(inst->fm);
     free(inst);
 }
 
-void inst_set_sample_rate(inst_t *inst, int sample_rate) {
+void inst_set_sample_rate(inst_s *inst, int sample_rate) {
     inst->sample_rate = sample_rate;
 }
 
-static int param_helper(inst_t *inst, int index, void **addr, inst_param_info_t *info) {
+static int param_helper(inst_s *inst, int index, void **addr, inst_param_info_s *info) {
     switch (inst->type) {
         case INSTRUMENT_FM:
             if (index < 0 || index >= FM_PARAM_COUNT) return 1;
@@ -75,9 +75,9 @@ static int param_helper(inst_t *inst, int index, void **addr, inst_param_info_t 
     return 0;
 }
 
-int inst_set_param_int(inst_t* inst, int index, int value) {
+int inst_set_param_int(inst_s* inst, int index, int value) {
     void *addr;
-    inst_param_info_t info;
+    inst_param_info_s info;
 
     if (param_helper(inst, index, &addr, &info))
         return 1;
@@ -104,9 +104,9 @@ int inst_set_param_int(inst_t* inst, int index, int value) {
     return 0;
 }
 
-int inst_set_param_double(inst_t* inst, int index, double value) {
+int inst_set_param_double(inst_s* inst, int index, double value) {
     void *addr;
-    inst_param_info_t info;
+    inst_param_info_s info;
 
     if (param_helper(inst, index, &addr, &info))
         return 1;
@@ -129,9 +129,9 @@ int inst_set_param_double(inst_t* inst, int index, double value) {
     return 0;
 }
 
-int inst_get_param_int(inst_t* inst, int index, int *value) {
+int inst_get_param_int(inst_s* inst, int index, int *value) {
     void *addr;
-    inst_param_info_t info;
+    inst_param_info_s info;
 
     if (param_helper(inst, index, &addr, &info))
         return 1;
@@ -152,9 +152,9 @@ int inst_get_param_int(inst_t* inst, int index, int *value) {
     return 0;
 }
 
-int inst_get_param_double(inst_t* inst, int index, double *value) {
+int inst_get_param_double(inst_s* inst, int index, double *value) {
     void *addr;
-    inst_param_info_t info;
+    inst_param_info_s info;
 
     if (param_helper(inst, index, &addr, &info))
         return 1;
@@ -176,7 +176,7 @@ int inst_get_param_double(inst_t* inst, int index, double *value) {
     return 0;
 }
 
-void inst_midi_on(inst_t *inst, int key, int velocity) {
+void inst_midi_on(inst_s *inst, int key, int velocity) {
     switch (inst->type) {
         case INSTRUMENT_FM:
             fm_midi_on(inst, key, velocity);
@@ -186,7 +186,7 @@ void inst_midi_on(inst_t *inst, int key, int velocity) {
     }
 }
 
-void inst_midi_off(inst_t *inst, int key, int velocity) {
+void inst_midi_off(inst_s *inst, int key, int velocity) {
     switch (inst->type) {
         case INSTRUMENT_FM:
             fm_midi_off(inst, key, velocity);
@@ -196,7 +196,7 @@ void inst_midi_off(inst_t *inst, int key, int velocity) {
     }
 }
 
-void inst_run(inst_t* inst, float *out_samples, size_t frame_count) {
+void inst_run(inst_s* inst, float *out_samples, size_t frame_count) {
     switch (inst->type) {
         case INSTRUMENT_FM:
             fm_run(inst, out_samples, frame_count, inst->sample_rate);

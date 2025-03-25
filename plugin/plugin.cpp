@@ -101,7 +101,7 @@ double cplug_getDefaultParameterValue(void* ptr, uint32_t index)
 
     if (index < beepbox::inst_param_count(plug->instType)) return 0.0;
 
-    const beepbox::inst_param_info_t *info = beepbox::inst_param_info(plug->instType);
+    const beepbox::inst_param_info_s *info = beepbox::inst_param_info(plug->instType);
     return (double) info[index].default_value;
 }
 
@@ -179,7 +179,7 @@ void cplug_getParameterRange(void* ptr, uint32_t index, double* min, double* max
 
     if (index < beepbox::inst_param_count(plug->instType)) return;
 
-    const beepbox::inst_param_info_t *info = beepbox::inst_param_info(plug->instType);
+    const beepbox::inst_param_info_s *info = beepbox::inst_param_info(plug->instType);
     *min = info[index].min_value;
     *max = info[index].max_value;
 }
@@ -187,7 +187,7 @@ void cplug_getParameterRange(void* ptr, uint32_t index, double* min, double* max
 uint32_t cplug_getParameterFlags(void* ptr, uint32_t index)
 {
     Plugin *plug = (Plugin*) ptr;
-    const beepbox::inst_param_info_t *info = beepbox::inst_param_info(plug->instType);
+    const beepbox::inst_param_info_s *info = beepbox::inst_param_info(plug->instType);
 
     uint32_t flags = 0;
     if (info[index].type == beepbox::PARAM_INT || info[index].type == beepbox::PARAM_UINT8)

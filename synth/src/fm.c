@@ -51,9 +51,9 @@ typedef struct {
     double mult;
     double hz_offset;
     double amplitude_sign;
-} fm_freq_data_t;
+} fm_freq_data_s;
 
-static fm_freq_data_t frequency_data[FM_FREQ_COUNT];
+static fm_freq_data_s frequency_data[FM_FREQ_COUNT];
 static int algo_associated_carriers[FM_ALGORITHM_COUNT][4];
 static double carrier_intervals[FM_OP_COUNT];
 
@@ -65,7 +65,7 @@ static double operator_amplitude_curve(double amplitude) {
     return (pow(16.0, amplitude) - 1.0) / 15.0;
 }
 
-static void setup_algorithm(fm_inst_t *inst) {
+static void setup_algorithm(fm_inst_s *inst) {
     switch (inst->algorithm) {
         case 0:
         case 1:
@@ -97,7 +97,7 @@ static void setup_algorithm(fm_inst_t *inst) {
     }
 }
 
-void fm_init(fm_inst_t *inst) {    
+void fm_init(fm_inst_s *inst) {    
     memset(inst, 0, sizeof(*inst));
 
     for (int i = 0; i < FM_MAX_VOICES; i++) {
@@ -119,8 +119,8 @@ void fm_init(fm_inst_t *inst) {
     inst->feedback = 0;
 }
 
-int fm_midi_on(inst_t *inst, int key, int velocity) {
-    fm_inst_t *const fm = inst->fm;
+int fm_midi_on(inst_s *inst, int key, int velocity) {
+    fm_inst_s *const fm = inst->fm;
 
     float velocity_f = velocity / 127.f;
 
@@ -132,8 +132,8 @@ int fm_midi_on(inst_t *inst, int key, int velocity) {
         break;
     }
 
-    fm_voice_t *voice = fm->voices + voice_index;
-    *voice = (fm_voice_t) {
+    fm_voice_s *voice = fm->voices + voice_index;
+    *voice = (fm_voice_s) {
         .active = 1,
         .released = 0,
         .key = key,
@@ -142,7 +142,7 @@ int fm_midi_on(inst_t *inst, int key, int velocity) {
     };
 
     for (int op = 0; op < FM_OP_COUNT; op++) {
-        voice->op_states[op] = (fm_voice_opstate_t) {
+        voice->op_states[op] = (fm_voice_opstate_s) {
             .phase = 0.f,
             .phase_delta = 0.f,
             .expression = 0.f,
@@ -155,11 +155,11 @@ int fm_midi_on(inst_t *inst, int key, int velocity) {
     return voice_index;
 }
 
-void fm_midi_off(inst_t *inst, int key, int velocity) {
-    fm_inst_t *const fm = inst->fm;
+void fm_midi_off(inst_s *inst, int key, int velocity) {
+    fm_inst_s *const fm = inst->fm;
     
     for (int i = 0; i < FM_MAX_VOICES; i++) {
-        fm_voice_t *voice = &fm->voices[i];
+        fm_voice_s *voice = &fm->voices[i];
         if (voice->active && !voice->released && voice->key == key) {
             voice->released = 1;
             break;
@@ -167,18 +167,18 @@ void fm_midi_off(inst_t *inst, int key, int velocity) {
     }
 }
 
-void fm_run(inst_t *src_inst, float *out_samples, size_t frame_count, int sample_rate) {
+void fm_run(inst_s *src_inst, float *out_samples, size_t frame_count, int sample_rate) {
     const double sample_len = 1.f / sample_rate;
 
     // create copy of instrument on stack, for cache optimization purposes
-    fm_inst_t inst = *src_inst->fm;
+    fm_inst_s inst = *src_inst->fm;
 
     setup_algorithm(&inst);
-    fm_algo_func_t algo_func = fm_algorithm_table[inst.algorithm * FM_FEEDBACK_TYPE_COUNT + inst.feedback_type];
+    fm_algo_f algo_func = fm_algorithm_table[inst.algorithm * FM_FEEDBACK_TYPE_COUNT + inst.feedback_type];
 
     // precalculation/volume balancing/etc
     for (int i = 0; i < FM_MAX_VOICES; i++) {
-        fm_voice_t *voice = inst.voices + i;
+        fm_voice_s *voice = inst.voices + i;
         if (!voice->active) continue;
 
         double sine_expr_boost = 1.0;
@@ -189,7 +189,7 @@ void fm_run(inst_t *src_inst, float *out_samples, size_t frame_count, int sample
             // by other waves because negative numbers don't work with the modulus operator very well.
             voice->op_states[op].phase = (fmod(voice->op_states[op].phase, 1.0) + 1000) * SINE_WAVE_LENGTH;
 
-            fm_freq_data_t *freq_data = &frequency_data[inst.freq_ratios[op]];
+            fm_freq_data_s *freq_data = &frequency_data[inst.freq_ratios[op]];
 
             int associated_carrier_idx = algo_associated_carriers[inst.algorithm][op] - 1;
             const double freq_mult = freq_data->mult;
@@ -239,7 +239,7 @@ void fm_run(inst_t *src_inst, float *out_samples, size_t frame_count, int sample
         float final_sample = 0.f;
 
         for (int i = 0; i < FM_MAX_VOICES; i++) {
-            fm_voice_t *voice = inst.voices + i;
+            fm_voice_s *voice = inst.voices + i;
             if (!voice->active) continue;
 
             float sample = (float) (algo_func(voice, feedback_amplitude) * voice->expression);
@@ -265,7 +265,7 @@ void fm_run(inst_t *src_inst, float *out_samples, size_t frame_count, int sample
 
     // convert from operable values
     for (int i = 0; i < FM_MAX_VOICES; i++) {
-        fm_voice_t *voice = inst.voices + i;
+        fm_voice_s *voice = inst.voices + i;
         if (!voice->active) continue;
 
         for (int op = 0; op < FM_OP_COUNT; op++) {
@@ -288,7 +288,7 @@ void fm_run(inst_t *src_inst, float *out_samples, size_t frame_count, int sample
 //     DATA     //
 //////////////////
 
-inst_param_info_t fm_param_info[FM_PARAM_COUNT] = {
+inst_param_info_s fm_param_info[FM_PARAM_COUNT] = {
     {
         .type = PARAM_UINT8,
         .name = "Algorithm",
@@ -379,20 +379,20 @@ inst_param_info_t fm_param_info[FM_PARAM_COUNT] = {
 };
 
 size_t fm_param_addresses[FM_PARAM_COUNT] = {
-    offsetof(fm_inst_t, algorithm),
-    offsetof(fm_inst_t, freq_ratios[0]),
-    offsetof(fm_inst_t, amplitudes[0]),
-    offsetof(fm_inst_t, freq_ratios[1]),
-    offsetof(fm_inst_t, amplitudes[1]),
-    offsetof(fm_inst_t, freq_ratios[2]),
-    offsetof(fm_inst_t, amplitudes[2]),
-    offsetof(fm_inst_t, freq_ratios[3]),
-    offsetof(fm_inst_t, amplitudes[3]),
-    offsetof(fm_inst_t, feedback_type),
-    offsetof(fm_inst_t, feedback),
+    offsetof(fm_inst_s, algorithm),
+    offsetof(fm_inst_s, freq_ratios[0]),
+    offsetof(fm_inst_s, amplitudes[0]),
+    offsetof(fm_inst_s, freq_ratios[1]),
+    offsetof(fm_inst_s, amplitudes[1]),
+    offsetof(fm_inst_s, freq_ratios[2]),
+    offsetof(fm_inst_s, amplitudes[2]),
+    offsetof(fm_inst_s, freq_ratios[3]),
+    offsetof(fm_inst_s, amplitudes[3]),
+    offsetof(fm_inst_s, feedback_type),
+    offsetof(fm_inst_s, feedback),
 };
 
-static fm_freq_data_t frequency_data[FM_FREQ_COUNT] = {
+static fm_freq_data_s frequency_data[FM_FREQ_COUNT] = {
     { .mult = 0.125,    .hz_offset= 0.0,      .amplitude_sign = 1.0 },
     { .mult= 0.25,      .hz_offset= 0.0,      .amplitude_sign= 1.0 },
     { .mult= 0.5,       .hz_offset= 0.0,      .amplitude_sign= 1.0 },

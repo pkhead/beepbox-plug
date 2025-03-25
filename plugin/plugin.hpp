@@ -6,8 +6,8 @@ struct Plugin {
     int sampleRate;
     float* processBlock;
 
-    beepbox::inst_type_t instType;
-    beepbox::inst_t *synth;
+    beepbox::inst_type_e instType;
+    beepbox::inst_s *synth;
 
     cplug_atomic_i32 mainToAudioHead;
     cplug_atomic_i32 mainToAudioTail;
