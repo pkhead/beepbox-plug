@@ -140,7 +140,6 @@ int fm_midi_on(inst_s *inst, int key, int velocity) {
         .key = key < 0 ? 0 : (uint16_t)key,
         .volume = velocity_f,
         .last_sample = 0.f,
-        .lifetime = 0.0,
     };
 
     for (int op = 0; op < FM_OP_COUNT; op++) {
@@ -193,8 +192,8 @@ void fm_run(inst_s *src_inst, const run_ctx_s *const run_ctx) {
         fm_voice_s *voice = inst.voices + i;
         if (!voice->active) continue;
         
-        voice->lifetime = voice->lifetime2;
-        voice->lifetime2 = voice->lifetime + frame_count * sample_len;
+        voice->time_secs = voice->time2_secs;
+        voice->time2_secs = voice->time_secs + frame_count * sample_len;
 
         // precalculation/volume balancing/etc
         double sine_expr_boost = 1.0;
@@ -207,8 +206,8 @@ void fm_run(inst_s *src_inst, const run_ctx_s *const run_ctx) {
         {
             double secs = secs_fade_in(src_inst->fade_in);
             if (secs > 0) {
-                fade_expr_start *= min(1.0, voice->lifetime / secs);
-                fade_expr_end *= min(1.0, voice->lifetime2 / secs);
+                fade_expr_start *= min(1.0, voice->time_secs / secs);
+                fade_expr_end *= min(1.0, voice->time2_secs / secs);
             }
         }
 
@@ -287,8 +286,6 @@ void fm_run(inst_s *src_inst, const run_ctx_s *const run_ctx) {
             out_samples[buffer_idx++] += sample;
             out_samples[buffer_idx++] += sample;
         }
-
-        voice->lifetime += sample_len * frame_count;
 
         // convert from operable values
         for (int op = 0; op < FM_OP_COUNT; op++) {

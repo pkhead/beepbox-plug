@@ -290,6 +290,7 @@ void drawHandler(platform::Window *window) {
             if (ImGui::Begin("fm", NULL, winFlags)) {
                 ImGui::AlignTextToFramePadding();
                 ImGui::Text("Fadein");
+                ImGui::SameLine();
                 if (ImGui::SliderFloat("##fadein", &fade_in, 0.0f, 9.0f, "%.0f")) {
                     sendParamEventFromMain(plug, CPLUG_EVENT_PARAM_CHANGE_UPDATE, PARAM_FADE_IN, (double)fade_in);
                 }

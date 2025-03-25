@@ -31,8 +31,10 @@ typedef struct {
     double expression;
     double expression_delta;
 
-    double lifetime;
-    double lifetime2;
+    // seconds since voice was active.
+    // time2_secs is seconds to end of current run.
+    double time_secs;
+    double time2_secs;
 
     fm_voice_opstate_s op_states[FM_OP_COUNT];
 } fm_voice_s;
