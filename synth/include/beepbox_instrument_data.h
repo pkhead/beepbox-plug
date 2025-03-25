@@ -15,28 +15,31 @@
 #ifndef _beepbox_instrument_data_h_
 #define _beepbox_instrument_data_h_
 
+#define BASE_PARAM_COUNT 3
+
+typedef enum {
+    PARAM_VOLUME,
+    PARAM_FADE_IN,
+    PARAM_FADE_OUT
+} inst_param_e;
+
 #define FM_PARAM_COUNT 11
 #define FM_FREQ_COUNT 35
 #define FM_ALGORITHM_COUNT 13
 #define FM_FEEDBACK_TYPE_COUNT 18
 
 typedef enum {
-    PARAM_FADE_IN,
-    PARAM_FADE_OUT
-} inst_param_e;
-
-typedef enum {
-    FM_PARAM_ALGORITHM,          // 0
-    FM_PARAM_FREQ1,              // 1
-    FM_PARAM_VOLUME1,            // 2
-    FM_PARAM_FREQ2,              // 3
-    FM_PARAM_VOLUME2,            // 4
-    FM_PARAM_FREQ3,              // 5
-    FM_PARAM_VOLUME3,            // 6
-    FM_PARAM_FREQ4,              // 7
-    FM_PARAM_VOLUME4,            // 8
-    FM_PARAM_FEEDBACK_TYPE,      // 9
-    FM_PARAM_FEEDBACK_VOLUME,    // 10
+    FM_PARAM_ALGORITHM = BASE_PARAM_COUNT,
+    FM_PARAM_FREQ1,
+    FM_PARAM_VOLUME1,
+    FM_PARAM_FREQ2,
+    FM_PARAM_VOLUME2,
+    FM_PARAM_FREQ3,
+    FM_PARAM_VOLUME3,
+    FM_PARAM_FREQ4,
+    FM_PARAM_VOLUME4,
+    FM_PARAM_FEEDBACK_TYPE,
+    FM_PARAM_FEEDBACK_VOLUME,
 } fm_param_e;
 
 #endif

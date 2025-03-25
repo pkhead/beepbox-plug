@@ -20,7 +20,7 @@
 #define ENABLE_DENORMALS fesetenv(&_fenv);
 #endif
 
-static_assert((int)CPLUG_NUM_PARAMS == FM_PARAM_COUNT, "Must be equal");
+static_assert((int)CPLUG_NUM_PARAMS == (FM_PARAM_COUNT + BASE_PARAM_COUNT), "Must be equal");
 
 void cplug_libraryLoad(){};
 void cplug_libraryUnload(){};
@@ -77,14 +77,14 @@ const char* cplug_getOutputBusName(void* ptr, uint32_t idx)
 const char* cplug_getParameterName(void* ptr, uint32_t index)
 {
     Plugin *plug = (Plugin*)ptr;
-    return beepbox::inst_param_info(plug->instType)[index].name;
+    return beepbox::inst_param_info(plug->instType, index)->name;
 }
 
 double cplug_getParameterValue(void* ptr, uint32_t index)
 {
     Plugin *plug = (Plugin*) ptr;
 
-    if (beepbox::inst_param_info(plug->instType)[index].type == beepbox::PARAM_DOUBLE) {
+    if (beepbox::inst_param_info(plug->instType, index)->type == beepbox::PARAM_DOUBLE) {
         double v;
         beepbox::inst_get_param_double(plug->synth, index, &v);
         return v;
@@ -101,15 +101,15 @@ double cplug_getDefaultParameterValue(void* ptr, uint32_t index)
 
     if (index < beepbox::inst_param_count(plug->instType)) return 0.0;
 
-    const beepbox::inst_param_info_s *info = beepbox::inst_param_info(plug->instType);
-    return (double) info[index].default_value;
+    const beepbox::inst_param_info_s *info = beepbox::inst_param_info(plug->instType, index);
+    return (double) info->default_value;
 }
 
 void cplug_setParameterValue(void* ptr, uint32_t index, double value)
 {
     Plugin *plug = (Plugin*) ptr;
 
-    if (beepbox::inst_param_info(plug->instType)[index].type == beepbox::PARAM_DOUBLE) {
+    if (beepbox::inst_param_info(plug->instType, index)->type == beepbox::PARAM_DOUBLE) {
         beepbox::inst_set_param_double(plug->synth, index, value);
     } else {
         beepbox::inst_set_param_int(plug->synth, index, (int)value);
@@ -119,7 +119,7 @@ void cplug_setParameterValue(void* ptr, uint32_t index, double value)
 double cplug_denormaliseParameterValue(void* ptr, uint32_t index, double normalised)
 {
     Plugin *plug = (Plugin*) ptr;
-    auto &info = beepbox::inst_param_info(plug->instType)[index];
+    auto &info = *beepbox::inst_param_info(plug->instType, index);
 
     double denormalized = normalised * (info.max_value - info.min_value) + info.min_value;
 
@@ -134,7 +134,7 @@ double cplug_denormaliseParameterValue(void* ptr, uint32_t index, double normali
 double cplug_normaliseParameterValue(void* ptr, uint32_t index, double denormalised)
 {
     Plugin *plug = (Plugin*) ptr;
-    auto &info = beepbox::inst_param_info(plug->instType)[index];
+    auto &info = *beepbox::inst_param_info(plug->instType, index);
 
     double normalized = (denormalised - info.min_value) / (info.max_value - info.min_value);
     assert(normalized == normalized); // inf/nan check
@@ -151,7 +151,7 @@ double cplug_parameterStringToValue(void* ptr, uint32_t index, const char* str)
 {
     Plugin *plug = (Plugin*) ptr;
     double value;
-    int pType = beepbox::inst_param_info(plug->instType)[index].type;
+    int pType = beepbox::inst_param_info(plug->instType, index)->type;
 
     if (pType == beepbox::PARAM_INT || pType == beepbox::PARAM_UINT8)
         value = (double)atoi(str);
@@ -164,7 +164,7 @@ double cplug_parameterStringToValue(void* ptr, uint32_t index, const char* str)
 void cplug_parameterValueToString(void* ptr, uint32_t index, char* buf, size_t bufsize, double value)
 {
     Plugin *plug = (Plugin*) ptr;
-    int pType = beepbox::inst_param_info(plug->instType)[index].type;
+    int pType = beepbox::inst_param_info(plug->instType, index)->type;
 
     if (pType == beepbox::PARAM_INT || pType == beepbox::PARAM_UINT8) {
         snprintf(buf, bufsize, "%d", (int)value);
@@ -179,21 +179,21 @@ void cplug_getParameterRange(void* ptr, uint32_t index, double* min, double* max
 
     if (index < beepbox::inst_param_count(plug->instType)) return;
 
-    const beepbox::inst_param_info_s *info = beepbox::inst_param_info(plug->instType);
-    *min = info[index].min_value;
-    *max = info[index].max_value;
+    const beepbox::inst_param_info_s *info = beepbox::inst_param_info(plug->instType, index);
+    *min = info->min_value;
+    *max = info->max_value;
 }
 
 uint32_t cplug_getParameterFlags(void* ptr, uint32_t index)
 {
     Plugin *plug = (Plugin*) ptr;
-    const beepbox::inst_param_info_s *info = beepbox::inst_param_info(plug->instType);
+    const beepbox::inst_param_info_s *info = beepbox::inst_param_info(plug->instType, index);
 
     uint32_t flags = 0;
-    if (info[index].type == beepbox::PARAM_INT || info[index].type == beepbox::PARAM_UINT8)
+    if (info->type == beepbox::PARAM_INT || info->type == beepbox::PARAM_UINT8)
         flags |= CPLUG_FLAG_PARAMETER_IS_INTEGER;
 
-    if (!info[index].no_modulation)
+    if (!info->no_modulation)
         flags |= CPLUG_FLAG_PARAMETER_IS_AUTOMATABLE;
 
     return flags;
@@ -276,11 +276,15 @@ void cplug_process(void* ptr, CplugProcessContext* ctx)
                 CPLUG_LOG_ASSERT(output[0] != NULL);
                 CPLUG_LOG_ASSERT(output[1] != NULL);
 
-                uint32_t blockSize = event.processAudio.endFrame - frame;
-                beepbox::inst_run(plug->synth, plug->processBlock, (size_t)blockSize);
+                beepbox::run_ctx_s run_ctx;
+                run_ctx.bpm = (ctx->flags & CPLUG_FLAG_TRANSPORT_HAS_BPM) ? ctx->bpm : 60.0;
+                run_ctx.frame_count = event.processAudio.endFrame - frame;
+                run_ctx.out_samples = plug->processBlock;
+
+                beepbox::inst_run(plug->synth, &run_ctx);
 
                 int j = 0;
-                for (uint32_t i = 0; i < blockSize; i++) {
+                for (uint32_t i = 0; i < run_ctx.frame_count; i++) {
                     output[0][frame+i] = plug->processBlock[j++];
                     output[1][frame+i] = plug->processBlock[j++];
                 }

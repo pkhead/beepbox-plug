@@ -8,6 +8,7 @@
 #include "util.h"
 #include "wavetables.h"
 #include "instrument.h"
+#include "envelope.h"
 
 /*
 algorithms:
@@ -134,20 +135,21 @@ int fm_midi_on(inst_s *inst, int key, int velocity) {
 
     fm_voice_s *voice = fm->voices + voice_index;
     *voice = (fm_voice_s) {
-        .active = 1,
-        .released = 0,
-        .key = key,
+        .active = TRUE,
+        .released = FALSE,
+        .key = key < 0 ? 0 : (uint16_t)key,
         .volume = velocity_f,
         .last_sample = 0.f,
+        .lifetime = 0.0,
     };
 
     for (int op = 0; op < FM_OP_COUNT; op++) {
         voice->op_states[op] = (fm_voice_opstate_s) {
-            .phase = 0.f,
-            .phase_delta = 0.f,
-            .expression = 0.f,
-            .output = 0.f,
-            .prev_pitch_expression = 0.f,
+            .phase = 0.0,
+            .phase_delta = 0.0,
+            .expression = 0.0,
+            .output = 0.0,
+            .prev_pitch_expression = 0.0,
             .has_prev_pitch_expression = FALSE
         };
     }
@@ -167,8 +169,14 @@ void fm_midi_off(inst_s *inst, int key, int velocity) {
     }
 }
 
-void fm_run(inst_s *src_inst, float *out_samples, size_t frame_count, int sample_rate) {
+void fm_run(inst_s *src_inst, const run_ctx_s *const run_ctx) {
+    const int sample_rate = src_inst->sample_rate;
+    const size_t frame_count = run_ctx->frame_count;
+    float *const out_samples = run_ctx->out_samples;
+
     const double sample_len = 1.f / sample_rate;
+    const double samples_per_tick = calc_samples_per_tick(60.0, sample_rate);
+    //const double frame_tick_len = samples_per_tick * frame_count;
 
     // create copy of instrument on stack, for cache optimization purposes
     fm_inst_s inst = *src_inst->fm;
@@ -176,13 +184,33 @@ void fm_run(inst_s *src_inst, float *out_samples, size_t frame_count, int sample
     setup_algorithm(&inst);
     fm_algo_f algo_func = fm_algorithm_table[inst.algorithm * FM_FEEDBACK_TYPE_COUNT + inst.feedback_type];
 
-    // precalculation/volume balancing/etc
+    // zero-initialize sample data
+    memset(out_samples, 0, frame_count * 2 * sizeof(float));
+
+    double feedback_amplitude = SINE_WAVE_LENGTH * 0.3 * inst.feedback;
+
     for (int i = 0; i < FM_MAX_VOICES; i++) {
         fm_voice_s *voice = inst.voices + i;
         if (!voice->active) continue;
+        
+        voice->lifetime = voice->lifetime2;
+        voice->lifetime2 = voice->lifetime + frame_count * sample_len;
 
+        // precalculation/volume balancing/etc
         double sine_expr_boost = 1.0;
         double total_carrier_expr = 0.0;
+        double fade_expr_start = 1.0;
+        double fade_expr_end = 1.0;
+
+
+        // fade in beginning of note
+        {
+            double secs = secs_fade_in(src_inst->fade_in);
+            if (secs > 0) {
+                fade_expr_start *= min(1.0, voice->lifetime / secs);
+                fade_expr_end *= min(1.0, voice->lifetime2 / secs);
+            }
+        }
 
         for (int op = 0; op < FM_OP_COUNT; op++) {
             // john nesky: I'm adding 1000 to the phase to ensure that it's never negative even when modulated
@@ -230,44 +258,39 @@ void fm_run(inst_s *src_inst, float *out_samples, size_t frame_count, int sample
         sine_expr_boost *= 1.0 - min(1.0, max(0.0, total_carrier_expr - 1) / 2.0);
         sine_expr_boost = 1.0 + sine_expr_boost * 3.0;
 
-        voice->expression = VOICE_BASE_EXPRESSION * sine_expr_boost;
-    }
-
-    double feedback_amplitude = SINE_WAVE_LENGTH * 0.3 * inst.feedback;
-
-    for (size_t frame = 0; frame < frame_count; frame++) {
-        float final_sample = 0.f;
-
-        for (int i = 0; i < FM_MAX_VOICES; i++) {
-            fm_voice_s *voice = inst.voices + i;
-            if (!voice->active) continue;
-
-            float sample = (float) (algo_func(voice, feedback_amplitude) * voice->expression);
+        const double expr_start = VOICE_BASE_EXPRESSION * sine_expr_boost * fade_expr_start;
+        const double expr_end = VOICE_BASE_EXPRESSION * sine_expr_boost * fade_expr_end;
+        voice->expression = expr_start;
+        voice->expression_delta = (expr_end - expr_start) / frame_count;
+        
+        // then, do per-frame processing
+        size_t buffer_idx = 0;
+        for (size_t frame = 0; frame < frame_count; frame++) {      
+            float sample = (float) (algo_func(voice, feedback_amplitude) * voice->expression) * voice->volume;
 
             voice->op_states[0].phase += voice->op_states[0].phase_delta;
             voice->op_states[1].phase += voice->op_states[1].phase_delta;
             voice->op_states[2].phase += voice->op_states[2].phase_delta;
-            voice->op_states[3].phase += voice->op_states[3].phase_delta;            
-
+            voice->op_states[3].phase += voice->op_states[3].phase_delta;
+            
+            voice->expression += voice->expression_delta;
+    
             // when released, end voice on zero crossing
             if (voice->released && signf(sample) != signf(voice->last_sample)) {
                 voice->active = 0;
+                break;
             } else {
-                final_sample += sample * voice->volume;
                 voice->last_sample = sample;
             }
+
+            // assume two channels
+            out_samples[buffer_idx++] += sample;
+            out_samples[buffer_idx++] += sample;
         }
 
-        // assume two channels
-        *out_samples++ = final_sample;
-        *out_samples++ = final_sample;
-    }
+        voice->lifetime += sample_len * frame_count;
 
-    // convert from operable values
-    for (int i = 0; i < FM_MAX_VOICES; i++) {
-        fm_voice_s *voice = inst.voices + i;
-        if (!voice->active) continue;
-
+        // convert from operable values
         for (int op = 0; op < FM_OP_COUNT; op++) {
             voice->op_states[op].phase /= SINE_WAVE_LENGTH;
             voice->op_states[op].phase_delta /= SINE_WAVE_LENGTH;

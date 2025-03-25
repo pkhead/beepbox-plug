@@ -57,10 +57,17 @@ typedef struct {
     double default_value;
 } inst_param_info_s;
 
+typedef struct {
+    float *out_samples;
+    size_t frame_count;
+
+    double bpm;
+} run_ctx_s;
+
 typedef struct inst inst_s;
 
-const int inst_param_count(inst_type_e type);
-const inst_param_info_s* inst_param_info(inst_type_e type);
+const unsigned int inst_param_count(inst_type_e type);
+const inst_param_info_s* inst_param_info(inst_type_e type, unsigned int index);
 
 inst_s* inst_new(inst_type_e inst_type);
 void inst_destroy(inst_s* inst);
@@ -78,7 +85,7 @@ int inst_get_param_double(inst_s* inst, int index, double *value);
 void inst_midi_on(inst_s *inst, int key, int velocity);
 void inst_midi_off(inst_s *inst, int key, int velocity);
 
-void inst_run(inst_s* inst, float *out_samples, size_t frame_count);
+void inst_run(inst_s* inst, const run_ctx_s *const run_ctx);
 
 #ifdef __cplusplus
 }

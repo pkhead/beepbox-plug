@@ -6,20 +6,63 @@
 #include "fm.h"
 #include "util.h"
 
-const int inst_param_count(inst_type_e type) {
+#define PARTS_PER_BEAT 24
+#define TICKS_PER_PART 2
+
+static inst_param_info_s base_param_info[] = {
+    {
+        .name = "Volume",
+        .type = PARAM_DOUBLE,
+        .min_value = -25.0,
+        .max_value = 25.0,
+        .default_value = 0.0
+    },
+    {
+        .name = "Panning",
+        .type = PARAM_DOUBLE,
+        .min_value = 0.0,
+        .max_value = 100.0,
+        .default_value = 50.0
+    },
+    {
+        .name = "Fade In",
+        .type = PARAM_DOUBLE,
+        .min_value = 0.0,
+        .max_value = 9.0,
+        .default_value = 0.0
+    },
+    {
+        .name = "Fade Out",
+        .type = PARAM_DOUBLE,
+        .min_value = 0.0,
+        .max_value = 6.0,
+        .default_value = 0.0
+    }
+};
+
+size_t base_param_offsets[BASE_PARAM_COUNT] = {
+    offsetof(inst_s, volume),
+    offsetof(inst_s, fade_in),
+    offsetof(inst_s, fade_out)
+};
+
+const unsigned int inst_param_count(inst_type_e type) {
     switch (type) {
         case INSTRUMENT_FM:
-            return FM_PARAM_COUNT;
+            return BASE_PARAM_COUNT + FM_PARAM_COUNT;
 
         default:
             return 0;
     }
 }
 
-const inst_param_info_s* inst_param_info(inst_type_e type) {
+const inst_param_info_s* inst_param_info(inst_type_e type, unsigned int index) {
+    if (index < BASE_PARAM_COUNT)
+        return &base_param_info[index];
+
     switch (type) {
         case INSTRUMENT_FM:
-            return fm_param_info;
+            return &fm_param_info[index - BASE_PARAM_COUNT];
 
         default:
             return NULL;
@@ -33,6 +76,9 @@ inst_s* inst_new(inst_type_e inst_type) {
     *inst = (inst_s) {
         .type = inst_type,
         .sample_rate = 0,
+
+        .volume = 0.0,
+        .panning = 50.0,
         .fade_in = 0.0,
         .fade_out = 0.0
     };
@@ -61,9 +107,19 @@ void inst_set_sample_rate(inst_s *inst, int sample_rate) {
 }
 
 static int param_helper(inst_s *inst, int index, void **addr, inst_param_info_s *info) {
+    if (index < 0) return 1;
+
+    if (index < BASE_PARAM_COUNT) {
+        *info = base_param_info[index];
+        *addr = (void*)(((uint8_t*)inst) + base_param_offsets[index]);
+        return 0;
+    }
+
+    index -= BASE_PARAM_COUNT;
+
     switch (inst->type) {
         case INSTRUMENT_FM:
-            if (index < 0 || index >= FM_PARAM_COUNT) return 1;
+            if (index >= FM_PARAM_COUNT) return 1;
             *info = fm_param_info[index];
             *addr = (void*)(((uint8_t*)inst->fm) + fm_param_addresses[index]);
             break;
@@ -111,7 +167,7 @@ int inst_set_param_double(inst_s* inst, int index, double value) {
     if (param_helper(inst, index, &addr, &info))
         return 1;
 
-    float val_clamped = value;
+    double val_clamped = value;
     if (info.min_value != info.max_value) {
         val_clamped = clampd(value, info.min_value, info.max_value);
     }
@@ -196,13 +252,20 @@ void inst_midi_off(inst_s *inst, int key, int velocity) {
     }
 }
 
-void inst_run(inst_s* inst, float *out_samples, size_t frame_count) {
+void inst_run(inst_s* inst, const run_ctx_s *const run_ctx) {
     switch (inst->type) {
         case INSTRUMENT_FM:
-            fm_run(inst, out_samples, frame_count, inst->sample_rate);
+            fm_run(inst, run_ctx);
             break;
 
         default:
             break;
     }
+}
+
+double calc_samples_per_tick(double bpm, int sample_rate) {
+    const double beats_per_sec = bpm / 60.0;
+    const double parts_per_sec = PARTS_PER_BEAT * beats_per_sec;
+    const double ticks_per_sec = TICKS_PER_PART * parts_per_sec;
+    return (double)sample_rate / ticks_per_sec;
 }

@@ -31,6 +31,6 @@ static const unsigned kAudioUnitProperty_UserPlugin = 'plug';
 #define CPLUG_CLAP_DESCRIPTION "Emulation of BeepBox's synth"
 #define CPLUG_CLAP_FEATURES CLAP_PLUGIN_FEATURE_INSTRUMENT, CLAP_PLUGIN_FEATURE_STEREO
 
-#define CPLUG_NUM_PARAMS 11
+#define CPLUG_NUM_PARAMS 14
 
 #endif // PLUGIN_CONFIG_H

@@ -1,0 +1,2 @@
+- put vst logo in readme and about window
+- change beepbox_synth.h interface to use explicit integer sizes and const ptrs when appropriate

@@ -130,7 +130,7 @@ void eventHandler(platform::Event ev, platform::Window *window) {
             break;
         
         case platform::Event::MouseWheel:
-            simgui_add_mouse_wheel_event(0.f, ev.y);
+            simgui_add_mouse_wheel_event(0.f, (float)ev.y);
             break;
 
         case platform::Event::KeyDown:
@@ -247,6 +247,8 @@ void drawHandler(platform::Window *window) {
 
     // imgui
     {
+        float fade_in = (float) cplug_getParameterValue(plug, PARAM_FADE_IN);
+
         gui->algo = (int)       cplug_getParameterValue(plug, FM_PARAM_ALGORITHM);
         gui->freq[0] = (int)  cplug_getParameterValue(plug, FM_PARAM_FREQ1);
         gui->vol[0] = (float)   cplug_getParameterValue(plug, FM_PARAM_VOLUME1) * 15.f;
@@ -286,6 +288,12 @@ void drawHandler(platform::Window *window) {
             ImGui::End();
         } else {
             if (ImGui::Begin("fm", NULL, winFlags)) {
+                ImGui::AlignTextToFramePadding();
+                ImGui::Text("Fadein");
+                if (ImGui::SliderFloat("##fadein", &fade_in, 0.0f, 9.0f, "%.0f")) {
+                    sendParamEventFromMain(plug, CPLUG_EVENT_PARAM_CHANGE_UPDATE, PARAM_FADE_IN, (double)fade_in);
+                }
+
                 // algorithm
                 ImGui::AlignTextToFramePadding();
                 ImGui::Text("Algorithm");
