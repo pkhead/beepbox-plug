@@ -83,3 +83,6 @@ cmake --build .
 - [imgui](https://github.com/ocornut/imgui) GUI library. Neat.
 - [CPLUG](https://github.com/Tremus/CPLUG) plugin framework. Thank God I found this.
 - [sokol_gfx](https://github.com/floooh/sokol/) graphics library. Quite flexible.
+
+## vst logo for legal reasons
+![VST is a registered trademark of Steinberg Media Technologies GmbH](vst_logo.png)

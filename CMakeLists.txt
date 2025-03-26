@@ -46,11 +46,11 @@ endif()
 set(BEEPBOX_SOURCES
     plugin/plugin.cpp
     plugin/gui.cpp
-    plugin/sokol.cpp
     plugin/platform.cpp
+    plugin/lib_impl.cpp
 )
 
-set(BEEPBOX_INCLUDES ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/CPLUG/src )
+set(BEEPBOX_INCLUDES ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/CPLUG/src ${CMAKE_SOURCE_DIR}/plugin_libs)
 
 add_subdirectory(synth)
 
@@ -90,6 +90,7 @@ if (BUILD_VST3)
         )
         target_include_directories(beepbox_vst3 PRIVATE ${BEEPBOX_INCLUDES})
         target_link_libraries(beepbox_vst3 ${LIBRARIES})
+        target_compile_definitions(beepbox_vst3 PRIVATE PLUGIN_VST3)
 
         # According to the docs you're meant to bundle your Windows VST3 using a bundle like folder structure:
         # https://steinbergmedia.github.io/vst3_dev_portal/pages/Technical+Documentation/Locations+Format/Plugin+Format.html#for-the-windows-platform

@@ -4,7 +4,8 @@
 #include <imgui.h>
 #include <sokol/sokol_gfx.h>
 #include <sokol/sokol_log.h>
-#include "sokol_imgui.h"
+#include <sokol_imgui.h>
+#include <stb_image.h>
 
 #include "plugin.hpp"
 #include "platform.hpp"
@@ -30,6 +31,17 @@ struct PluginGui
     int fdbkType;
     float fdbk;
 };
+
+#ifdef PLUGIN_VST3
+#include "resource/vst_logo.hpp"
+
+struct {
+    sg_image tex;
+    sg_sampler smp;
+    int width;
+    int height;
+} static vstLogo;
+#endif
 
 ImGuiKey keyToImgui(platform::Key key) {
     switch (key) {
@@ -285,6 +297,13 @@ void drawHandler(platform::Window *window) {
             ImGui::Text("author: pkhead");
             ImGui::Text("original: john nesky (shaktool)");
             ImGui::Text("libraries: CPLUG, Dear ImGui");
+
+            // show vst3-compatible logo
+            #ifdef PLUGIN_VST3
+            ImGui::SetCursorPosX((ImGui::GetWindowWidth() - (float)vstLogo.width) / 2.f);
+            ImGui::Image(simgui_imtextureid_with_sampler(vstLogo.tex, vstLogo.smp), ImVec2((float)vstLogo.width, (float)vstLogo.height));
+            #endif
+
             ImGui::End();
         } else {
             if (ImGui::Begin("fm", NULL, winFlags)) {
@@ -469,6 +488,49 @@ static void symbol_patch(unsigned char *pixels, int width, int height, void *use
     }
 }
 
+static void graphicsInit() {
+    #ifdef PLUGIN_VST3
+    int width, height, channels;
+    uint8_t *imageData = stbi_load_from_memory(resources::vst_logo, resources::vst_logo_len, &width, &height, &channels, 4);
+    if (imageData == nullptr) {
+        vstLogo.tex.id = SG_INVALID_ID;
+        vstLogo.smp.id = SG_INVALID_ID;
+        vstLogo.width = 0;
+        vstLogo.height = 0;
+        return;
+    }
+
+    {
+        sg_image_desc desc = {};
+        desc.width = width;
+        desc.height = height;
+        desc.pixel_format = SG_PIXELFORMAT_RGBA8;
+        desc.data.subimage[0][0].ptr = imageData;
+        desc.data.subimage[0][0].size = width * height * sizeof(uint8_t) * channels;
+        vstLogo.tex = sg_make_image(&desc);
+    }
+
+    {
+        sg_sampler_desc desc = {};
+        desc.mag_filter = SG_FILTER_LINEAR;
+        desc.min_filter = SG_FILTER_LINEAR;
+        vstLogo.smp = sg_make_sampler(&desc);
+    }
+
+    vstLogo.width = width;
+    vstLogo.height = height;
+
+    stbi_image_free(imageData);
+    #endif
+}
+
+static void graphicsClose() {
+    #ifdef PLUGIN_VST3
+    sg_destroy_image(vstLogo.tex);
+    sg_destroy_sampler(vstLogo.smp);
+    #endif
+}
+
 int openGuiCount = 0;
 
 void* cplug_createGUI(void* userPlugin)
@@ -516,7 +578,10 @@ void* cplug_createGUI(void* userPlugin)
 
     simgui_save_global_state(&gui->simgui_state);
 
-    openGuiCount++;
+    if (openGuiCount++ == 0) {
+        graphicsInit();
+    }
+
     return gui;
 }
 
@@ -531,6 +596,7 @@ void cplug_destroyGUI(void* userGUI)
     platform::closeWindow(gui->window);
 
     if (--openGuiCount == 0) {
+        graphicsClose();
         sg_shutdown();
         platform::shutdown();
     }

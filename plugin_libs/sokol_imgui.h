@@ -1,3 +1,6 @@
+// this is a version of sokol_imgui modified by pkhead to add a callback that is ran before
+// the font image is loaded into a texture.
+
 #if defined(SOKOL_IMPL) && !defined(SOKOL_IMGUI_IMPL)
 #define SOKOL_IMGUI_IMPL
 #endif
