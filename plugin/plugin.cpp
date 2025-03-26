@@ -1,4 +1,5 @@
 #include <cstring>
+#include <cstdio>
 #include "plugin.hpp"
 
 // Apparently denormals aren't a problem on ARM & M1?
