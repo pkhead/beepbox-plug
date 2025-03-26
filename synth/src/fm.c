@@ -187,24 +187,19 @@ static void compute_voice(const fm_inst_s *const inst, fm_voice_s *const voice, 
 
     const double fade_in_secs = secs_fade_in(compute_data.fade_in);
 
-    const uint8_t released = voice->time_secs >= fade_in_secs && voice->released;
-    if (released) {
-        voice->ticks_since_release += 1.0;
-        voice->secs_since_release += samples_per_tick;
-    }
-
     // precalculation/volume balancing/etc
     double sine_expr_boost = 1.0;
     double total_carrier_expr = 0.0;
     double fade_expr_start = 1.0;
     double fade_expr_end = 1.0;
 
+    const uint8_t released = voice->time_secs >= fade_in_secs && voice->released;
     if (released) {
         const double ticks = ticks_fade_out(compute_data.fade_out);
         fade_expr_start = note_size_to_volume_mult((1.0 - voice->ticks_since_release / ticks) * NOTE_SIZE_MAX);
         fade_expr_end = note_size_to_volume_mult((1.0 - (voice->ticks_since_release + 1.0) / ticks) * NOTE_SIZE_MAX);
 
-        if (voice->ticks_since_release + 1.0 >= ticks) {
+        if (voice->ticks_since_release >= ticks) {
             voice->active = FALSE;
         }
     } else {
@@ -265,6 +260,11 @@ static void compute_voice(const fm_inst_s *const inst, fm_voice_s *const voice, 
     const double expr_end = VOICE_BASE_EXPRESSION * sine_expr_boost * fade_expr_end;
     voice->expression = expr_start;
     voice->expression_delta = (expr_end - expr_start) / rounded_samples_per_tick;
+
+    if (released) {
+        voice->ticks_since_release += 1.0;
+        voice->secs_since_release += samples_per_tick;
+    }
 }
 
 void fm_run(inst_s *src_inst, const run_ctx_s *const run_ctx) {
