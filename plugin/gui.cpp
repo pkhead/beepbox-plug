@@ -24,12 +24,6 @@ struct PluginGui
     _simgui_state_t simgui_state;
 
     bool showAbout;
-
-    int algo;
-    int freq[4];
-    float vol[4];
-    int fdbkType;
-    float fdbk;
 };
 
 #ifdef PLUGIN_VST3
@@ -259,20 +253,27 @@ void drawHandler(platform::Window *window) {
 
     // imgui
     {
-        float fade_in = (float) cplug_getParameterValue(plug, PARAM_FADE_IN);
-        float fade_out = (float) cplug_getParameterValue(plug, PARAM_FADE_OUT);
+        float p_volume = (float) cplug_getParameterValue(plug, PARAM_VOLUME);
+        float p_fade_in = (float) cplug_getParameterValue(plug, PARAM_FADE_IN);
+        float p_fade_out = (float) cplug_getParameterValue(plug, PARAM_FADE_OUT);
 
-        gui->algo = (int)       cplug_getParameterValue(plug, FM_PARAM_ALGORITHM);
-        gui->freq[0] = (int)  cplug_getParameterValue(plug, FM_PARAM_FREQ1);
-        gui->vol[0] = (float)   cplug_getParameterValue(plug, FM_PARAM_VOLUME1) * 15.f;
-        gui->freq[1] = (int)  cplug_getParameterValue(plug, FM_PARAM_FREQ2);
-        gui->vol[1] = (float)   cplug_getParameterValue(plug, FM_PARAM_VOLUME2) * 15.f;
-        gui->freq[2] = (int)  cplug_getParameterValue(plug, FM_PARAM_FREQ3);
-        gui->vol[2] = (float)   cplug_getParameterValue(plug, FM_PARAM_VOLUME3) * 15.f;
-        gui->freq[3] = (int)  cplug_getParameterValue(plug, FM_PARAM_FREQ4);
-        gui->vol[3] = (float)   cplug_getParameterValue(plug, FM_PARAM_VOLUME4) * 15.f;
-        gui->fdbkType = (int)   cplug_getParameterValue(plug, FM_PARAM_FEEDBACK_TYPE);
-        gui->fdbk = (float)     cplug_getParameterValue(plug, FM_PARAM_FEEDBACK_VOLUME) * 15.f;
+        int p_algo = (int) cplug_getParameterValue(plug, FM_PARAM_ALGORITHM);
+
+        int p_freq[4] = {
+            (int) cplug_getParameterValue(plug, FM_PARAM_FREQ1),
+            (int) cplug_getParameterValue(plug, FM_PARAM_FREQ2),
+            (int) cplug_getParameterValue(plug, FM_PARAM_FREQ3),
+            (int) cplug_getParameterValue(plug, FM_PARAM_FREQ4),
+        };
+        float p_vol[4] = {
+            (float) cplug_getParameterValue(plug, FM_PARAM_VOLUME1) * 15.f,
+            (float) cplug_getParameterValue(plug, FM_PARAM_VOLUME2) * 15.f,
+            (float) cplug_getParameterValue(plug, FM_PARAM_VOLUME3) * 15.f,
+            (float) cplug_getParameterValue(plug, FM_PARAM_VOLUME4) * 15.f,
+        };
+        
+        int p_fdbkType = (int)   cplug_getParameterValue(plug, FM_PARAM_FEEDBACK_TYPE);
+        float p_fdbk = (float)     cplug_getParameterValue(plug, FM_PARAM_FEEDBACK_VOLUME) * 15.f;
 
         if (ImGui::BeginMainMenuBar()) {
             if (ImGui::BeginMenu("Presets")) {
@@ -308,20 +309,28 @@ void drawHandler(platform::Window *window) {
             ImGui::End();
         } else {
             if (ImGui::Begin("fm", NULL, winFlags)) {
+                // volume
+                ImGui::AlignTextToFramePadding();
+                ImGui::Text("Volume");
+                ImGui::SameLine();
+                if (ImGui::SliderFloat("##volume", &p_volume, -25.f, 25.f, "%.0f")) {
+                    sendParamEventFromMain(plug, CPLUG_EVENT_PARAM_CHANGE_UPDATE, PARAM_VOLUME, (double)p_volume);
+                }
+
                 // fade in
                 ImGui::AlignTextToFramePadding();
                 ImGui::Text("Fadein");
                 ImGui::SameLine();
-                if (ImGui::SliderFloat("##fadein", &fade_in, 0.0f, 9.0f, "%.0f")) {
-                    sendParamEventFromMain(plug, CPLUG_EVENT_PARAM_CHANGE_UPDATE, PARAM_FADE_IN, (double)fade_in);
+                if (ImGui::SliderFloat("##fadein", &p_fade_in, 0.0f, 9.0f, "%.0f")) {
+                    sendParamEventFromMain(plug, CPLUG_EVENT_PARAM_CHANGE_UPDATE, PARAM_FADE_IN, (double)p_fade_in);
                 }
 
                 // fade out
                 ImGui::AlignTextToFramePadding();
                 ImGui::Text("Fadeout");
                 ImGui::SameLine();
-                if (ImGui::SliderFloat("##fadeout", &fade_out, 0.0f, 7.0f, "%.0f")) {
-                    sendParamEventFromMain(plug, CPLUG_EVENT_PARAM_CHANGE_UPDATE, PARAM_FADE_OUT, (double)fade_out);
+                if (ImGui::SliderFloat("##fadeout", &p_fade_out, 0.0f, 7.0f, "%.0f")) {
+                    sendParamEventFromMain(plug, CPLUG_EVENT_PARAM_CHANGE_UPDATE, PARAM_FADE_OUT, (double)p_fade_out);
                 }
 
                 // algorithm
@@ -331,8 +340,8 @@ void drawHandler(platform::Window *window) {
                 ImGui::SameLine();
                 float algoEndX = ImGui::GetCursorPosX();
                 ImGui::SetNextItemWidth(-FLT_MIN);
-                if (ImGui::Combo("##algo", &gui->algo, algoNames, 13)) {
-                    sendParamEventFromMain(plug, CPLUG_EVENT_PARAM_CHANGE_UPDATE, FM_PARAM_ALGORITHM, (double)gui->algo);
+                if (ImGui::Combo("##algo", &p_algo, algoNames, 13)) {
+                    sendParamEventFromMain(plug, CPLUG_EVENT_PARAM_CHANGE_UPDATE, FM_PARAM_ALGORITHM, (double)p_algo);
                 }
 
                 // operator parameters
@@ -344,8 +353,8 @@ void drawHandler(platform::Window *window) {
                     ImGui::SameLine();
                     ImGui::SetNextItemWidth(algoEndX - ImGui::GetCursorPosX() - ImGui::GetStyle().ItemSpacing.x);
                     //ImGui::Text("%i", gui->freq[op]);
-                    if (ImGui::Combo("##freq", &gui->freq[op], freqRatios, FM_FREQ_COUNT, ImGuiComboFlags_HeightLargest)) {
-                        sendParamEventFromMain(plug, CPLUG_EVENT_PARAM_CHANGE_UPDATE, FM_PARAM_FREQ1 + op * 2, gui->freq[op]);
+                    if (ImGui::Combo("##freq", &p_freq[op], freqRatios, FM_FREQ_COUNT, ImGuiComboFlags_HeightLargest)) {
+                        sendParamEventFromMain(plug, CPLUG_EVENT_PARAM_CHANGE_UPDATE, FM_PARAM_FREQ1 + op * 2, p_freq[op]);
                     }
                     // if (ImGui::BeginCombo("##freq", freqRatios[gui->freq[op]], ImGuiComboFlags_HeightLargest)) {
                     //     for (int i = 0; i < sizeof(freqRatios) / sizeof(*freqRatios); i++) {
@@ -356,8 +365,8 @@ void drawHandler(platform::Window *window) {
 
                     ImGui::SameLine();
                     ImGui::SetNextItemWidth(-FLT_MIN);
-                    if (ImGui::SliderFloat("##vol", &gui->vol[op], 0.0f, 15.0f, "%.0f")) {
-                        sendParamEventFromMain(plug, CPLUG_EVENT_PARAM_CHANGE_UPDATE, FM_PARAM_VOLUME1 + op * 2, (double)gui->vol[op] / 15.f);
+                    if (ImGui::SliderFloat("##vol", &p_vol[op], 0.0f, 15.0f, "%.0f")) {
+                        sendParamEventFromMain(plug, CPLUG_EVENT_PARAM_CHANGE_UPDATE, FM_PARAM_VOLUME1 + op * 2, (double)p_vol[op] / 15.f);
                     }
                     ImGui::PopID();
                 }
@@ -369,8 +378,8 @@ void drawHandler(platform::Window *window) {
                 ImGui::SameLine();
                 float feedbackEndX = ImGui::GetCursorPosX();
                 ImGui::SetNextItemWidth(-FLT_MIN);
-                if (ImGui::Combo("##fdbk", &gui->fdbkType, feedbackNames, FM_FEEDBACK_TYPE_COUNT)) {
-                    sendParamEventFromMain(plug, CPLUG_EVENT_PARAM_CHANGE_UPDATE, FM_PARAM_FEEDBACK_TYPE, (double)gui->fdbkType);
+                if (ImGui::Combo("##fdbk", &p_fdbkType, feedbackNames, FM_FEEDBACK_TYPE_COUNT)) {
+                    sendParamEventFromMain(plug, CPLUG_EVENT_PARAM_CHANGE_UPDATE, FM_PARAM_FEEDBACK_TYPE, (double)p_fdbkType);
                 }
 
                 // feedback volume
@@ -380,8 +389,8 @@ void drawHandler(platform::Window *window) {
                 ImGui::SameLine();
                 ImGui::SetCursorPosX(feedbackEndX);
                 ImGui::SetNextItemWidth(-FLT_MIN);
-                if (ImGui::SliderFloat("##vol", &gui->fdbk, 0.0f, 15.0f, "%.0f")) {
-                    sendParamEventFromMain(plug, CPLUG_EVENT_PARAM_CHANGE_UPDATE, FM_PARAM_FEEDBACK_VOLUME, (double)gui->fdbk / 15.f);
+                if (ImGui::SliderFloat("##vol", &p_fdbk, 0.0f, 15.0f, "%.0f")) {
+                    sendParamEventFromMain(plug, CPLUG_EVENT_PARAM_CHANGE_UPDATE, FM_PARAM_FEEDBACK_VOLUME, (double)p_fdbk / 15.f);
                 }
 
             } ImGui::End();

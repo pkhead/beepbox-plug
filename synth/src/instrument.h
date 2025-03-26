@@ -23,5 +23,6 @@ typedef struct inst {
 
 double calc_samples_per_tick(double bpm, int sample_rate);
 double note_size_to_volume_mult(double size);
+double inst_volume_to_mult(double inst_volume);
 
 #endif

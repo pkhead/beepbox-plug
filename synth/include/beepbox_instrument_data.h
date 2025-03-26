@@ -15,6 +15,7 @@
 #ifndef _beepbox_instrument_data_h_
 #define _beepbox_instrument_data_h_
 
+#define INST_MAX_VOICES 16
 #define BASE_PARAM_COUNT 3
 
 typedef enum {

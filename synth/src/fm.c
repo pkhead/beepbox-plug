@@ -102,8 +102,8 @@ static void setup_algorithm(fm_inst_s *inst) {
 void fm_init(fm_inst_s *inst) {    
     memset(inst, 0, sizeof(*inst));
 
-    for (int i = 0; i < FM_MAX_VOICES; i++) {
-        inst->voices[i].active = 0;
+    for (int i = 0; i < INST_MAX_VOICES; i++) {
+        inst->voices[i].active = FALSE;
     }
 
     inst->algorithm = 0;
@@ -128,7 +128,7 @@ int fm_midi_on(inst_s *inst, int key, int velocity) {
 
     int voice_index = 0;
 
-    for (int i = 0; i < FM_MAX_VOICES; i++) {
+    for (int i = 0; i < INST_MAX_VOICES; i++) {
         if (fm->voices[i].active) continue;
         voice_index = i;
         break;
@@ -159,7 +159,7 @@ int fm_midi_on(inst_s *inst, int key, int velocity) {
 void fm_midi_off(inst_s *inst, int key, int velocity) {
     fm_inst_s *const fm = inst->fm;
     
-    for (int i = 0; i < FM_MAX_VOICES; i++) {
+    for (int i = 0; i < INST_MAX_VOICES; i++) {
         fm_voice_s *voice = &fm->voices[i];
         if (voice->active && !voice->released && voice->key == key) {
             voice->released = 1;
@@ -285,8 +285,9 @@ void fm_run(inst_s *src_inst, const run_ctx_s *const run_ctx) {
     memset(out_samples, 0, frame_count * 2 * sizeof(float));
 
     double feedback_amplitude = SINE_WAVE_LENGTH * 0.3 * inst.feedback;
+    double inst_volume = inst_volume_to_mult(src_inst->volume);
 
-    for (int i = 0; i < FM_MAX_VOICES; i++) {
+    for (int i = 0; i < INST_MAX_VOICES; i++) {
         fm_voice_s *voice = inst.voices + i;
         if (!voice->active) continue;
 
@@ -304,7 +305,7 @@ void fm_run(inst_s *src_inst, const run_ctx_s *const run_ctx) {
                 });
             }
 
-            // convert from operable values
+            // convert to operable values
             for (int op = 0; op < FM_OP_COUNT; op++) {
                 voice->op_states[op].phase *= SINE_WAVE_LENGTH;
                 voice->op_states[op].phase_delta *= SINE_WAVE_LENGTH;
@@ -316,7 +317,7 @@ void fm_run(inst_s *src_inst, const run_ctx_s *const run_ctx) {
             size_t run_length = end_frame - frame;
 
             for (; frame < end_frame; frame++) {      
-                float sample = (float) (algo_func(voice, feedback_amplitude) * voice->expression) * voice->volume;
+                float sample = (float) (algo_func(voice, feedback_amplitude) * voice->expression * inst_volume) * voice->volume;
 
                 voice->op_states[0].phase += voice->op_states[0].phase_delta;
                 voice->op_states[1].phase += voice->op_states[1].phase_delta;

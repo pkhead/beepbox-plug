@@ -7,7 +7,6 @@
 #include "../include/beepbox_instrument_data.h"
 #include "wavetables.h"
 
-#define FM_MAX_VOICES 8
 #define FM_OP_COUNT 4
 
 typedef struct {
@@ -56,7 +55,7 @@ typedef struct {
     double feedback;
 
     int carrier_count;
-    fm_voice_s voices[FM_MAX_VOICES];
+    fm_voice_s voices[INST_MAX_VOICES];
 } fm_inst_s;
 
 static inline double fm_calc_op(const double phase_mix) {
