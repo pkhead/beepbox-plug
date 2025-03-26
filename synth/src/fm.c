@@ -174,8 +174,8 @@ void fm_run(inst_s *src_inst, const run_ctx_s *const run_ctx) {
     float *const out_samples = run_ctx->out_samples;
 
     const double sample_len = 1.f / sample_rate;
-    const double samples_per_tick = calc_samples_per_tick(60.0, sample_rate);
-    //const double frame_tick_len = samples_per_tick * frame_count;
+    const double samples_per_tick = calc_samples_per_tick(run_ctx->bpm, sample_rate);
+    const double ticks_per_sample = 1.0 / samples_per_tick;
 
     // create copy of instrument on stack, for cache optimization purposes
     fm_inst_s inst = *src_inst->fm;
@@ -192,8 +192,17 @@ void fm_run(inst_s *src_inst, const run_ctx_s *const run_ctx) {
         fm_voice_s *voice = inst.voices + i;
         if (!voice->active) continue;
         
+        const double dt_secs = frame_count * sample_len;
+        const double dt_ticks = frame_count * ticks_per_sample;
         voice->time_secs = voice->time2_secs;
-        voice->time2_secs = voice->time_secs + frame_count * sample_len;
+        voice->time2_secs = voice->time_secs + dt_secs;
+        voice->time_ticks = voice->time2_ticks;
+        voice->time2_ticks = voice->time_ticks + dt_ticks;
+
+        if (voice->released) {
+            voice->ticks_since_release += dt_ticks;
+            voice->secs_since_release += dt_secs;
+        }
 
         // precalculation/volume balancing/etc
         double sine_expr_boost = 1.0;
@@ -201,13 +210,20 @@ void fm_run(inst_s *src_inst, const run_ctx_s *const run_ctx) {
         double fade_expr_start = 1.0;
         double fade_expr_end = 1.0;
 
+        const double fade_in_secs = secs_fade_in(src_inst->fade_in);
+        if (voice->time_secs >= fade_in_secs && voice->released) {
+            const double ticks = ticks_fade_out(src_inst->fade_out);
+            fade_expr_start = note_size_to_volume_mult((1.0 - voice->ticks_since_release / ticks) * NOTE_SIZE_MAX);
+            fade_expr_end = note_size_to_volume_mult((1.0 - (voice->ticks_since_release + dt_ticks) / ticks) * NOTE_SIZE_MAX);
 
-        // fade in beginning of note
-        {
-            double secs = secs_fade_in(src_inst->fade_in);
-            if (secs > 0) {
-                fade_expr_start *= min(1.0, voice->time_secs / secs);
-                fade_expr_end *= min(1.0, voice->time2_secs / secs);
+            if (voice->ticks_since_release + 1.0 >= ticks) {
+                voice->active = FALSE;
+            }
+        } else {
+            // fade in beginning of note
+            if (fade_in_secs > 0) {
+                fade_expr_start *= min(1.0, voice->time_secs / fade_in_secs);
+                fade_expr_end *= min(1.0, voice->time2_secs / fade_in_secs);
             }
         }
 
@@ -275,12 +291,12 @@ void fm_run(inst_s *src_inst, const run_ctx_s *const run_ctx) {
             voice->expression += voice->expression_delta;
     
             // when released, end voice on zero crossing
-            if (voice->released && signf(sample) != signf(voice->last_sample)) {
-                voice->active = 0;
-                break;
-            } else {
-                voice->last_sample = sample;
-            }
+            // if (voice->released && signf(sample) != signf(voice->last_sample)) {
+            //     voice->active = 0;
+            //     break;
+            // } else {
+            voice->last_sample = sample;
+            // }
 
             // assume two channels
             out_samples[buffer_idx++] += sample;

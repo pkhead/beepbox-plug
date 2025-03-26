@@ -31,10 +31,18 @@ typedef struct {
     double expression;
     double expression_delta;
 
-    // seconds since voice was active.
+    // how long the voice has been active in ticks
     // time2_secs is seconds to end of current run.
     double time_secs;
     double time2_secs;
+
+    // how long the voice has been active in ticks
+    // time2_secs is ticks to the end of the current run.
+    double time_ticks;
+    double time2_ticks;
+
+    double secs_since_release;
+    double ticks_since_release;
 
     fm_voice_opstate_s op_states[FM_OP_COUNT];
 } fm_voice_s;

@@ -5,6 +5,8 @@
 #include "../include/beepbox_synth.h"
 #include "fm.h"
 
+#define NOTE_SIZE_MAX 3
+
 typedef struct inst {
     inst_type_e type;
     int sample_rate;
@@ -20,5 +22,6 @@ typedef struct inst {
 } inst_s;
 
 double calc_samples_per_tick(double bpm, int sample_rate);
+double note_size_to_volume_mult(double size);
 
 #endif

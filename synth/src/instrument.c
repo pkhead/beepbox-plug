@@ -35,7 +35,7 @@ static inst_param_info_s base_param_info[] = {
         .name = "Fade Out",
         .type = PARAM_DOUBLE,
         .min_value = 0.0,
-        .max_value = 6.0,
+        .max_value = 7.0,
         .default_value = 0.0
     }
 };
@@ -268,4 +268,8 @@ double calc_samples_per_tick(double bpm, int sample_rate) {
     const double parts_per_sec = PARTS_PER_BEAT * beats_per_sec;
     const double ticks_per_sec = TICKS_PER_PART * parts_per_sec;
     return (double)sample_rate / ticks_per_sec;
+}
+
+double note_size_to_volume_mult(double size) {
+    return pow(max(0.0, size) / NOTE_SIZE_MAX, 1.5);
 }

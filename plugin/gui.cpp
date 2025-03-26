@@ -260,6 +260,7 @@ void drawHandler(platform::Window *window) {
     // imgui
     {
         float fade_in = (float) cplug_getParameterValue(plug, PARAM_FADE_IN);
+        float fade_out = (float) cplug_getParameterValue(plug, PARAM_FADE_OUT);
 
         gui->algo = (int)       cplug_getParameterValue(plug, FM_PARAM_ALGORITHM);
         gui->freq[0] = (int)  cplug_getParameterValue(plug, FM_PARAM_FREQ1);
@@ -307,11 +308,20 @@ void drawHandler(platform::Window *window) {
             ImGui::End();
         } else {
             if (ImGui::Begin("fm", NULL, winFlags)) {
+                // fade in
                 ImGui::AlignTextToFramePadding();
                 ImGui::Text("Fadein");
                 ImGui::SameLine();
                 if (ImGui::SliderFloat("##fadein", &fade_in, 0.0f, 9.0f, "%.0f")) {
                     sendParamEventFromMain(plug, CPLUG_EVENT_PARAM_CHANGE_UPDATE, PARAM_FADE_IN, (double)fade_in);
+                }
+
+                // fade out
+                ImGui::AlignTextToFramePadding();
+                ImGui::Text("Fadeout");
+                ImGui::SameLine();
+                if (ImGui::SliderFloat("##fadeout", &fade_out, 0.0f, 7.0f, "%.0f")) {
+                    sendParamEventFromMain(plug, CPLUG_EVENT_PARAM_CHANGE_UPDATE, PARAM_FADE_OUT, (double)fade_out);
                 }
 
                 // algorithm
