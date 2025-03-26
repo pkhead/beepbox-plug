@@ -24,9 +24,9 @@ typedef struct {
     uint8_t active;
     uint8_t released;
     uint16_t key;
-
+    
     float volume;
-    float last_sample;
+    size_t remaining_samples;
     
     double expression;
     double expression_delta;

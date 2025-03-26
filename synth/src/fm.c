@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <string.h>
 #include <math.h>
+#include <assert.h>
 
 #include "fm.h"
 #include "fm_algo.h"
@@ -139,7 +140,6 @@ int fm_midi_on(inst_s *inst, int key, int velocity) {
         .released = FALSE,
         .key = key < 0 ? 0 : (uint16_t)key,
         .volume = velocity_f,
-        .last_sample = 0.f,
     };
 
     for (int op = 0; op < FM_OP_COUNT; op++) {
@@ -168,20 +168,118 @@ void fm_midi_off(inst_s *inst, int key, int velocity) {
     }
 }
 
+typedef struct {
+    double fade_in;
+    double fade_out;
+    double samples_per_tick;
+    int sample_rate;
+} tone_compute_s;
+
+static void compute_voice(const fm_inst_s *const inst, fm_voice_s *const voice, tone_compute_s compute_data) {
+    const double sample_len = 1.f / compute_data.sample_rate;
+    const double samples_per_tick = compute_data.samples_per_tick;
+    const double rounded_samples_per_tick = ceil(samples_per_tick);
+
+    voice->time_ticks = voice->time2_ticks;
+    voice->time2_ticks = voice->time_ticks + 1.0;
+    voice->time_secs = voice->time2_secs;
+    voice->time2_secs = voice->time_secs + samples_per_tick / compute_data.sample_rate;
+
+    const double fade_in_secs = secs_fade_in(compute_data.fade_in);
+
+    const uint8_t released = voice->time_secs >= fade_in_secs && voice->released;
+    if (released) {
+        voice->ticks_since_release += 1.0;
+        voice->secs_since_release += samples_per_tick;
+    }
+
+    // precalculation/volume balancing/etc
+    double sine_expr_boost = 1.0;
+    double total_carrier_expr = 0.0;
+    double fade_expr_start = 1.0;
+    double fade_expr_end = 1.0;
+
+    if (released) {
+        const double ticks = ticks_fade_out(compute_data.fade_out);
+        fade_expr_start = note_size_to_volume_mult((1.0 - voice->ticks_since_release / ticks) * NOTE_SIZE_MAX);
+        fade_expr_end = note_size_to_volume_mult((1.0 - (voice->ticks_since_release + 1.0) / ticks) * NOTE_SIZE_MAX);
+
+        if (voice->ticks_since_release + 1.0 >= ticks) {
+            voice->active = FALSE;
+        }
+    } else {
+        // fade in beginning of note
+        if (fade_in_secs > 0) {
+            fade_expr_start *= min(1.0, voice->time_secs / fade_in_secs);
+            fade_expr_end *= min(1.0, voice->time2_secs / fade_in_secs);
+        }
+    }
+
+    for (int op = 0; op < FM_OP_COUNT; op++) {
+        // john nesky: I'm adding 1000 to the phase to ensure that it's never negative even when modulated
+        // by other waves because negative numbers don't work with the modulus operator very well.
+        voice->op_states[op].phase = (fmod(voice->op_states[op].phase, 1.0) + 1000);
+
+        fm_freq_data_s *freq_data = &frequency_data[inst->freq_ratios[op]];
+
+        int associated_carrier_idx = algo_associated_carriers[inst->algorithm][op] - 1;
+        const double freq_mult = freq_data->mult;
+        const double pitch = (double)voice->key + carrier_intervals[associated_carrier_idx];
+        const double base_freq = key_to_hz_d(pitch);
+        const double hz_offset = freq_data->hz_offset;
+        const double freq = freq_mult * base_freq + hz_offset;
+
+        voice->op_states[op].phase_delta = freq * sample_len;
+
+        const double amplitude_curve = operator_amplitude_curve((double) inst->amplitudes[op]);
+        const double amplitude_mult = amplitude_curve * freq_data->amplitude_sign;
+        double expression = amplitude_mult;
+
+        if (op < inst->carrier_count) {
+            // carrier
+            double pitch_expression;
+            if (voice->op_states[op].has_prev_pitch_expression) {
+                pitch_expression = voice->op_states[op].prev_pitch_expression;
+            } else {
+                pitch_expression = pow(2.0, -(pitch - EXPRESSION_REFERENCE_PITCH) / PITCH_DAMPING);
+            }
+            voice->op_states[op].has_prev_pitch_expression = TRUE;
+            voice->op_states[op].prev_pitch_expression = pitch_expression;
+
+            expression *= pitch_expression;
+            total_carrier_expr += amplitude_curve;
+        } else {
+            // modulator
+            expression *= SINE_WAVE_LENGTH * 1.5;
+            sine_expr_boost *= 1.0 - min(1.0, inst->amplitudes[op]);
+        }
+
+        voice->op_states[op].expression = expression;
+    }
+
+    sine_expr_boost *= (pow(2.0, (2.0 - 1.4 * inst->feedback)) - 1.0) / 3.0;
+    sine_expr_boost *= 1.0 - min(1.0, max(0.0, total_carrier_expr - 1) / 2.0);
+    sine_expr_boost = 1.0 + sine_expr_boost * 3.0;
+
+    const double expr_start = VOICE_BASE_EXPRESSION * sine_expr_boost * fade_expr_start;
+    const double expr_end = VOICE_BASE_EXPRESSION * sine_expr_boost * fade_expr_end;
+    voice->expression = expr_start;
+    voice->expression_delta = (expr_end - expr_start) / rounded_samples_per_tick;
+}
+
 void fm_run(inst_s *src_inst, const run_ctx_s *const run_ctx) {
     const int sample_rate = src_inst->sample_rate;
     const size_t frame_count = run_ctx->frame_count;
     float *const out_samples = run_ctx->out_samples;
 
-    const double sample_len = 1.f / sample_rate;
-    const double samples_per_tick = calc_samples_per_tick(run_ctx->bpm, sample_rate);
-    const double ticks_per_sample = 1.0 / samples_per_tick;
-
     // create copy of instrument on stack, for cache optimization purposes
     fm_inst_s inst = *src_inst->fm;
-
     setup_algorithm(&inst);
+
     fm_algo_f algo_func = fm_algorithm_table[inst.algorithm * FM_FEEDBACK_TYPE_COUNT + inst.feedback_type];
+    const double samples_per_tick = calc_samples_per_tick(run_ctx->bpm, sample_rate);
+    const double fade_in = src_inst->fade_in;
+    const double fade_out = src_inst->fade_out;
 
     // zero-initialize sample data
     memset(out_samples, 0, frame_count * 2 * sizeof(float));
@@ -191,123 +289,56 @@ void fm_run(inst_s *src_inst, const run_ctx_s *const run_ctx) {
     for (int i = 0; i < FM_MAX_VOICES; i++) {
         fm_voice_s *voice = inst.voices + i;
         if (!voice->active) continue;
-        
-        const double dt_secs = frame_count * sample_len;
-        const double dt_ticks = frame_count * ticks_per_sample;
-        voice->time_secs = voice->time2_secs;
-        voice->time2_secs = voice->time_secs + dt_secs;
-        voice->time_ticks = voice->time2_ticks;
-        voice->time2_ticks = voice->time_ticks + dt_ticks;
 
-        if (voice->released) {
-            voice->ticks_since_release += dt_ticks;
-            voice->secs_since_release += dt_secs;
-        }
-
-        // precalculation/volume balancing/etc
-        double sine_expr_boost = 1.0;
-        double total_carrier_expr = 0.0;
-        double fade_expr_start = 1.0;
-        double fade_expr_end = 1.0;
-
-        const double fade_in_secs = secs_fade_in(src_inst->fade_in);
-        if (voice->time_secs >= fade_in_secs && voice->released) {
-            const double ticks = ticks_fade_out(src_inst->fade_out);
-            fade_expr_start = note_size_to_volume_mult((1.0 - voice->ticks_since_release / ticks) * NOTE_SIZE_MAX);
-            fade_expr_end = note_size_to_volume_mult((1.0 - (voice->ticks_since_release + dt_ticks) / ticks) * NOTE_SIZE_MAX);
-
-            if (voice->ticks_since_release + 1.0 >= ticks) {
-                voice->active = FALSE;
-            }
-        } else {
-            // fade in beginning of note
-            if (fade_in_secs > 0) {
-                fade_expr_start *= min(1.0, voice->time_secs / fade_in_secs);
-                fade_expr_end *= min(1.0, voice->time2_secs / fade_in_secs);
-            }
-        }
-
-        for (int op = 0; op < FM_OP_COUNT; op++) {
-            // john nesky: I'm adding 1000 to the phase to ensure that it's never negative even when modulated
-            // by other waves because negative numbers don't work with the modulus operator very well.
-            voice->op_states[op].phase = (fmod(voice->op_states[op].phase, 1.0) + 1000) * SINE_WAVE_LENGTH;
-
-            fm_freq_data_s *freq_data = &frequency_data[inst.freq_ratios[op]];
-
-            int associated_carrier_idx = algo_associated_carriers[inst.algorithm][op] - 1;
-            const double freq_mult = freq_data->mult;
-            const double pitch = (double)voice->key + carrier_intervals[associated_carrier_idx];
-            const double base_freq = key_to_hz_d(pitch);
-            const double hz_offset = freq_data->hz_offset;
-            const double freq = freq_mult * base_freq + hz_offset;
-
-            voice->op_states[op].phase_delta = freq * sample_len * SINE_WAVE_LENGTH;
-
-            const double amplitude_curve = operator_amplitude_curve((double) inst.amplitudes[op]);
-            const double amplitude_mult = amplitude_curve * freq_data->amplitude_sign;
-            double expression = amplitude_mult;
-
-            if (op < inst.carrier_count) {
-                // carrier
-                double pitch_expression;
-                if (voice->op_states[op].has_prev_pitch_expression) {
-                    pitch_expression = voice->op_states[op].prev_pitch_expression;
-                } else {
-                    pitch_expression = pow(2.0, -(pitch - EXPRESSION_REFERENCE_PITCH) / PITCH_DAMPING);
-                }
-                voice->op_states[op].has_prev_pitch_expression = TRUE;
-                voice->op_states[op].prev_pitch_expression = pitch_expression;
-
-                expression *= pitch_expression;
-                total_carrier_expr += amplitude_curve;
-            } else {
-                // modulator
-                expression *= SINE_WAVE_LENGTH * 1.5;
-                sine_expr_boost *= 1.0 - min(1.0, inst.amplitudes[op]);
-            }
-
-            voice->op_states[op].expression = expression;
-        }
-
-        sine_expr_boost *= (pow(2.0, (2.0 - 1.4 * inst.feedback)) - 1.0) / 3.0;
-        sine_expr_boost *= 1.0 - min(1.0, max(0.0, total_carrier_expr - 1) / 2.0);
-        sine_expr_boost = 1.0 + sine_expr_boost * 3.0;
-
-        const double expr_start = VOICE_BASE_EXPRESSION * sine_expr_boost * fade_expr_start;
-        const double expr_end = VOICE_BASE_EXPRESSION * sine_expr_boost * fade_expr_end;
-        voice->expression = expr_start;
-        voice->expression_delta = (expr_end - expr_start) / frame_count;
-        
-        // then, do per-frame processing
         size_t buffer_idx = 0;
-        for (size_t frame = 0; frame < frame_count; frame++) {      
-            float sample = (float) (algo_func(voice, feedback_amplitude) * voice->expression) * voice->volume;
+        size_t frame = 0;
 
-            voice->op_states[0].phase += voice->op_states[0].phase_delta;
-            voice->op_states[1].phase += voice->op_states[1].phase_delta;
-            voice->op_states[2].phase += voice->op_states[2].phase_delta;
-            voice->op_states[3].phase += voice->op_states[3].phase_delta;
+        while (frame < frame_count) {
+            if (voice->remaining_samples == 0) {
+                voice->remaining_samples += (size_t)ceil(samples_per_tick);
+                compute_voice(&inst, voice, (tone_compute_s) {
+                    .samples_per_tick = samples_per_tick,
+                    .sample_rate = sample_rate,
+                    .fade_in = fade_in,
+                    .fade_out = fade_out
+                });
+            }
+
+            // convert from operable values
+            for (int op = 0; op < FM_OP_COUNT; op++) {
+                voice->op_states[op].phase *= SINE_WAVE_LENGTH;
+                voice->op_states[op].phase_delta *= SINE_WAVE_LENGTH;
+            }
             
-            voice->expression += voice->expression_delta;
-    
-            // when released, end voice on zero crossing
-            // if (voice->released && signf(sample) != signf(voice->last_sample)) {
-            //     voice->active = 0;
-            //     break;
-            // } else {
-            voice->last_sample = sample;
-            // }
+            size_t end_frame = frame + voice->remaining_samples;
+            if (end_frame > frame_count) end_frame = frame_count;
+            //assert((int64_t)end_frame - frame >= 0);
+            size_t run_length = end_frame - frame;
 
-            // assume two channels
-            out_samples[buffer_idx++] += sample;
-            out_samples[buffer_idx++] += sample;
+            for (; frame < end_frame; frame++) {      
+                float sample = (float) (algo_func(voice, feedback_amplitude) * voice->expression) * voice->volume;
+
+                voice->op_states[0].phase += voice->op_states[0].phase_delta;
+                voice->op_states[1].phase += voice->op_states[1].phase_delta;
+                voice->op_states[2].phase += voice->op_states[2].phase_delta;
+                voice->op_states[3].phase += voice->op_states[3].phase_delta;
+                
+                voice->expression += voice->expression_delta;
+
+                // assume two channels
+                out_samples[buffer_idx++] += sample;
+                out_samples[buffer_idx++] += sample;
+            }
+
+            voice->remaining_samples -= run_length;
+            
+            // convert from operable values
+            for (int op = 0; op < FM_OP_COUNT; op++) {
+                voice->op_states[op].phase /= SINE_WAVE_LENGTH;
+                voice->op_states[op].phase_delta /= SINE_WAVE_LENGTH;
+            }
         }
 
-        // convert from operable values
-        for (int op = 0; op < FM_OP_COUNT; op++) {
-            voice->op_states[op].phase /= SINE_WAVE_LENGTH;
-            voice->op_states[op].phase_delta /= SINE_WAVE_LENGTH;
-        }
     }
 
     *src_inst->fm = inst;

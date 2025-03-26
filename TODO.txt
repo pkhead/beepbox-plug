@@ -1,2 +1,3 @@
-- put vst logo in readme and about window
 - change beepbox_synth.h interface to use explicit integer sizes and const ptrs when appropriate
+- fade in/out ui
+- figure out why changing block size/sample rate makes it sound weird
