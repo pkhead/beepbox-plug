@@ -7,6 +7,7 @@ add_library(beepbox_synth STATIC
     src/instrument.c
     src/wavetables.c
     src/envelope.c
+    src/public.c
 )
 
 set_target_properties(beepbox_synth PROPERTIES
