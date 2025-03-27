@@ -1,5 +1,5 @@
 ## Beepbox Synth License
-Code under the synth directory is licensed under the MIT license, the text of which is below:
+Code under the `src/synth` directory is licensed under the MIT license, the text of which is below:
 
 > Copyright 2025 pkhead
 > 
@@ -10,6 +10,4 @@ Code under the synth directory is licensed under the MIT license, the text of wh
 > THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ## Plugin License
-All code written by me that is under the plugins directory is licensed under GPLv3, the text of which is found [here](https://www.gnu.org/licenses/gpl-3.0.en.html).
-
-An exception is sokol_imgui.h. It is a file obviously not written by me. Its modifications are licensed under MIT.
+All code under the `src/plugin`, and `src/plugin_gui` directory is licensed under GPLv3, the text of which is found [here](https://www.gnu.org/licenses/gpl-3.0.en.html).

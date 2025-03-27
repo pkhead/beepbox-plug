@@ -13,7 +13,10 @@ set(CMAKE_CXX_STANDARD 17)
 
 include_directories(src)
 
-# imgui
+#################
+# imgui library #
+#################
+
 add_library(imgui STATIC
     src/imgui/imgui_demo.cpp
     src/imgui/imgui_draw.cpp
@@ -34,46 +37,80 @@ set_target_properties(imgui PROPERTIES
     LANGUAGE CXX
 )
 
+#####################
+## other libraries ##
+#####################
+
 add_subdirectory(src/clap)
 add_subdirectory(src/synth)
 add_subdirectory(src/plugin_gui ${CMAKE_BINARY_DIR}/src/plugin_gui)
 
-set(CLAP_WRAPPER_DOWNLOAD_DEPENDENCIES TRUE CACHE BOOL "Download Dependencies")
-set(CLAP_WRAPPER_DONT_ADD_TARGETS TRUE)
-add_subdirectory(src/clap-wrapper)
+if(BUILD_STANDALONE OR BUILD_VST3)
+    set(CLAP_WRAPPER_DOWNLOAD_DEPENDENCIES TRUE CACHE BOOL "Download Dependencies")
+    set(CLAP_WRAPPER_DONT_ADD_TARGETS TRUE)
+    add_subdirectory(src/clap-wrapper)
+endif()
 
-set(SOURCES
-    src/plugin/entry.c
-)
-
+# plugin_gui is not added to LIBRARIES because i want a variation of the plugin_gui
+# library when building vst3 (it will add the vst3 trademark to the about page)
 set(LIBRARIES clap beepbox_synth)
 
-# set(CLAP_TARGET ${PROJECT_NAME}_clap)
-# add_library(${CLAP_TARGET} MODULE ${SOURCES})
-# target_link_libraries(${CLAP_TARGET} PRIVATE ${LIBRARIES})
-# set_target_properties(${CLAP_TARGET} PROPERTIES
-#     SUFFIX ".clap"
-#     PREFIX ""    
-# )
+#################
+## clap target ##
+#################
 
-set(STANDALONE_TARGET ${PROJECT_NAME}_standalone)
-add_executable(${STANDALONE_TARGET})
-target_sources(${STANDALONE_TARGET} PRIVATE ${SOURCES})
-target_link_libraries(${STANDALONE_TARGET} PRIVATE ${LIBRARIES} plugin_gui)
-target_add_standalone_wrapper(TARGET ${STANDALONE_TARGET}
-    OUTPUT_NAME "BeepBox"
-    STATICALLY_LINKED_CLAP_ENTRY True
-    PLUGIN_ID "us.pkhead.beepbox"
+set(CLAP_TARGET ${PROJECT_NAME}_clap)
+add_library(${CLAP_TARGET} MODULE src/plugin/entry.c)
+target_link_libraries(${CLAP_TARGET} PRIVATE ${LIBRARIES} plugin_gui)
+set_target_properties(${CLAP_TARGET} PROPERTIES
+    SUFFIX ".clap"
+    PREFIX ""
 )
 
-set(PLUGIN_VST3 True)
-add_subdirectory(src/plugin_gui ${CMAKE_BINARY_DIR}/src/plugin_gui_vst3)
+#######################
+## standalone target ##
+#######################
 
-set(VST3_TARGET ${PROJECT_NAME}_vst3)
-add_library(${VST3_TARGET} MODULE)
-target_sources(${VST3_TARGET} PRIVATE ${SOURCES})
-target_link_libraries(${VST3_TARGET} PRIVATE ${LIBRARIES} plugin_gui_vst3)
-target_add_vst3_wrapper(TARGET ${VST3_TARGET}
-    OUTPUT_NAME "BeepBox"
-    SUPPORTS_ALL_NOTE_EXPRESSIONS False
-)
+if(BUILD_STANDALONE)
+    set(STANDALONE_TARGET ${PROJECT_NAME}_standalone)
+    add_executable(${STANDALONE_TARGET})
+    target_sources(${STANDALONE_TARGET} PRIVATE src/plugin/entry.c)
+    target_link_libraries(${STANDALONE_TARGET} PRIVATE ${LIBRARIES} plugin_gui)
+    target_add_standalone_wrapper(TARGET ${STANDALONE_TARGET}
+        OUTPUT_NAME "BeepBox"
+        STATICALLY_LINKED_CLAP_ENTRY True
+        PLUGIN_ID "us.pkhead.beepbox"
+    )
+endif()
+
+#################
+## vst3 target ##
+#################
+
+if(BUILD_VST3)
+    set(PLUGIN_VST3 True)
+    add_subdirectory(src/plugin_gui ${CMAKE_BINARY_DIR}/src/plugin_gui_vst3)
+
+    set(VST3_TARGET ${PROJECT_NAME}_vst3)
+    add_library(${VST3_TARGET} MODULE)
+    target_sources(${VST3_TARGET} PRIVATE src/plugin/entry.c)
+    target_link_libraries(${VST3_TARGET} PRIVATE ${LIBRARIES} plugin_gui_vst3)
+    target_add_vst3_wrapper(TARGET ${VST3_TARGET}
+        OUTPUT_NAME "BeepBox"
+        SUPPORTS_ALL_NOTE_EXPRESSIONS False
+    )
+endif()
+
+message(STATUS "Configuration: ")
+
+if (BUILD_VST3)
+    message(STATUS "\tBUILD_VST3:           On")
+else()
+    message(STATUS "\tBUILD_VST3:           Off")
+endif()
+
+if (BUILD_STANDALONE)
+    message(STATUS "\tBUILD_STANDALONE:     On")
+else()
+    message(STATUS "\tBUILD_STANDALONE:     Off")
+endif()
