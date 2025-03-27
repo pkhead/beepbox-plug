@@ -1,7 +1,7 @@
 # About
 This is a port of the [BeepBox](https://beepbox.co/) synthesizers. It also implements some additions from mods.
 
-The project itself comes with two modules, located in the src directory:
+The project itself comes with three modules, located in the src directory:
 - `synth/`: The library with the synthesizer implementation, written in C.
 - `plugin/`: CLAP audio plugin wrapper
 - `plugin_gui/`: CLAP audio plugin gui, written in C++. (Associated with `gui_libs`)
