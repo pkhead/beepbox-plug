@@ -267,7 +267,7 @@ platform::Window* platform::createWindow(int width, int height, const char *name
     platform->hwnd = CreateWindowExA(
         0L,
         platform->uniqueClassName,
-        CPLUG_PLUGIN_NAME,
+        name,
         WS_CHILD | WS_CLIPSIBLINGS,
         CW_USEDEFAULT,
         CW_USEDEFAULT,

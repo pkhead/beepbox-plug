@@ -1,150 +1,79 @@
-# This file is for building the example project ONLY. It's not meant to be a module included as a subdirectory.
-# If you're interested using CMake to build your plugins, read the code here, then copy/paste and modify it in
-# your own projects. It's easy!
-cmake_minimum_required(VERSION 3.7)
-project(beepbox VERSION 0.0.1)
+cmake_minimum_required(VERSION 3.27)
+cmake_policy(SET CMP0091 NEW)
+cmake_policy(SET CMP0149 NEW)
+
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+set(CMAKE_OSX_DEPLOYMENT_TARGET 10.14 CACHE STRING "Build for 10.14")
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+project(BeepBox VERSION 0.0.1)
 
 set(CMAKE_C_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 
-if (APPLE)
-    enable_language(OBJC)
-    set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64")
-endif()
-
-# settings used across all formats
-include_directories(CPLUG/src)
-
-if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-    set(CMAKE_CXX_STANDARD 20) # required for c++ clap build
-    add_compile_options(
-        /FI ${CMAKE_SOURCE_DIR}/plugin/config.h
-    )
-else()
-    add_compile_options(
-        -Werror=return-type
-        -Werror=shadow
-        -Wunused-function
-
-        -Wno-deprecated
-        -Wno-multichar
-        -Wno-nullability-completeness
-        -Wno-writable-strings
-
-        -include${CMAKE_SOURCE_DIR}/plugin/config.h
-    )
-    if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-        add_compile_options(-Werror=excess-initializers)
-    endif()
-endif()
-
-
-
-
-
-
-
-set(BEEPBOX_SOURCES
-    plugin/plugin.cpp
-    plugin/gui.cpp
-    plugin/platform.cpp
-    plugin/lib_impl.cpp
-)
-
-set(BEEPBOX_INCLUDES ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/CPLUG/src ${CMAKE_SOURCE_DIR}/plugin_libs)
-
-add_subdirectory(synth)
-
+include_directories(src)
 
 # imgui
 add_library(imgui STATIC
-    imgui/imgui_demo.cpp
-    imgui/imgui_draw.cpp
-    imgui/imgui_tables.cpp
-    imgui/imgui_widgets.cpp
-    imgui/imgui.cpp
-    imgui/backends/imgui_impl_opengl3.cpp
+    src/imgui/imgui_demo.cpp
+    src/imgui/imgui_draw.cpp
+    src/imgui/imgui_tables.cpp
+    src/imgui/imgui_widgets.cpp
+    src/imgui/imgui.cpp
+    src/imgui/backends/imgui_impl_opengl3.cpp
 )
 
 target_include_directories(imgui
     PUBLIC
-        imgui
-        imgui/backends
+        src/imgui
+        src/imgui/backends
 )
 
-set_target_properties(imgui PROPERTIES POSITION_INDEPENDENT_CODE ON)
+set_target_properties(imgui PROPERTIES
+    POSITION_INDEPENDENT_CODE ON
+    LANGUAGE CXX
+)
 
-set(LIBRARIES imgui beepbox_synth)
+add_subdirectory(src/clap)
+add_subdirectory(src/synth)
+add_subdirectory(src/plugin_gui ${CMAKE_BINARY_DIR}/src/plugin_gui)
 
-# ██╗   ██╗███████╗████████╗██████╗ 
-# ██║   ██║██╔════╝╚══██╔══╝╚════██╗
-# ██║   ██║███████╗   ██║    █████╔╝
-# ╚██╗ ██╔╝╚════██║   ██║    ╚═══██╗
-#  ╚████╔╝ ███████║   ██║   ██████╔╝
-#   ╚═══╝  ╚══════╝   ╚═╝   ╚═════╝ 
+set(CLAP_WRAPPER_DOWNLOAD_DEPENDENCIES TRUE CACHE BOOL "Download Dependencies")
+set(CLAP_WRAPPER_DONT_ADD_TARGETS TRUE)
+add_subdirectory(src/clap-wrapper)
 
-if (BUILD_VST3)
-    if (WIN32)
-        add_library(beepbox_vst3 MODULE
-            ${BEEPBOX_SOURCES}
-            CPLUG/src/cplug_vst3.c
-        )
-        target_include_directories(beepbox_vst3 PRIVATE ${BEEPBOX_INCLUDES})
-        target_link_libraries(beepbox_vst3 ${LIBRARIES})
-        target_compile_definitions(beepbox_vst3 PRIVATE PLUGIN_VST3)
+set(SOURCES
+    src/plugin/entry.c
+)
 
-        # According to the docs you're meant to bundle your Windows VST3 using a bundle like folder structure:
-        # https://steinbergmedia.github.io/vst3_dev_portal/pages/Technical+Documentation/Locations+Format/Plugin+Format.html#for-the-windows-platform
-        # However, placing the unbundled binary directly into your ...\Common Files\VST3 folder will work fine in every host.
-        # I'm not sure anyone in the real world actually bundles Windows VST3s like this, but maybe I'm just ignorant.
-        set_target_properties(beepbox_vst3 PROPERTIES
-            BUNDLE True
-            BUNDLE_EXTENSION vst3
-            OUTPUT_NAME BeepBox                                             # out binary name, differs from target name
-            CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/BeepBox.vst3 # out directory name, differs from target name
-            SUFFIX .vst3
-            PDB_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/BeepBox.vst3
-            LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/BeepBox.vst3/Contents/x86_64-win
-        )
-    elseif (APPLE)
-        message(FATAL_ERROR "Apple not supported")
-    endif()
-endif()
+set(LIBRARIES clap beepbox_synth)
 
-#  ██████╗██╗      █████╗ ██████╗
-# ██╔════╝██║     ██╔══██╗██╔══██╗
-# ██║     ██║     ███████║██████╔╝
-# ██║     ██║     ██╔══██║██╔═══╝
-# ╚██████╗███████╗██║  ██║██║
-#  ╚═════╝╚══════╝╚═╝  ╚═╝╚═╝
+# set(CLAP_TARGET ${PROJECT_NAME}_clap)
+# add_library(${CLAP_TARGET} MODULE ${SOURCES})
+# target_link_libraries(${CLAP_TARGET} PRIVATE ${LIBRARIES})
+# set_target_properties(${CLAP_TARGET} PROPERTIES
+#     SUFFIX ".clap"
+#     PREFIX ""    
+# )
 
-if (BUILD_CLAP)
-    if (APPLE)
-        message(FATAL_ERROR "Apple not supported")
-    elseif(WIN32)
-        add_library(beepbox_clap MODULE ${BEEPBOX_SOURCES} src/cplug_clap.c)
-        target_include_directories(beepbox_clap PRIVATE ${BEEPBOX_INCLUDES})
-        target_link_libraries(beepbox_vst3 ${LIBRARIES})
-        set_target_properties(beepbox_clap PROPERTIES
-            OUTPUT_NAME BeepBox
-            SUFFIX .clap
-            PDB_NAME beepbox_clap
-            )
-    endif()
-endif()
+set(STANDALONE_TARGET ${PROJECT_NAME}_standalone)
+add_executable(${STANDALONE_TARGET})
+target_sources(${STANDALONE_TARGET} PRIVATE ${SOURCES})
+target_link_libraries(${STANDALONE_TARGET} PRIVATE ${LIBRARIES} plugin_gui)
+target_add_standalone_wrapper(TARGET ${STANDALONE_TARGET}
+    OUTPUT_NAME "BeepBox"
+    STATICALLY_LINKED_CLAP_ENTRY True
+    PLUGIN_ID "us.pkhead.beepbox"
+)
 
-# ███████╗████████╗ █████╗ ███╗   ██╗██████╗  █████╗ ██╗      ██████╗ ███╗   ██╗███████╗
-# ██╔════╝╚══██╔══╝██╔══██╗████╗  ██║██╔══██╗██╔══██╗██║     ██╔═══██╗████╗  ██║██╔════╝
-# ███████╗   ██║   ███████║██╔██╗ ██║██║  ██║███████║██║     ██║   ██║██╔██╗ ██║█████╗  
-# ╚════██║   ██║   ██╔══██║██║╚██╗██║██║  ██║██╔══██║██║     ██║   ██║██║╚██╗██║██╔══╝  
-# ███████║   ██║   ██║  ██║██║ ╚████║██████╔╝██║  ██║███████╗╚██████╔╝██║ ╚████║███████╗
-# ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝╚═════╝ ╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚══════╝
+set(PLUGIN_VST3 True)
+add_subdirectory(src/plugin_gui ${CMAKE_BINARY_DIR}/src/plugin_gui_vst3)
 
-if (BUILD_STANDALONE)
-    if (WIN32)
-        add_executable(beepbox_standalone WIN32 ${BEEPBOX_SOURCES} CPLUG/src/cplug_standalone_win.c)
-        target_include_directories(beepbox_standalone PRIVATE ${BEEPBOX_INCLUDES})
-        target_link_libraries(beepbox_standalone ${LIBRARIES})
-    else()
-        message(FATAL_ERROR "platform not supported")
-    endif()
-endif()
+set(VST3_TARGET ${PROJECT_NAME}_vst3)
+add_library(${VST3_TARGET} MODULE)
+target_sources(${VST3_TARGET} PRIVATE ${SOURCES})
+target_link_libraries(${VST3_TARGET} PRIVATE ${LIBRARIES} plugin_gui_vst3)
+target_add_vst3_wrapper(TARGET ${VST3_TARGET}
+    OUTPUT_NAME "BeepBox"
+    SUPPORTS_ALL_NOTE_EXPRESSIONS False
+)

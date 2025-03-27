@@ -70,12 +70,12 @@ const inst_param_info_s* inst_param_info(inst_type_e type, unsigned int index) {
     }
 }
 
-inst_s* inst_new(inst_type_e inst_type) {
+inst_s* inst_new(inst_type_e type) {
     init_wavetables();
 
     inst_s *inst = malloc(sizeof(inst_s));
     *inst = (inst_s) {
-        .type = inst_type,
+        .type = type,
         .sample_rate = 0,
 
         .volume = 0.0,
@@ -84,7 +84,7 @@ inst_s* inst_new(inst_type_e inst_type) {
         .fade_out = 0.0
     };
 
-    switch (inst_type) {
+    switch (type) {
         case INSTRUMENT_FM:
             inst->fm = malloc(sizeof(fm_inst_s));
             fm_init(inst->fm);
@@ -107,7 +107,11 @@ void inst_set_sample_rate(inst_s *inst, int sample_rate) {
     inst->sample_rate = sample_rate;
 }
 
-static int param_helper(inst_s *inst, int index, void **addr, inst_param_info_s *info) {
+inst_type_e inst_type(const inst_s *inst) {
+    return inst->type;
+}
+
+static int param_helper(const inst_s *inst, int index, void **addr, inst_param_info_s *info) {
     if (index < 0) return 1;
 
     if (index < BASE_PARAM_COUNT) {
@@ -186,7 +190,7 @@ int inst_set_param_double(inst_s* inst, int index, double value) {
     return 0;
 }
 
-int inst_get_param_int(inst_s* inst, int index, int *value) {
+int inst_get_param_int(const inst_s* inst, int index, int *value) {
     void *addr;
     inst_param_info_s info;
 
@@ -209,7 +213,7 @@ int inst_get_param_int(inst_s* inst, int index, int *value) {
     return 0;
 }
 
-int inst_get_param_double(inst_s* inst, int index, double *value) {
+int inst_get_param_double(const inst_s* inst, int index, double *value) {
     void *addr;
     inst_param_info_s info;
 

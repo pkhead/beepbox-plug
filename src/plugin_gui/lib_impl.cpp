@@ -1,5 +1,3 @@
-#ifdef CPLUG_WANT_GUI
-
 #include <imgui.h>
 
 #define SOKOL_IMPL
@@ -11,5 +9,3 @@
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
-
-#endif

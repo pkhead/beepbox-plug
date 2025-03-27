@@ -72,15 +72,15 @@ const inst_param_info_s* inst_param_info(inst_type_e type, unsigned int index);
 inst_s* inst_new(inst_type_e inst_type);
 void inst_destroy(inst_s* inst);
 
-inst_type_e inst_type(inst_s *inst);
+inst_type_e inst_type(const inst_s *inst);
 
 void inst_set_sample_rate(inst_s *inst, int sample_rate);
 
 int inst_set_param_int(inst_s* inst, int index, int value);
 int inst_set_param_double(inst_s* inst, int index, double value);
 
-int inst_get_param_int(inst_s* inst, int index, int *value);
-int inst_get_param_double(inst_s* inst, int index, double *value);
+int inst_get_param_int(const inst_s* inst, int index, int *value);
+int inst_get_param_double(const inst_s* inst, int index, double *value);
 
 void inst_midi_on(inst_s *inst, int key, int velocity);
 void inst_midi_off(inst_s *inst, int key, int velocity);

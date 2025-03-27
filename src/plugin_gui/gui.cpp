@@ -1,13 +1,12 @@
-#ifdef CPLUG_WANT_GUI
-
 #define SOKOL_IMGUI_NO_SOKOL_APP
 #include <imgui.h>
-#include <sokol/sokol_gfx.h>
-#include <sokol/sokol_log.h>
+#include <sokol_gfx.h>
+#include <sokol_log.h>
 #include <sokol_imgui.h>
 #include <stb_image.h>
+#include <atomic>
 
-#include "plugin.hpp"
+#include "include/plugin_gui.h"
 #include "platform.hpp"
 
 #define GUI_DEFAULT_WIDTH 240
@@ -17,14 +16,87 @@
 
 using namespace beepbox;
 
-struct PluginGui
-{
-    Plugin *plugin;
+constexpr int GUI_EVENT_QUEUE_MASK = GUI_EVENT_QUEUE_SIZE-1;
+
+template <typename T, size_t SIZE>
+struct EventQueue {
+private:
+    T data[SIZE];
+    std::atomic_size_t write_ptr;
+    std::atomic_size_t read_ptr;
+
+public:
+    EventQueue() {};
+    EventQueue(EventQueue&) = delete;
+    EventQueue operator=(EventQueue&) = delete;
+
+    void enqueue(const T &item) {
+        uint32_t ptr = write_ptr.load();
+        data[ptr] = item;
+        ptr = (ptr + 1) & GUI_EVENT_QUEUE_MASK;
+        write_ptr.store(ptr);
+    }
+
+    bool dequeue(T &item) {
+        size_t read = read_ptr.load();
+        size_t write = write_ptr.load();
+        if (read == write) return false;
+
+        item = data[read];
+        read = (read + 1) & GUI_EVENT_QUEUE_MASK;
+        read_ptr.store(read);
+
+        return true;
+    }
+};
+
+typedef struct gui_plugin_interface_s {
+    beepbox::inst_s *instrument;
     platform::Window *window;
     _simgui_state_t simgui_state;
 
     bool showAbout;
-};
+
+    double params[BASE_PARAM_COUNT + FM_PARAM_COUNT];
+
+    EventQueue<gui_event_queue_item_s, GUI_EVENT_QUEUE_SIZE> gui_to_plugin;
+    EventQueue<gui_event_queue_item_s, GUI_EVENT_QUEUE_SIZE> plugin_to_gui;
+
+    void paramGestureBegin(uint32_t param_id) {
+        gui_event_queue_item_s item = {};
+        item.type = GUI_EVENT_PARAM_GESTURE_BEGIN;
+        item.gesture.param_id = param_id;
+
+        gui_to_plugin.enqueue(item);
+    }
+
+    void paramChange(uint32_t param_id, double value) {
+        gui_event_queue_item_s item = {};
+        item.type = GUI_EVENT_PARAM_CHANGE;
+        item.param_value.param_id = param_id;
+        item.param_value.value = value;
+
+        gui_to_plugin.enqueue(item);
+
+        params[param_id] = value;
+    }
+
+    void paramGestureEnd(uint32_t param_id) {
+        gui_event_queue_item_s item = {};
+        item.type = GUI_EVENT_PARAM_GESTURE_END;
+        item.gesture.param_id = param_id;
+
+        gui_to_plugin.enqueue(item);
+    }
+} gui_plugin_interface_s;
+
+void gui_event_enqueue(gui_plugin_interface_s *iface, gui_event_queue_item_s item) {
+    iface->plugin_to_gui.enqueue(item);
+}
+
+bool gui_event_dequeue(gui_plugin_interface_s *iface, gui_event_queue_item_s *item) {
+    return iface->gui_to_plugin.dequeue(*item);
+}
 
 #ifdef PLUGIN_VST3
 #include "resource/vst_logo.hpp"
@@ -116,8 +188,23 @@ ImGuiKey keyToImgui(platform::Key key) {
     }
 }
 
+void update_params(gui_plugin_interface_s *iface) {
+    gui_event_queue_item_s item;
+    while (iface->plugin_to_gui.dequeue(item)) {
+        switch (item.type) {
+            case GUI_EVENT_PARAM_CHANGE:
+                iface->params[item.param_value.param_id] = item.param_value.value;
+                break;
+
+            default:
+                break;
+        }
+    }
+}
+
 void eventHandler(platform::Event ev, platform::Window *window) {
-    PluginGui *gui = (PluginGui*) platform::getUserdata(window);
+    gui_plugin_interface_s *gui = (gui_plugin_interface_s*) platform::getUserdata(window);
+    update_params(gui);
 
     simgui_restore_global_state(&gui->simgui_state);
     simgui_set_current_context();
@@ -151,10 +238,8 @@ void eventHandler(platform::Event ev, platform::Window *window) {
     simgui_save_global_state(&gui->simgui_state);
 }
 
-static void sliderParameter(Plugin *plugin, uint32_t paramId, const char *id, float v_min, float v_max, const char *fmt = "%.3f", bool normalized = false) {
-    double v = cplug_getParameterValue(plugin, paramId);
-
-    double oldV = v;
+static void sliderParameter(gui_plugin_interface_s *gui, uint32_t paramId, const char *id, float v_min, float v_max, const char *fmt = "%.3f", bool normalized = false) {
+    double v = gui->params[paramId];
     float floatV = (float)v;
     if (normalized) {
         floatV = (v_max - v_min) * floatV + v_min;
@@ -163,7 +248,7 @@ static void sliderParameter(Plugin *plugin, uint32_t paramId, const char *id, fl
     bool changed = ImGui::SliderFloat(id, &floatV, v_min, v_max, fmt);
 
     if (ImGui::IsItemActivated()) {
-        sendParamEventFromMain(plugin, CPLUG_EVENT_PARAM_CHANGE_BEGIN, paramId, oldV);
+        gui->paramGestureBegin(paramId);
     }
 
     if (changed) {
@@ -171,17 +256,17 @@ static void sliderParameter(Plugin *plugin, uint32_t paramId, const char *id, fl
             floatV = (floatV - v_min) / (v_max - v_min);
         }
 
-        sendParamEventFromMain(plugin, CPLUG_EVENT_PARAM_CHANGE_UPDATE, paramId, (double)floatV);
+        gui->paramChange(paramId, (double)floatV);
     }
 
     if (ImGui::IsItemDeactivated()) {
-        sendParamEventFromMain(plugin, CPLUG_EVENT_PARAM_CHANGE_END, paramId, (double)floatV);
+        gui->paramGestureEnd(paramId);
     }
 }
 
 void drawHandler(platform::Window *window) {
-    PluginGui *gui = (PluginGui*) platform::getUserdata(window);
-    Plugin *plug = gui->plugin;
+    gui_plugin_interface_s *gui = (gui_plugin_interface_s*) platform::getUserdata(window);
+    update_params(gui);
 
     simgui_restore_global_state(&gui->simgui_state);
     simgui_set_current_context();
@@ -281,14 +366,14 @@ void drawHandler(platform::Window *window) {
 
     // imgui
     {
-        int p_algo = (int) cplug_getParameterValue(plug, FM_PARAM_ALGORITHM);
+        int p_algo = (int) gui->params[FM_PARAM_ALGORITHM];
         int p_freq[4] = {
-            (int) cplug_getParameterValue(plug, FM_PARAM_FREQ1),
-            (int) cplug_getParameterValue(plug, FM_PARAM_FREQ2),
-            (int) cplug_getParameterValue(plug, FM_PARAM_FREQ3),
-            (int) cplug_getParameterValue(plug, FM_PARAM_FREQ4),
+            (int) gui->params[FM_PARAM_FREQ1],
+            (int) gui->params[FM_PARAM_FREQ2],
+            (int) gui->params[FM_PARAM_FREQ3],
+            (int) gui->params[FM_PARAM_FREQ4],
         };
-        int p_fdbkType = (int) cplug_getParameterValue(plug, FM_PARAM_FEEDBACK_TYPE);
+        int p_fdbkType = (int) gui->params[FM_PARAM_FEEDBACK_TYPE];
 
         if (ImGui::BeginMainMenuBar()) {
             if (ImGui::BeginMenu("Presets")) {
@@ -313,7 +398,7 @@ void drawHandler(platform::Window *window) {
             ImGui::Text("emulation of beepbox instruments");
             ImGui::Text("author: pkhead");
             ImGui::Text("original: john nesky (shaktool)");
-            ImGui::Text("libraries: CPLUG, Dear ImGui");
+            ImGui::Text("libraries: sokol, Dear ImGui");
 
             // show vst3-compatible logo
             #ifdef PLUGIN_VST3
@@ -328,19 +413,19 @@ void drawHandler(platform::Window *window) {
                 ImGui::AlignTextToFramePadding();
                 ImGui::Text("Volume");
                 ImGui::SameLine();
-                sliderParameter(plug, PARAM_VOLUME, "##volume", -25.0, 25.0, "%.0f");
+                sliderParameter(gui, PARAM_VOLUME, "##volume", -25.0, 25.0, "%.0f");
 
                 // fade in
                 ImGui::AlignTextToFramePadding();
                 ImGui::Text("Fadein");
                 ImGui::SameLine();
-                sliderParameter(plug, PARAM_FADE_IN, "##fadein", 0.0, 9.0, "%.0f");
+                sliderParameter(gui, PARAM_FADE_IN, "##fadein", 0.0, 9.0, "%.0f");
 
                 // fade out
                 ImGui::AlignTextToFramePadding();
                 ImGui::Text("Fadeout");
                 ImGui::SameLine();
-                sliderParameter(plug, PARAM_FADE_OUT, "##fadeout", 0.0, 7.0, "%.0f");
+                sliderParameter(gui, PARAM_FADE_OUT, "##fadeout", 0.0, 7.0, "%.0f");
 
                 // algorithm
                 ImGui::AlignTextToFramePadding();
@@ -350,11 +435,10 @@ void drawHandler(platform::Window *window) {
                 float algoEndX = ImGui::GetCursorPosX();
                 ImGui::SetNextItemWidth(-FLT_MIN);
                 {
-                    int p_algoOld = p_algo;
                     if (ImGui::Combo("##algo", &p_algo, algoNames, 13)) {
-                        sendParamEventFromMain(plug, CPLUG_EVENT_PARAM_CHANGE_BEGIN, FM_PARAM_ALGORITHM, (double)p_algoOld);
-                        sendParamEventFromMain(plug, CPLUG_EVENT_PARAM_CHANGE_UPDATE, FM_PARAM_ALGORITHM, (double)p_algo);
-                        sendParamEventFromMain(plug, CPLUG_EVENT_PARAM_CHANGE_END, FM_PARAM_ALGORITHM, (double)p_algo);
+                        gui->paramGestureBegin(FM_PARAM_ALGORITHM);
+                        gui->paramChange(FM_PARAM_ALGORITHM, (double)p_algo);
+                        gui->paramGestureEnd(FM_PARAM_ALGORITHM);
                     }
                 }
 
@@ -367,12 +451,12 @@ void drawHandler(platform::Window *window) {
                     ImGui::SameLine();
                     ImGui::SetNextItemWidth(algoEndX - ImGui::GetCursorPosX() - ImGui::GetStyle().ItemSpacing.x);
                     //ImGui::Text("%i", gui->freq[op]);
-                    double p_freqOld = p_freq[op];
                     if (ImGui::Combo("##freq", &p_freq[op], freqRatios, FM_FREQ_COUNT, ImGuiComboFlags_HeightLargest)) {
                         const uint32_t id = FM_PARAM_FREQ1 + op * 2;
-                        sendParamEventFromMain(plug, CPLUG_EVENT_PARAM_CHANGE_BEGIN, id, p_freqOld);
-                        sendParamEventFromMain(plug, CPLUG_EVENT_PARAM_CHANGE_UPDATE, id, p_freq[op]);
-                        sendParamEventFromMain(plug, CPLUG_EVENT_PARAM_CHANGE_END, id, p_freq[op]);
+
+                        gui->paramGestureBegin(id);
+                        gui->paramChange(id, p_freq[op]);
+                        gui->paramGestureEnd(id);
                     }
                     // if (ImGui::BeginCombo("##freq", freqRatios[gui->freq[op]], ImGuiComboFlags_HeightLargest)) {
                     //     for (int i = 0; i < sizeof(freqRatios) / sizeof(*freqRatios); i++) {
@@ -383,7 +467,7 @@ void drawHandler(platform::Window *window) {
 
                     ImGui::SameLine();
                     ImGui::SetNextItemWidth(-FLT_MIN);
-                    sliderParameter(plug, FM_PARAM_VOLUME1 + op*2, "##vol", 0.0f, 15.0f, "%.0f", true);
+                    sliderParameter(gui, FM_PARAM_VOLUME1 + op*2, "##vol", 0.0f, 15.0f, "%.0f", true);
                     ImGui::PopID();
                 }
 
@@ -395,11 +479,10 @@ void drawHandler(platform::Window *window) {
                 float feedbackEndX = ImGui::GetCursorPosX();
                 ImGui::SetNextItemWidth(-FLT_MIN);
                 {
-                    int oldFdbType = p_fdbkType;
                     if (ImGui::Combo("##fdbk", &p_fdbkType, feedbackNames, FM_FEEDBACK_TYPE_COUNT)) {
-                        sendParamEventFromMain(plug, CPLUG_EVENT_PARAM_CHANGE_BEGIN, FM_PARAM_FEEDBACK_TYPE, (double)oldFdbType);
-                        sendParamEventFromMain(plug, CPLUG_EVENT_PARAM_CHANGE_UPDATE, FM_PARAM_FEEDBACK_TYPE, (double)p_fdbkType);
-                        sendParamEventFromMain(plug, CPLUG_EVENT_PARAM_CHANGE_END, FM_PARAM_FEEDBACK_TYPE, (double)p_fdbkType);
+                        gui->paramGestureBegin(FM_PARAM_FEEDBACK_TYPE);
+                        gui->paramChange(FM_PARAM_FEEDBACK_TYPE, (double)p_fdbkType);
+                        gui->paramGestureEnd(FM_PARAM_FEEDBACK_TYPE);
                     }
                 }
 
@@ -410,7 +493,7 @@ void drawHandler(platform::Window *window) {
                 ImGui::SameLine();
                 ImGui::SetCursorPosX(feedbackEndX);
                 ImGui::SetNextItemWidth(-FLT_MIN);
-                sliderParameter(plug, FM_PARAM_FEEDBACK_VOLUME, "##vol", 0.0f, 15.0f, "%.0f", true);
+                sliderParameter(gui, FM_PARAM_FEEDBACK_VOLUME, "##vol", 0.0f, 15.0f, "%.0f", true);
 
             } ImGui::End();
         }
@@ -571,18 +654,37 @@ static void graphicsClose() {
 
 int openGuiCount = 0;
 
-void* cplug_createGUI(void* userPlugin)
-{
-    Plugin *plugin = (Plugin*)userPlugin;
-    PluginGui *gui    = new PluginGui;
+bool gui_is_api_supported(const char *api, bool is_floating) {
+    return !strcmp(api, CLAP_WINDOW_API_WIN32);
+}
+
+bool gui_get_preferred_api(const char **api, bool *is_floating) {
+    *api = CLAP_WINDOW_API_WIN32;
+    *is_floating = false;
+    return true;
+}
+
+gui_plugin_interface_s* gui_create(beepbox::inst_s *instrument, const char *api, bool is_floating) {
+    gui_plugin_interface_s *gui = new gui_plugin_interface_s {};
+    gui->instrument = instrument;
     gui->showAbout = false;
 
     if (openGuiCount == 0) {
         platform::setup();
     }
 
-    gui->plugin = plugin;
-    gui->window = platform::createWindow(GUI_DEFAULT_WIDTH, GUI_DEFAULT_HEIGHT, CPLUG_PLUGIN_NAME, eventHandler, drawHandler);
+    // initialize parameters
+    {
+        beepbox::inst_type_e type = beepbox::inst_type(instrument);
+        constexpr uint32_t param_count = sizeof(gui->params)/sizeof(*gui->params);
+        assert(beepbox::inst_param_count(type) == param_count);
+
+        for (int i = 0; i < param_count; i++) {
+            beepbox::inst_get_param_double(instrument, i, gui->params+i);
+        }
+    }
+    
+    gui->window = platform::createWindow(GUI_DEFAULT_WIDTH, GUI_DEFAULT_HEIGHT, "BeepBox", eventHandler, drawHandler);
     platform::setUserdata(gui->window, gui);
 
     if (openGuiCount == 0) {
@@ -623,10 +725,7 @@ void* cplug_createGUI(void* userPlugin)
     return gui;
 }
 
-void cplug_destroyGUI(void* userGUI)
-{
-    PluginGui *gui       = (PluginGui*)userGUI;
-
+void gui_destroy(gui_plugin_interface_s *gui) {
     simgui_restore_global_state(&gui->simgui_state);
     simgui_set_current_context();
     simgui_shutdown();
@@ -640,78 +739,32 @@ void cplug_destroyGUI(void* userGUI)
     }
 }
 
-void cplug_setParent(void* userGUI, void* newParent)
-{
-    PluginGui *gui = (PluginGui*)userGUI;
-    platform::setParent(gui->window, newParent);
-}
-
-void cplug_setVisible(void* userGUI, bool visible)
-{
-    PluginGui *gui = (PluginGui*)userGUI;
-    platform::setVisible(gui->window, visible);
-}
-
-void cplug_setScaleFactor(void* userGUI, float scale)
-{
-    // handle change
-}
-void cplug_getSize(void* userGUI, uint32_t* width, uint32_t* height)
-{
-    PluginGui* gui = (PluginGui*)userGUI;
-    *width = (uint32_t) platform::getWidth(gui->window);
-    *height = (uint32_t) platform::getHeight(gui->window);
-}
-bool cplug_setSize(void* userGUI, uint32_t width, uint32_t height)
-{
-    PluginGui* gui  = (PluginGui*)userGUI;
-    return false;
-    // gui->width  = width;
-    // gui->height = height;
-    
-    // return SetWindowPos(
-    //     (HWND)gui->window,
-    //     HWND_TOP,
-    //     0,
-    //     0,
-    //     width,
-    //     height,
-    //     SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_NOZORDER | SWP_NOMOVE);
-}
-
-void cplug_checkSize(void* userGUI, uint32_t* width, uint32_t* height)
-{
-    if (*width < (GUI_RATIO_X * 10))
-        *width = (GUI_RATIO_X * 10);
-    if (*height < (GUI_RATIO_Y * 10))
-        *height = (GUI_RATIO_Y * 10);
-
-    // This preserves the aspect ratio when resizing from a corner, or expanding horizontally/vertically.
-    // Shrinking the window from the edge doesn't work, and I'm currently not sure how to disable resizing from the edge
-    // Win/macOS aren't very helpful at letting you know which edge/corner the user is pulling from.
-    // Some people wanting to preserve aspect ratio will disable resizing the window and add a widget in the corner
-    // The user of this library is left to implement their own strategy
-    uint32_t numX = *width / GUI_RATIO_X;
-    uint32_t numY = *height / GUI_RATIO_Y;
-    uint32_t num  = numX > numY ? numX : numY;
-    *width        = num * GUI_RATIO_X;
-    *height       = num * GUI_RATIO_Y;
-}
-
-bool cplug_getResizeHints(
-    void*     userGUI,
-    bool*     resizableX,
-    bool*     resizableY,
-    bool*     preserveAspectRatio,
-    uint32_t* aspectRatioX,
-    uint32_t* aspectRatioY)
-{
-    *resizableX          = false;
-    *resizableY          = false;
-    *preserveAspectRatio = true;
-    *aspectRatioX        = GUI_RATIO_X;
-    *aspectRatioY        = GUI_RATIO_Y;
+bool gui_get_size(const gui_plugin_interface_s *iface, uint32_t *width, uint32_t *height) {
+    *width = (uint32_t) platform::getWidth(iface->window);
+    *height = (uint32_t) platform::getHeight(iface->window);
     return true;
 }
 
-#endif // CPLUG_WANT_GUI
+bool gui_set_parent(gui_plugin_interface_s *iface, const clap_window_t *window) {
+    assert(!strcmp(window->api, CLAP_WINDOW_API_WIN32));
+    platform::setParent(iface->window, window->win32);
+    return true;
+}
+
+bool gui_set_transient(gui_plugin_interface_s *iface, const clap_window_t *window) {
+    return false;
+}
+
+void gui_suggest_title(gui_plugin_interface_s *iface, const char *title) {
+
+}
+
+bool gui_show(gui_plugin_interface_s *iface) {
+    platform::setVisible(iface->window, true);
+    return true;
+}
+
+bool gui_hide(gui_plugin_interface_s *iface) {
+    platform::setVisible(iface->window, false);
+    return true;
+}
