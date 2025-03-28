@@ -11,11 +11,14 @@
 typedef struct {
     double envelope_starts[ENV_INDEX_COUNT];
     double envelope_ends[ENV_INDEX_COUNT];
+    double tick;
+    double note_secs_start;
+    double note_secs_end;
 } envelope_computer_s;
 
 typedef enum {
     ENV_CURVE_NONE,
-    ENV_CURVE_VOLUME, // aka note size
+    ENV_CURVE_NOTE_SIZE, // aka note size
     ENV_CURVE_PUNCH,
     ENV_CURVE_FLARE,
     ENV_CURVE_TWANG,
@@ -37,6 +40,14 @@ typedef struct {
     envelope_curve_type_e curve_type;
     double speed;
 } envelope_curve_preset_s;
+
+void envelope_computer_init(envelope_computer_s *env_computer);
+
+void compute_envelopes(
+    envelope_computer_s *env_computer,
+    const envelope_s *envelopes, unsigned int envelope_count,
+    double beat_start, double tick_time_start, double secs_per_tick
+);
 
 extern const envelope_curve_preset_s envelope_curve_presets[ENVELOPE_CURVE_PRESET_COUNT];
 

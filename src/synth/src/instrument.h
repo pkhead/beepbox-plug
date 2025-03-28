@@ -7,6 +7,8 @@
 #include "fm.h"
 
 #define NOTE_SIZE_MAX 3
+#define PARTS_PER_BEAT 24
+#define TICKS_PER_PART 2
 
 typedef struct inst {
     inst_type_e type;
@@ -24,8 +26,6 @@ typedef struct inst {
     // envelopes
     uint8_t envelope_count;
     envelope_s envelopes[MAX_ENVELOPE_COUNT];
-
-    envelope_computer_s env_computer;
 } inst_s;
 
 double calc_samples_per_tick(double bpm, double sample_rate);

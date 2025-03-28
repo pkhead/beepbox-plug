@@ -3,6 +3,7 @@
 
 #include "math.h"
 
+#define PI 3.14159265359
 #define PI2 (2.0 * 3.14159265359)
 #define PI2f (float)(2.f * 3.14159265359f)
 

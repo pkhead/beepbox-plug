@@ -6,6 +6,7 @@
 #include "../include/beepbox_synth.h"
 #include "../include/beepbox_instrument_data.h"
 #include "wavetables.h"
+#include "envelope.h"
 
 #define FM_OP_COUNT 4
 #define FM_MOD_COUNT 9
@@ -14,6 +15,7 @@ typedef struct {
     double phase;
     double phase_delta;
     double expression;
+    double expression_delta;
     double prev_pitch_expression;
     double output;
 
@@ -45,6 +47,7 @@ typedef struct {
     double ticks_since_release;
 
     fm_voice_opstate_s op_states[FM_OP_COUNT];
+    envelope_computer_s env_computer;
 } fm_voice_s;
 
 typedef struct {

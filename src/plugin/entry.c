@@ -1,6 +1,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <assert.h>
 #include <math.h>
 
@@ -37,8 +38,12 @@ typedef struct {
    const clap_host_state_t *host_state;
    
    inst_s *instrument;
-   double bpm;
    float *process_block;
+
+   double sample_rate;
+   double bpm;
+   double cur_beat;
+   bool is_playing;
 } plugin_s;
 
 static bool plugin_set_param(plugin_s *plug, int id, double value) {
@@ -196,8 +201,23 @@ static void plugin_process_event(plugin_s *plug, const clap_event_header_t *hdr)
 
       case CLAP_EVENT_TRANSPORT: {
          const clap_event_transport_t *ev = (const clap_event_transport_t *)hdr;
-         plug->bpm = ev->tempo;
-         break;
+
+         if (ev->flags & CLAP_TRANSPORT_HAS_TEMPO) {
+            plug->bpm = ev->tempo;
+         } else {
+            plug->bpm = 60.0;
+         }
+
+         plug->is_playing = (ev->flags & CLAP_TRANSPORT_IS_PLAYING) != 0;
+
+         if (ev->flags & CLAP_TRANSPORT_HAS_BEATS_TIMELINE) {
+            int64_t beats_int = ev->song_pos_beats / CLAP_BEATTIME_FACTOR;
+            int64_t beats_frac = ev->song_pos_beats % CLAP_BEATTIME_FACTOR;
+            plug->cur_beat = (double)beats_int + (double)beats_frac / CLAP_BEATTIME_FACTOR;
+         } else {
+            plug->cur_beat = 0;
+            plug->is_playing = false;
+         }
       }
 
       case CLAP_EVENT_MIDI: {
@@ -594,9 +614,9 @@ static void plugin_destroy(const struct clap_plugin *plugin) {
 
 static bool plugin_activate(const struct clap_plugin *plugin, double sample_rate, uint32_t min_frames_count, uint32_t max_frames_count) {
    plugin_s *plug = plugin->plugin_data;
-
-   assert((int)sample_rate == sample_rate);
-   inst_set_sample_rate(plug->instrument, (int)sample_rate);
+   
+   plug->sample_rate = sample_rate;
+   inst_set_sample_rate(plug->instrument, plug->sample_rate);
 
    free(plug->process_block);
    plug->process_block = malloc(max_frames_count * sizeof(float) * 2);
@@ -621,6 +641,9 @@ static clap_process_status plugin_process(const struct clap_plugin *plugin, cons
 
    if (plug->gui)
       process_gui_events(plug, process->out_events);
+
+   const double sample_len = 1.0 / plug->sample_rate;
+   const double beats_per_sec = plug->bpm / 60.0;
 
    const uint32_t nframes = process->frames_count;
    const uint32_t nev = process->in_events->size(process->in_events);
@@ -650,6 +673,8 @@ static clap_process_status plugin_process(const struct clap_plugin *plugin, cons
       uint32_t frame_count = next_ev_frame - i;
       inst_run(plug->instrument, &(run_ctx_s){
          .bpm = plug->bpm,
+         .beat = plug->cur_beat,
+         
          .frame_count = (size_t)frame_count,
          .out_samples = plug->process_block
       });
@@ -659,6 +684,10 @@ static clap_process_status plugin_process(const struct clap_plugin *plugin, cons
          // store output samples
          process->audio_outputs[0].data32[0][i] = plug->process_block[buffer_idx++];
          process->audio_outputs[0].data32[1][i] = plug->process_block[buffer_idx++];
+      }
+
+      if (!plug->is_playing) {
+         plug->cur_beat += sample_len * frame_count / beats_per_sec;
       }
    }
 

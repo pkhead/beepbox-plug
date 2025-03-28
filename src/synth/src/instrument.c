@@ -3,8 +3,6 @@
 #include "instrument.h"
 #include "util.h"
 
-#define PARTS_PER_BEAT 24
-#define TICKS_PER_PART 2
 #define VOLUME_LOG_SCALE 0.1428
 
 double calc_samples_per_tick(double bpm, double sample_rate) {

@@ -1,4 +1,2 @@
-- change beepbox_synth.h interface to use explicit integer sizes and const ptrs when appropriate
 - fade in/out ui
-
-- (standalone) figure out why changing block size/sample rate makes it sound weird
+- disable denormals during processing

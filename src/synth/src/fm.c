@@ -173,6 +173,10 @@ typedef struct {
     double fade_out;
     double samples_per_tick;
     double sample_rate;
+    double cur_beat;
+
+    uint8_t envelope_count;
+    envelope_s *envelopes;
 } tone_compute_s;
 
 static void compute_voice(const fm_inst_s *const inst, fm_voice_s *const voice, tone_compute_s compute_data) {
@@ -210,6 +214,12 @@ static void compute_voice(const fm_inst_s *const inst, fm_voice_s *const voice, 
         }
     }
 
+    compute_envelopes(
+        &voice->env_computer,
+        compute_data.envelopes, compute_data.envelope_count,
+        compute_data.cur_beat, voice->time_secs, samples_per_tick * sample_len
+    );
+
     for (int op = 0; op < FM_OP_COUNT; op++) {
         // john nesky: I'm adding 1000 to the phase to ensure that it's never negative even when modulated
         // by other waves because negative numbers don't work with the modulus operator very well.
@@ -222,9 +232,9 @@ static void compute_voice(const fm_inst_s *const inst, fm_voice_s *const voice, 
         const double pitch = (double)voice->key + carrier_intervals[associated_carrier_idx];
         const double base_freq = key_to_hz_d(pitch);
         const double hz_offset = freq_data->hz_offset;
-        const double freq = freq_mult * base_freq + hz_offset;
+        const double target_freq = freq_mult * base_freq + hz_offset;
 
-        voice->op_states[op].phase_delta = freq * sample_len;
+        voice->op_states[op].phase_delta = target_freq * sample_len;
 
         const double amplitude_curve = operator_amplitude_curve((double) inst->amplitudes[op]);
         const double amplitude_mult = amplitude_curve * freq_data->amplitude_sign;
@@ -249,7 +259,11 @@ static void compute_voice(const fm_inst_s *const inst, fm_voice_s *const voice, 
             sine_expr_boost *= 1.0 - min(1.0, inst->amplitudes[op] / 15.0);
         }
 
-        voice->op_states[op].expression = expression;
+        double expression_start = expression * voice->env_computer.envelope_starts[ENV_INDEX_OPERATOR_AMP0 + op];
+        double expression_end = expression * voice->env_computer.envelope_ends[ENV_INDEX_OPERATOR_AMP0 + op];
+
+        voice->op_states[op].expression = expression_start;
+        voice->op_states[op].expression_delta = (expression_end - expression_start) / rounded_samples_per_tick;
     }
 
     sine_expr_boost *= (pow(2.0, (2.0 - 1.4 * inst->feedback / 15.0)) - 1.0) / 3.0;
@@ -271,6 +285,7 @@ void fm_run(inst_s *src_inst, const run_ctx_s *const run_ctx) {
     const double sample_rate = src_inst->sample_rate;
     const size_t frame_count = run_ctx->frame_count;
     float *const out_samples = run_ctx->out_samples;
+    const double beat = run_ctx->beat;
 
     // create copy of instrument on stack, for cache optimization purposes
     fm_inst_s inst = *src_inst->fm;
@@ -297,11 +312,15 @@ void fm_run(inst_s *src_inst, const run_ctx_s *const run_ctx) {
         while (frame < frame_count) {
             if (voice->remaining_samples == 0) {
                 voice->remaining_samples += (size_t)ceil(samples_per_tick);
+
                 compute_voice(&inst, voice, (tone_compute_s) {
                     .samples_per_tick = samples_per_tick,
                     .sample_rate = sample_rate,
                     .fade_in = fade_in,
-                    .fade_out = fade_out
+                    .fade_out = fade_out,
+                    .envelope_count = src_inst->envelope_count,
+                    .envelopes = src_inst->envelopes,
+                    .cur_beat = beat
                 });
             }
 
@@ -323,6 +342,11 @@ void fm_run(inst_s *src_inst, const run_ctx_s *const run_ctx) {
                 voice->op_states[1].phase += voice->op_states[1].phase_delta;
                 voice->op_states[2].phase += voice->op_states[2].phase_delta;
                 voice->op_states[3].phase += voice->op_states[3].phase_delta;
+
+                voice->op_states[0].expression += voice->op_states[0].expression_delta;
+                voice->op_states[1].expression += voice->op_states[1].expression_delta;
+                voice->op_states[2].expression += voice->op_states[2].expression_delta;
+                voice->op_states[3].expression += voice->op_states[3].expression_delta;
                 
                 voice->expression += voice->expression_delta;
 

@@ -96,21 +96,6 @@ typedef enum {
     ENV_INDEX_COUNT
 } envelope_compute_index_e;
 
-// typedef enum {
-//     ENV_CURVE_NONE,
-//     ENV_CURVE_VOLUME, // probably MIDI CC 7 (Volume)
-//     ENV_CURVE_PUNCH,
-//     ENV_CURVE_FLARE,
-//     ENV_CURVE_TWANG,
-//     ENV_CURVE_SWELL,
-//     ENV_CURVE_TREMOLO,
-//     ENV_CURVE_TREMOLO2,
-//     ENV_CURVE_DECAY,
-
-//     ENV_CURVE_MOD_X, // probably MIDI CC 1 (Modulation wheel)
-//     ENV_CURVE_MOD_Y,
-// } envelope_curve_type_e;
-
 typedef struct {
     envelope_compute_index_e index;
     uint8_t curve_preset;
@@ -133,8 +118,17 @@ typedef struct {
 typedef struct {
     float *out_samples;
     size_t frame_count;
-
+    
+    // do NOT set this to zero or a very low value!
+    // beepbox runs voice computations at a tick rate derived from the tempo.
+    // if you don't have bpm information, set it to a dummy value like 60 or 150.
     double bpm;
+
+    // beat must be continuously increasing in order for
+    // the tremolo envelopes to work properly!
+    // if you don't have that information or the song isn't playing,
+    // simply constantly increase this by the bpm.
+    double beat;
 } run_ctx_s;
 
 typedef struct inst inst_s;
