@@ -28,7 +28,7 @@ static const clap_plugin_descriptor_t s_my_plug_desc = {
 
 typedef struct {
    clap_plugin_t plugin;
-   gui_plugin_interface_s *gui;
+   plugin_gui_s *gui;
 
    const clap_host_t *host;
    const clap_host_latency_t *host_latency;

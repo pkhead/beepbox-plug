@@ -10,6 +10,7 @@ add_library(${PROJECT_NAME} STATIC
     gui.cpp
     lib_impl.cpp
     platform.cpp
+    plugin_controller.cpp
 )
 
 if(PLUGIN_VST3)
