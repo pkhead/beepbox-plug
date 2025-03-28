@@ -4,4 +4,8 @@
 double secs_fade_in(double setting);
 double ticks_fade_out(double setting);
 
+#define FADE_OUT_RANGE 11
+#define FADE_OUT_MIN -4
+#define FADE_OUT_MAX 6
+
 #endif

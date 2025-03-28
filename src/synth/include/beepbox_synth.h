@@ -30,6 +30,8 @@ extern "C" {
 
 #include "beepbox_instrument_data.h"
 
+#define BEEPBOX_API
+
 typedef enum {
     INSTRUMENT_CHIP,
     INSTRUMENT_FM,
@@ -68,26 +70,31 @@ typedef struct {
 
 typedef struct inst inst_s;
 
-const unsigned int inst_param_count(inst_type_e type);
-const inst_param_info_s* inst_param_info(inst_type_e type, unsigned int index);
+BEEPBOX_API const unsigned int inst_param_count(inst_type_e type);
+BEEPBOX_API const inst_param_info_s* inst_param_info(inst_type_e type, unsigned int index);
 
-inst_s* inst_new(inst_type_e inst_type);
-void inst_destroy(inst_s* inst);
+BEEPBOX_API inst_s* inst_new(inst_type_e inst_type);
+BEEPBOX_API void inst_destroy(inst_s* inst);
 
-inst_type_e inst_type(const inst_s *inst);
+BEEPBOX_API inst_type_e inst_type(const inst_s *inst);
 
-void inst_set_sample_rate(inst_s *inst, int sample_rate);
+BEEPBOX_API void inst_set_sample_rate(inst_s *inst, int sample_rate);
 
-int inst_set_param_int(inst_s* inst, int index, int value);
-int inst_set_param_double(inst_s* inst, int index, double value);
+BEEPBOX_API int inst_set_param_int(inst_s* inst, int index, int value);
+BEEPBOX_API int inst_set_param_double(inst_s* inst, int index, double value);
 
-int inst_get_param_int(const inst_s* inst, int index, int *value);
-int inst_get_param_double(const inst_s* inst, int index, double *value);
+BEEPBOX_API int inst_get_param_int(const inst_s* inst, int index, int *value);
+BEEPBOX_API int inst_get_param_double(const inst_s* inst, int index, double *value);
 
-void inst_midi_on(inst_s *inst, int key, int velocity);
-void inst_midi_off(inst_s *inst, int key, int velocity);
+BEEPBOX_API void inst_midi_on(inst_s *inst, int key, int velocity);
+BEEPBOX_API void inst_midi_off(inst_s *inst, int key, int velocity);
 
-void inst_run(inst_s* inst, const run_ctx_s *const run_ctx);
+// if you know the length of each note, and the result of this is negative,
+// call midi_off that positive number of samples before the note actually ends.
+BEEPBOX_API double inst_samples_fade_out(double setting, double bpm, int sample_rate);
+
+BEEPBOX_API void inst_run(inst_s* inst, const run_ctx_s *const run_ctx);
+
 
 #ifdef __cplusplus
 }

@@ -195,7 +195,7 @@ static void compute_voice(const fm_inst_s *const inst, fm_voice_s *const voice, 
 
     const uint8_t released = voice->time_secs >= fade_in_secs && voice->released;
     if (released) {
-        const double ticks = ticks_fade_out(compute_data.fade_out);
+        const double ticks = fabs(ticks_fade_out(compute_data.fade_out));
         fade_expr_start = note_size_to_volume_mult((1.0 - voice->ticks_since_release / ticks) * NOTE_SIZE_MAX);
         fade_expr_end = note_size_to_volume_mult((1.0 - (voice->ticks_since_release + 1.0) / ticks) * NOTE_SIZE_MAX);
 

@@ -6,6 +6,7 @@
 #include "instrument.h"
 #include "fm.h"
 #include "util.h"
+#include "envelope.h"
 
 static inst_param_info_s base_param_info[BASE_PARAM_COUNT] = {
     {
@@ -25,8 +26,8 @@ static inst_param_info_s base_param_info[BASE_PARAM_COUNT] = {
     {
         .name = "Fade Out",
         .type = PARAM_DOUBLE,
-        .min_value = 0.0,
-        .max_value = 7.0,
+        .min_value = FADE_OUT_MIN,
+        .max_value = FADE_OUT_MAX,
         .default_value = 0.0
     }
 };
@@ -256,4 +257,9 @@ void inst_run(inst_s* inst, const run_ctx_s *const run_ctx) {
         default:
             break;
     }
+}
+
+double inst_samples_fade_out(double setting, double bpm, int sample_rate) {
+    const double samples_per_tick = calc_samples_per_tick(bpm, sample_rate);
+    return ticks_fade_out(setting) * samples_per_tick;
 }

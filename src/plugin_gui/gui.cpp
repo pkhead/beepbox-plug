@@ -345,7 +345,7 @@ void drawHandler(platform::Window *window) {
                 ImGui::AlignTextToFramePadding();
                 ImGui::Text("Fadeout");
                 ImGui::SameLine();
-                sliderParameter(gui, PARAM_FADE_OUT, "##fadeout", 0.0, 7.0, "%.0f");
+                sliderParameter(gui, PARAM_FADE_OUT, "##fadeout", -4.0, 6.0, "%.0f");
 
                 // algorithm
                 ImGui::AlignTextToFramePadding();
