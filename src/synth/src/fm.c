@@ -172,7 +172,7 @@ typedef struct {
     double fade_in;
     double fade_out;
     double samples_per_tick;
-    int sample_rate;
+    double sample_rate;
 } tone_compute_s;
 
 static void compute_voice(const fm_inst_s *const inst, fm_voice_s *const voice, tone_compute_s compute_data) {
@@ -268,7 +268,7 @@ static void compute_voice(const fm_inst_s *const inst, fm_voice_s *const voice, 
 }
 
 void fm_run(inst_s *src_inst, const run_ctx_s *const run_ctx) {
-    const int sample_rate = src_inst->sample_rate;
+    const double sample_rate = src_inst->sample_rate;
     const size_t frame_count = run_ctx->frame_count;
     float *const out_samples = run_ctx->out_samples;
 
@@ -440,25 +440,33 @@ static const char *feedback_enum_values[] = {
 inst_param_info_s fm_param_info[FM_PARAM_COUNT] = {
     {
         .type = PARAM_UINT8,
+        .flags = PARAM_FLAG_NO_AUTOMATION | PARAM_FLAG_NO_ENVELOPE,
+
         .name = "Algorithm",
         .min_value = 0,
         .max_value = 12,
         .default_value = 0,
+
         .enum_values = algo_enum_values
     },
 
     {
         .type = PARAM_UINT8,
+        .flags = PARAM_FLAG_NO_AUTOMATION,
         .name = "Operator 1 Frequency",
+        .envelope_name = "fm1 freq",
+
         .min_value = 0,
         .max_value = FM_FREQ_COUNT-1,
         .default_value = 4,
-        .no_modulation = TRUE,
+
         .enum_values = freq_enum_values
     },
     {
         .type = PARAM_DOUBLE,
         .name = "Operator 1 Volume",
+        .envelope_name = "fm1 volume",
+
         .min_value = 0,
         .max_value = 15,
         .default_value = 15
@@ -466,16 +474,21 @@ inst_param_info_s fm_param_info[FM_PARAM_COUNT] = {
 
     {
         .type = PARAM_UINT8,
+        .flags = PARAM_FLAG_NO_AUTOMATION,
         .name = "Operator 2 Frequency",
+        .envelope_name = "fm2 freq",
+        
         .min_value = 0,
         .max_value = FM_FREQ_COUNT-1,
         .default_value = 4,
-        .no_modulation = TRUE,
+
         .enum_values = freq_enum_values
     },
     {
         .type = PARAM_DOUBLE,
         .name = "Operator 2 Volume",
+        .envelope_name = "fm2 volume",
+
         .min_value = 0,
         .max_value = 15,
         .default_value = 0
@@ -483,16 +496,21 @@ inst_param_info_s fm_param_info[FM_PARAM_COUNT] = {
 
     {
         .type = PARAM_UINT8,
+        .flags = PARAM_FLAG_NO_AUTOMATION,
         .name = "Operator 3 Frequency",
+        .envelope_name = "fm3 freq",
+
         .min_value = 0,
         .max_value = FM_FREQ_COUNT-1,
         .default_value = 4,
-        .no_modulation = TRUE,
+        
         .enum_values = freq_enum_values
     },
     {
         .type = PARAM_DOUBLE,
         .name = "Operator 3 Volume",
+        .envelope_name = "fm3 volume",
+
         .min_value = 0,
         .max_value = 15,
         .default_value = 0
@@ -500,16 +518,21 @@ inst_param_info_s fm_param_info[FM_PARAM_COUNT] = {
 
     {
         .type = PARAM_UINT8,
+        .flags = PARAM_FLAG_NO_AUTOMATION,
         .name = "Operator 4 Frequency",
+        .envelope_name = "fm4 freq",
+
         .min_value = 0,
         .max_value = FM_FREQ_COUNT-1,
         .default_value = 4,
-        .no_modulation = TRUE,
+        
         .enum_values = freq_enum_values
     },
     {
         .type = PARAM_DOUBLE,
         .name = "Operator 4 Volume",
+        .envelope_name = "fm4 volume",
+
         .min_value = 0,
         .max_value = 15,
         .default_value = 0
@@ -517,16 +540,21 @@ inst_param_info_s fm_param_info[FM_PARAM_COUNT] = {
 
     {
         .type = PARAM_UINT8,
+        .flags = PARAM_FLAG_NO_AUTOMATION | PARAM_FLAG_NO_ENVELOPE,
+
         .name = "Feedback Type",
         .min_value = 0,
         .max_value = FM_FEEDBACK_TYPE_COUNT-1,
         .default_value = 0,
+
         .enum_values = feedback_enum_values
     },
 
     {
         .type = PARAM_DOUBLE,
         .name = "Feedback Volume",
+        .envelope_name = "fm feedback",
+
         .min_value = 0,
         .max_value = 15,
         .default_value = 0

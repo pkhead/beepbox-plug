@@ -5,6 +5,7 @@
 #include <sokol_imgui.h>
 #include <stb_image.h>
 #include <atomic>
+#include <cstring>
 
 #include "include/plugin_gui.h"
 #include "platform.hpp"
@@ -58,6 +59,9 @@ typedef struct gui_plugin_interface_s {
     bool showAbout;
 
     double params[BASE_PARAM_COUNT + FM_PARAM_COUNT];
+
+    uint32_t envelope_count;
+    beepbox::envelope_s envelopes[MAX_ENVELOPE_COUNT];
 
     EventQueue<gui_event_queue_item_s, GUI_EVENT_QUEUE_SIZE> gui_to_plugin;
     EventQueue<gui_event_queue_item_s, GUI_EVENT_QUEUE_SIZE> plugin_to_gui;
@@ -429,6 +433,9 @@ void drawHandler(platform::Window *window) {
                 ImGui::SetNextItemWidth(-FLT_MIN);
                 sliderParameter(gui, FM_PARAM_FEEDBACK_VOLUME, "##vol", 0.0f, 15.0f, "%.0f");
 
+                ImGui::SeparatorText("Envelopes");
+                ImGui::Button("Add");
+
             } ImGui::End();
         }
     }
@@ -616,6 +623,9 @@ gui_plugin_interface_s* gui_create(beepbox::inst_s *instrument, const char *api,
         for (int i = 0; i < param_count; i++) {
             beepbox::inst_get_param_double(instrument, i, gui->params+i);
         }
+
+        gui->envelope_count = beepbox::inst_envelope_count(instrument);
+        memcpy(gui->envelopes, beepbox::inst_get_envelope(instrument, 0), sizeof(envelope_s) * gui->envelope_count);
     }
     
     gui->window = platform::createWindow(GUI_DEFAULT_WIDTH, GUI_DEFAULT_HEIGHT, "BeepBox", eventHandler, drawHandler);

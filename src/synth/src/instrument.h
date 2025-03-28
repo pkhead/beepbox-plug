@@ -9,7 +9,7 @@
 
 typedef struct inst {
     inst_type_e type;
-    int sample_rate;
+    double sample_rate;
 
     double volume;
     double panning;
@@ -19,9 +19,13 @@ typedef struct inst {
     union {
         fm_inst_s *fm;
     };
+
+    // envelopes
+    uint8_t envelope_count;
+    envelope_s envelopes[MAX_ENVELOPE_COUNT];
 } inst_s;
 
-double calc_samples_per_tick(double bpm, int sample_rate);
+double calc_samples_per_tick(double bpm, double sample_rate);
 double note_size_to_volume_mult(double size);
 double inst_volume_to_mult(double inst_volume);
 

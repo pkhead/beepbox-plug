@@ -20,6 +20,10 @@ typedef enum {
     GUI_EVENT_PARAM_CHANGE,
     GUI_EVENT_PARAM_GESTURE_BEGIN,
     GUI_EVENT_PARAM_GESTURE_END,
+
+    GUI_EVENT_ADD_ENVELOPE,
+    GUI_EVENT_REMOVE_ENVELOPE,
+    GUI_EVENT_MODIFY_ENVELOPE
 } gui_event_queue_item_type_e;
 
 typedef struct {
@@ -34,6 +38,12 @@ typedef struct {
         struct {
             uint32_t param_id;
         } gesture;
+
+        struct {
+            uint32_t index;
+        } envelope_removal;
+
+        envelope_s envelope;
     };
 } gui_event_queue_item_s;
 

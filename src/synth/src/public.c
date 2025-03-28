@@ -67,7 +67,7 @@ inst_s* inst_new(inst_type_e type) {
     inst_s *inst = malloc(sizeof(inst_s));
     *inst = (inst_s) {
         .type = type,
-        .sample_rate = 0,
+        .sample_rate = 0.0,
 
         .volume = 0.0,
         .panning = 50.0,
@@ -94,7 +94,7 @@ void inst_destroy(inst_s* inst) {
     free(inst);
 }
 
-void inst_set_sample_rate(inst_s *inst, int sample_rate) {
+void inst_set_sample_rate(inst_s *inst, double sample_rate) {
     inst->sample_rate = sample_rate;
 }
 
@@ -228,6 +228,39 @@ int inst_get_param_double(const inst_s* inst, int index, double *value) {
     return 0;
 }
 
+uint8_t inst_envelope_count(const inst_s *inst) {
+    return inst->envelope_count;
+}
+
+envelope_s* inst_get_envelope(inst_s *inst, uint32_t index) {
+    // if (index >= inst->envelope_count) return NULL; 
+    return inst->envelopes + index;
+}
+
+envelope_s* inst_add_envelope(inst_s *inst) {
+    if (inst->envelope_count == MAX_ENVELOPE_COUNT)
+        return NULL;
+
+    envelope_s *new_env = &inst->envelopes[inst->envelope_count++];
+    *new_env = (envelope_s) {
+        .target = ENV_TARGET_NONE,
+        .curve_type = ENV_CURVE_NONE,
+        .speed = 1.0
+    };
+
+    return new_env;
+}
+
+void inst_remove_envelope(inst_s *inst, uint8_t index) {
+    if (index >= MAX_ENVELOPE_COUNT) return;
+
+    for (uint8_t i = index; i < MAX_ENVELOPE_COUNT - 1; i++) {
+        inst->envelopes[i] = inst->envelopes[i+1];
+    }
+
+    inst->envelope_count--;
+}
+
 void inst_midi_on(inst_s *inst, int key, int velocity) {
     switch (inst->type) {
         case INSTRUMENT_FM:
@@ -259,7 +292,7 @@ void inst_run(inst_s* inst, const run_ctx_s *const run_ctx) {
     }
 }
 
-double inst_samples_fade_out(double setting, double bpm, int sample_rate) {
+double inst_samples_fade_out(double setting, double bpm, double sample_rate) {
     const double samples_per_tick = calc_samples_per_tick(bpm, sample_rate);
     return ticks_fade_out(setting) * samples_per_tick;
 }

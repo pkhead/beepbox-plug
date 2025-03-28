@@ -31,6 +31,7 @@ extern "C" {
 #include "beepbox_instrument_data.h"
 
 #define BEEPBOX_API
+#define MAX_ENVELOPE_COUNT 12 // 16 in slarmoo's box
 
 typedef enum {
     INSTRUMENT_CHIP,
@@ -49,11 +50,49 @@ typedef enum {
     PARAM_DOUBLE
 } inst_param_type_e;
 
+typedef enum {
+    PARAM_FLAG_NO_AUTOMATION = 1,
+    PARAM_FLAG_NO_ENVELOPE = 2,
+} inst_param_flags_e;
+
+typedef enum {
+    ENV_TARGET_NONE,
+    ENV_TARGET_NOTE_VOLUME,
+    ENV_TARGET_PARAMETER, // instrument parameter
+    ENV_TARGET_MODIFIER, // "effects" that are integrated with the synth code - pitch shift, detune, vibrato
+    ENV_TARGET_EFFECT
+} envelope_target_e;
+
+typedef enum {
+    ENV_CURVE_NONE,
+    ENV_CURVE_VOLUME, // probably MIDI CC 7 (Volume)
+    ENV_CURVE_PUNCH,
+    ENV_CURVE_FLARE,
+    ENV_CURVE_TWANG,
+    ENV_CURVE_SWELL,
+    ENV_CURVE_TREMOLO,
+    ENV_CURVE_TREMOLO2,
+    ENV_CURVE_DECAY,
+
+    ENV_CURVE_MOD_X, // probably MIDI CC 1 (Modulation wheel)
+    ENV_CURVE_MOD_Y,
+} envelope_curve_type_e;
+
+typedef struct {
+    uint8_t target; // envelope_target_type_e
+    uint8_t parameter;
+    uint16_t curve_type;
+
+    double speed;
+} envelope_s;
+
 typedef struct {
     inst_param_type_e type;
-    const char *name;
+    uint32_t flags; // inst_param_flags_e
 
-    uint8_t no_modulation;
+    const char *name;
+    const char *envelope_name;
+
     double min_value;
     double max_value;
     double default_value;
@@ -78,7 +117,7 @@ BEEPBOX_API void inst_destroy(inst_s* inst);
 
 BEEPBOX_API inst_type_e inst_type(const inst_s *inst);
 
-BEEPBOX_API void inst_set_sample_rate(inst_s *inst, int sample_rate);
+BEEPBOX_API void inst_set_sample_rate(inst_s *inst, double sample_rate);
 
 BEEPBOX_API int inst_set_param_int(inst_s* inst, int index, int value);
 BEEPBOX_API int inst_set_param_double(inst_s* inst, int index, double value);
@@ -86,12 +125,20 @@ BEEPBOX_API int inst_set_param_double(inst_s* inst, int index, double value);
 BEEPBOX_API int inst_get_param_int(const inst_s* inst, int index, int *value);
 BEEPBOX_API int inst_get_param_double(const inst_s* inst, int index, double *value);
 
+BEEPBOX_API uint8_t inst_envelope_count(const inst_s *inst);
+
+// note: envelopes are stored contiguously and in order, so it is valid to treat the return value
+// as an array.
+BEEPBOX_API envelope_s* inst_get_envelope(inst_s *inst, uint32_t index);
+BEEPBOX_API envelope_s* inst_add_envelope(inst_s *inst);
+BEEPBOX_API void inst_remove_envelope(inst_s *inst, uint8_t index);
+
 BEEPBOX_API void inst_midi_on(inst_s *inst, int key, int velocity);
 BEEPBOX_API void inst_midi_off(inst_s *inst, int key, int velocity);
 
 // if you know the length of each note, and the result of this is negative,
 // call midi_off that positive number of samples before the note actually ends.
-BEEPBOX_API double inst_samples_fade_out(double setting, double bpm, int sample_rate);
+BEEPBOX_API double inst_samples_fade_out(double setting, double bpm, double sample_rate);
 
 BEEPBOX_API void inst_run(inst_s* inst, const run_ctx_s *const run_ctx);
 
