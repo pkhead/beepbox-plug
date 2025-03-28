@@ -1,8 +1,3 @@
-// This file is here to demonstrate how to wire a CLAP plugin
-// You can use it as a starting point, however if you are implementing a C++
-// plugin, I'd encourage you to use the C++ glue layer instead:
-// https://github.com/free-audio/clap-helpers/blob/main/include/clap/helpers/plugin.hh
-
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -66,6 +61,8 @@ static bool plugin_set_param(plugin_s *plug, int id, double value) {
 }
 
 static void process_gui_events(plugin_s *plug, const clap_output_events_t *out_events) {
+   assert(plug->gui);
+   
    gui_event_queue_item_s item;
    while (gui_event_dequeue(plug->gui, &item)) {
       switch (item.type) {
@@ -79,6 +76,7 @@ static void process_gui_events(plugin_s *plug, const clap_output_events_t *out_e
                .header.time = 0,
 
                .param_id = item.gesture.param_id,
+               .value = item.param_value.value,
                .cookie = NULL,
 
                .note_id = -1,
@@ -131,24 +129,16 @@ static void plugin_process_event(plugin_s *plug, const clap_event_header_t *hdr)
       case CLAP_EVENT_NOTE_ON: {
          const clap_event_note_t *ev = (const clap_event_note_t *)hdr;
 
-         if (plug->host_log)
-            plug->host_log->log(plug->host, CLAP_LOG_INFO, "on!");
-
          inst_midi_on(plug->instrument, ev->key, (int)(ev->velocity * 127.0));
          
-         // TODO: handle note on
          break;
       }
 
       case CLAP_EVENT_NOTE_OFF: {
          const clap_event_note_t *ev = (const clap_event_note_t *)hdr;
 
-         if (plug->host_log)
-            plug->host_log->log(plug->host, CLAP_LOG_INFO, "off!");
-
          inst_midi_off(plug->instrument, ev->key, 0);
-
-         // TODO: handle note off
+         
          break;
       }
 
@@ -166,6 +156,13 @@ static void plugin_process_event(plugin_s *plug, const clap_event_header_t *hdr)
 
       case CLAP_EVENT_PARAM_VALUE: {
          const clap_event_param_value_t *ev = (const clap_event_param_value_t *)hdr;
+
+         if (plug->host_log) {
+            char buf[128];
+            snprintf(buf, sizeof(buf), "param_id: %i, value: %f", ev->param_id, ev->value);
+            plug->host_log->log(plug->host, CLAP_LOG_INFO, buf);
+         }
+         
          plugin_set_param(plug, ev->param_id, ev->value);
 
          if (plug->gui) {
@@ -188,32 +185,21 @@ static void plugin_process_event(plugin_s *plug, const clap_event_header_t *hdr)
       case CLAP_EVENT_TRANSPORT: {
          const clap_event_transport_t *ev = (const clap_event_transport_t *)hdr;
          plug->bpm = ev->tempo;
-         // TODO: handle transport event
          break;
       }
 
       case CLAP_EVENT_MIDI: {
          const clap_event_midi_t *ev = (const clap_event_midi_t *)hdr;
 
-         char buf[64];
-         snprintf(buf, 64, "%x, %i", ev->data[0], ev->data[2]);
-         plug->host_log->log(plug->host, CLAP_LOG_INFO, buf);
-
          uint8_t status = ev->data[0] & 0xF0;
 
          // off
          if ((status == 0x80) || ((status == 0x90) && ev->data[2] == 0)) {
-            if (plug->host_log)
-               plug->host_log->log(plug->host, CLAP_LOG_INFO, "off!");
-
             inst_midi_off(plug->instrument, ev->data[1], ev->data[2]);
          }
          
          // on
          else if (status == 0x90) {
-            if (plug->host_log)
-               plug->host_log->log(plug->host, CLAP_LOG_INFO, "on!");
-
             inst_midi_on(plug->instrument, ev->data[1], ev->data[2]);
          }
 
@@ -246,7 +232,7 @@ static uint32_t plugin_audio_ports_count(const clap_plugin_t *plugin, bool is_in
 }
 
 static bool plugin_audio_ports_get(const clap_plugin_t *plugin, uint32_t index, bool is_input, clap_audio_port_info_t *info) {
-   if (index > 0)
+   if (is_input || index > 0)
       return false;
 
    info->id = 0;
@@ -268,16 +254,16 @@ static const clap_plugin_audio_ports_t s_plugin_audio_ports = {
 ////////////////////////////
 
 static uint32_t plugin_note_ports_count(const clap_plugin_t *plugin, bool is_input) {
-   // We just declare 1 note input
+   if (!is_input) return 0;
    return 1;
 }
 
 static bool plugin_note_ports_get(const clap_plugin_t *plugin, uint32_t index, bool is_input, clap_note_port_info_t *info) {
-   if (index > 0)
+   if (!is_input || index > 0)
       return false;
 
    info->id = 0;
-   snprintf(info->name, sizeof(info->name), "%s", "MIDI Port");
+   snprintf(info->name, sizeof(info->name), "%s", "Note port");
 
    info->supported_dialects =
       CLAP_NOTE_DIALECT_CLAP | CLAP_NOTE_DIALECT_MIDI;
@@ -348,8 +334,11 @@ bool plugin_params_get_info(const clap_plugin_t *plugin, uint32_t param_index, c
    param_info->max_value = info->max_value;
 
    param_info->flags = CLAP_PARAM_IS_AUTOMATABLE;
-   if (info->type == PARAM_UINT8 || info->type == PARAM_INT)
+   if (info->type == PARAM_UINT8 || info->type == PARAM_INT) {
       param_info->flags |= CLAP_PARAM_IS_STEPPED;
+
+      if (info->enum_values) param_info->flags |= CLAP_PARAM_IS_ENUM;
+   }
 
    // ignore this property i suppose ...
    // if (!info->no_modulation)
@@ -380,14 +369,20 @@ bool plugin_params_value_to_text(
       case PARAM_INT: {
          int v;
          if (inst_get_param_int(plug->instrument, param_id, &v)) return false;
-         snprintf(out_buf, out_buf_capacity, "%i", v);
+
+         if (info->enum_values) {
+            snprintf(out_buf, out_buf_capacity, "%s", info->enum_values[v]);
+         } else {
+            snprintf(out_buf, out_buf_capacity, "%i", v);
+         }
+
          break;
       }
 
       case PARAM_DOUBLE: {
          double v;
          if (inst_get_param_double(plug->instrument, param_id, &v)) return false;
-         snprintf(out_buf, out_buf_capacity, "%.3f", v);
+         snprintf(out_buf, out_buf_capacity, "%.1f", v);
          break;
       }
 
@@ -408,7 +403,22 @@ bool plugin_params_text_to_value(const clap_plugin_t *plugin, clap_id param_id, 
    switch (info->type) {
       case PARAM_UINT8:
       case PARAM_INT:
-         *out_value = (double)atoi(param_value_text);
+         if (info->enum_values) {
+            int end_value = (int)info->max_value;
+            for (int i = (int)info->min_value; i <= end_value; i++) {
+               if (!strcmp(param_value_text, info->enum_values[i])) {
+                  *out_value = (double)i;
+                  return true;
+               }
+            }
+
+            *out_value = 0.0;
+            return false;
+
+         } else {
+            *out_value = (double)atoi(param_value_text);
+         }
+
          break;
 
       case PARAM_DOUBLE:
@@ -426,15 +436,13 @@ void plugin_params_flush(const clap_plugin_t *plugin, const clap_input_events_t 
    plugin_s *plug = plugin->plugin_data;
    uint32_t size = in->size(in);
 
-   inst_type_e type = inst_type(plug->instrument);
+   if (plug->gui)
+      process_gui_events(plug, out);
 
    for (uint32_t i = 0; i < size; i++) {
       const clap_event_header_t *hdr = in->get(in, i);
       plugin_process_event(plug, hdr);
    }
-
-   if (plug->gui)
-      process_gui_events(plug, out);
 }
 
 static const clap_plugin_params_t s_plugin_params = {
@@ -570,7 +578,10 @@ static bool plugin_init(const struct clap_plugin *plugin) {
 
 static void plugin_destroy(const struct clap_plugin *plugin) {
    plugin_s *plug = plugin->plugin_data;
-   inst_destroy(plug->instrument);
+
+   if (plug->instrument)
+      inst_destroy(plug->instrument);
+
    free(plug);
 }
 
@@ -581,12 +592,16 @@ static bool plugin_activate(const struct clap_plugin *plugin, double sample_rate
    inst_set_sample_rate(plug->instrument, (int)sample_rate);
 
    free(plug->process_block);
-   plug->process_block = malloc(max_frames_count * sizeof(float));
+   plug->process_block = malloc(max_frames_count * sizeof(float) * 2);
 
    return true;
 }
 
-static void plugin_deactivate(const struct clap_plugin *plugin) {}
+static void plugin_deactivate(const struct clap_plugin *plugin) {
+   plugin_s *plug = plugin->plugin_data;
+   free(plug->process_block);
+   plug->process_block = NULL;
+}
 
 static bool plugin_start_processing(const struct clap_plugin *plugin) { return true; }
 
@@ -653,8 +668,8 @@ static const void *plugin_get_extension(const struct clap_plugin *plugin, const 
    if (!strcmp(id, CLAP_EXT_NOTE_PORTS))
       return &s_plugin_note_ports;
 
-   if (!strcmp(id, CLAP_EXT_STATE))
-      return &s_plugin_state;
+   // if (!strcmp(id, CLAP_EXT_STATE))
+   //    return &s_plugin_state;
 
    if (!strcmp(id, CLAP_EXT_PARAMS))
       return &s_plugin_params;

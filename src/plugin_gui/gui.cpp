@@ -276,86 +276,6 @@ void drawHandler(platform::Window *window) {
         "1.", "2.", "3.", "4."
     };
 
-    static const char *freqRatios[] = {
-        "0.12×",
-        "0.25×",
-        "0.5×",
-        "0.75×",
-        "1×",
-        "~1×",
-        "2×",
-        "~2×",
-        "3×",
-        "3.5×",
-        "4×",
-        "~4×",
-        "5×",
-        "6×",
-        "7×",
-        "8×",
-        "9×",
-        "10×",
-        "11×",
-        "12×",
-        "13×",
-        "14×",
-        "15×",
-        //ultrabox
-        "16×",
-        "17×",
-        //ultrabox
-        "18×",
-        "19×",
-        //ultrabox
-        "20×",
-        "~20×",
-        // dogebox (maybe another mod also adds this? I got it from dogebox)
-        "25×",
-        "50×",
-        "75×",
-        "100×",
-        //50 and 100 are from dogebox
-        //128 and 256 from slarmoo's box
-        "128×",
-        "256×",
-    };
-    static const char *algoNames[] = {
-        "1←(2 3 4)",
-        "1←(2 3←4)",
-        "1←2←(3 4)",
-        "1←(2 3)←4",
-        "1←2←3←4",
-        "1←3 2←4",
-        "1 2←(3 4)",
-        "1 2←3←4",
-        "(1 2)←3←4",
-        "(1 2)←(3 4)",
-        "1 2 3←4",
-        "(1 2 3)←4",
-        "1 2 3 4",
-    };
-
-    static const char *feedbackNames[] = {
-        "1⟲",
-		"2⟲",
-		"3⟲",
-		"4⟲",
-		"1⟲ 2⟲",
-		"3⟲ 4⟲",
-		"1⟲ 2⟲ 3⟲",
-		"2⟲ 3⟲ 4⟲",
-		"1⟲ 2⟲ 3⟲ 4⟲",
-		"1→2",
-		"1→3",
-		"1→4",
-		"2→3",
-		"2→4",
-		"3→4",
-		"1→3 2→4",
-		"1→4 2→3",
-		"1→2→3→4",
-    };
-
     {
         simgui_frame_desc_t desc = {};
         desc.width = platform::getWidth(window);
@@ -434,7 +354,11 @@ void drawHandler(platform::Window *window) {
                 ImGui::SameLine();
                 float algoEndX = ImGui::GetCursorPosX();
                 ImGui::SetNextItemWidth(-FLT_MIN);
+
                 {
+                    const inst_param_info_s *p_info = inst_param_info(inst_type(gui->instrument), FM_PARAM_ALGORITHM);
+                    assert(p_info);
+                    const char **algoNames = p_info->enum_values;
                     if (ImGui::Combo("##algo", &p_algo, algoNames, 13)) {
                         gui->paramGestureBegin(FM_PARAM_ALGORITHM);
                         gui->paramChange(FM_PARAM_ALGORITHM, (double)p_algo);
@@ -451,8 +375,14 @@ void drawHandler(platform::Window *window) {
                     ImGui::SameLine();
                     ImGui::SetNextItemWidth(algoEndX - ImGui::GetCursorPosX() - ImGui::GetStyle().ItemSpacing.x);
                     //ImGui::Text("%i", gui->freq[op]);
+
+                    const uint32_t id = FM_PARAM_FREQ1 + op * 2;
+
+                    const inst_param_info_s *p_info = inst_param_info(inst_type(gui->instrument), id);
+                    assert(p_info);
+                    const char **freqRatios = p_info->enum_values;
+
                     if (ImGui::Combo("##freq", &p_freq[op], freqRatios, FM_FREQ_COUNT, ImGuiComboFlags_HeightLargest)) {
-                        const uint32_t id = FM_PARAM_FREQ1 + op * 2;
 
                         gui->paramGestureBegin(id);
                         gui->paramChange(id, p_freq[op]);
@@ -467,7 +397,7 @@ void drawHandler(platform::Window *window) {
 
                     ImGui::SameLine();
                     ImGui::SetNextItemWidth(-FLT_MIN);
-                    sliderParameter(gui, FM_PARAM_VOLUME1 + op*2, "##vol", 0.0f, 15.0f, "%.0f", true);
+                    sliderParameter(gui, FM_PARAM_VOLUME1 + op*2, "##vol", 0.0f, 15.0f, "%.0f");
                     ImGui::PopID();
                 }
 
@@ -479,6 +409,10 @@ void drawHandler(platform::Window *window) {
                 float feedbackEndX = ImGui::GetCursorPosX();
                 ImGui::SetNextItemWidth(-FLT_MIN);
                 {
+                    const inst_param_info_s *p_info = inst_param_info(inst_type(gui->instrument), FM_PARAM_FEEDBACK_TYPE);
+                    assert(p_info);
+                    const char **feedbackNames = p_info->enum_values;
+
                     if (ImGui::Combo("##fdbk", &p_fdbkType, feedbackNames, FM_FEEDBACK_TYPE_COUNT)) {
                         gui->paramGestureBegin(FM_PARAM_FEEDBACK_TYPE);
                         gui->paramChange(FM_PARAM_FEEDBACK_TYPE, (double)p_fdbkType);
@@ -493,7 +427,7 @@ void drawHandler(platform::Window *window) {
                 ImGui::SameLine();
                 ImGui::SetCursorPosX(feedbackEndX);
                 ImGui::SetNextItemWidth(-FLT_MIN);
-                sliderParameter(gui, FM_PARAM_FEEDBACK_VOLUME, "##vol", 0.0f, 15.0f, "%.0f", true);
+                sliderParameter(gui, FM_PARAM_FEEDBACK_VOLUME, "##vol", 0.0f, 15.0f, "%.0f");
 
             } ImGui::End();
         }

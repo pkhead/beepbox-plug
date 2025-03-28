@@ -64,7 +64,7 @@ static double carrier_intervals[FM_OP_COUNT];
 #define VOICE_BASE_EXPRESSION 0.1 // 0.03 (original value, but i felt like it was too quiet)
 
 static double operator_amplitude_curve(double amplitude) {
-    return (pow(16.0, amplitude) - 1.0) / 15.0;
+    return (pow(16.0, amplitude / 15.0) - 1.0) / 15.0;
 }
 
 static void setup_algorithm(fm_inst_s *inst) {
@@ -108,10 +108,10 @@ void fm_init(fm_inst_s *inst) {
 
     inst->algorithm = 0;
 
-    inst->amplitudes[0] = 1;
-    inst->amplitudes[1] = 0;
-    inst->amplitudes[2] = 0;
-    inst->amplitudes[3] = 0;
+    inst->amplitudes[0] = 15.0;
+    inst->amplitudes[1] = 0.0;
+    inst->amplitudes[2] = 0.0;
+    inst->amplitudes[3] = 0.0;
 
     inst->freq_ratios[0] = 4;
     inst->freq_ratios[1] = 4;
@@ -246,13 +246,13 @@ static void compute_voice(const fm_inst_s *const inst, fm_voice_s *const voice, 
         } else {
             // modulator
             expression *= SINE_WAVE_LENGTH * 1.5;
-            sine_expr_boost *= 1.0 - min(1.0, inst->amplitudes[op]);
+            sine_expr_boost *= 1.0 - min(1.0, inst->amplitudes[op] / 15.0);
         }
 
         voice->op_states[op].expression = expression;
     }
 
-    sine_expr_boost *= (pow(2.0, (2.0 - 1.4 * inst->feedback)) - 1.0) / 3.0;
+    sine_expr_boost *= (pow(2.0, (2.0 - 1.4 * inst->feedback / 15.0)) - 1.0) / 3.0;
     sine_expr_boost *= 1.0 - min(1.0, max(0.0, total_carrier_expr - 1) / 2.0);
     sine_expr_boost = 1.0 + sine_expr_boost * 3.0;
 
@@ -284,7 +284,7 @@ void fm_run(inst_s *src_inst, const run_ctx_s *const run_ctx) {
     // zero-initialize sample data
     memset(out_samples, 0, frame_count * 2 * sizeof(float));
 
-    double feedback_amplitude = SINE_WAVE_LENGTH * 0.3 * inst.feedback;
+    double feedback_amplitude = SINE_WAVE_LENGTH * 0.3 * inst.feedback / 15.0;
     double inst_volume = inst_volume_to_mult(src_inst->volume);
 
     for (int i = 0; i < INST_MAX_VOICES; i++) {
@@ -356,13 +356,95 @@ void fm_run(inst_s *src_inst, const run_ctx_s *const run_ctx) {
 //     DATA     //
 //////////////////
 
+static const char *algo_enum_values[] = {
+    "1←(2 3 4)",
+    "1←(2 3←4)",
+    "1←2←(3 4)",
+    "1←(2 3)←4",
+    "1←2←3←4",
+    "1←3 2←4",
+    "1 2←(3 4)",
+    "1 2←3←4",
+    "(1 2)←3←4",
+    "(1 2)←(3 4)",
+    "1 2 3←4",
+    "(1 2 3)←4",
+    "1 2 3 4",
+};
+
+static const char *freq_enum_values[] = {
+    "0.12×",
+    "0.25×",
+    "0.5×",
+    "0.75×",
+    "1×",
+    "~1×",
+    "2×",
+    "~2×",
+    "3×",
+    "3.5×",
+    "4×",
+    "~4×",
+    "5×",
+    "6×",
+    "7×",
+    "8×",
+    "9×",
+    "10×",
+    "11×",
+    "12×",
+    "13×",
+    "14×",
+    "15×",
+    //ultrabox
+    "16×",
+    "17×",
+    //ultrabox
+    "18×",
+    "19×",
+    //ultrabox
+    "20×",
+    "~20×",
+    // dogebox (maybe another mod also adds this? I got it from dogebox)
+    "25×",
+    "50×",
+    "75×",
+    "100×",
+    //50 and 100 are from dogebox
+    //128 and 256 from slarmoo's box
+    "128×",
+    "256×",
+};
+
+static const char *feedback_enum_values[] = {
+    "1⟲",
+    "2⟲",
+    "3⟲",
+    "4⟲",
+    "1⟲ 2⟲",
+    "3⟲ 4⟲",
+    "1⟲ 2⟲ 3⟲",
+    "2⟲ 3⟲ 4⟲",
+    "1⟲ 2⟲ 3⟲ 4⟲",
+    "1→2",
+    "1→3",
+    "1→4",
+    "2→3",
+    "2→4",
+    "3→4",
+    "1→3 2→4",
+    "1→4 2→3",
+    "1→2→3→4",
+};
+
 inst_param_info_s fm_param_info[FM_PARAM_COUNT] = {
     {
         .type = PARAM_UINT8,
         .name = "Algorithm",
         .min_value = 0,
         .max_value = 12,
-        .default_value = 0
+        .default_value = 0,
+        .enum_values = algo_enum_values
     },
 
     {
@@ -372,13 +454,14 @@ inst_param_info_s fm_param_info[FM_PARAM_COUNT] = {
         .max_value = FM_FREQ_COUNT-1,
         .default_value = 4,
         .no_modulation = TRUE,
+        .enum_values = freq_enum_values
     },
     {
         .type = PARAM_DOUBLE,
         .name = "Operator 1 Volume",
         .min_value = 0,
-        .max_value = 1,
-        .default_value = 1
+        .max_value = 15,
+        .default_value = 15
     },
 
     {
@@ -388,12 +471,13 @@ inst_param_info_s fm_param_info[FM_PARAM_COUNT] = {
         .max_value = FM_FREQ_COUNT-1,
         .default_value = 4,
         .no_modulation = TRUE,
+        .enum_values = freq_enum_values
     },
     {
         .type = PARAM_DOUBLE,
         .name = "Operator 2 Volume",
         .min_value = 0,
-        .max_value = 1,
+        .max_value = 15,
         .default_value = 0
     },
 
@@ -404,12 +488,13 @@ inst_param_info_s fm_param_info[FM_PARAM_COUNT] = {
         .max_value = FM_FREQ_COUNT-1,
         .default_value = 4,
         .no_modulation = TRUE,
+        .enum_values = freq_enum_values
     },
     {
         .type = PARAM_DOUBLE,
         .name = "Operator 3 Volume",
         .min_value = 0,
-        .max_value = 1,
+        .max_value = 15,
         .default_value = 0
     },
 
@@ -419,13 +504,14 @@ inst_param_info_s fm_param_info[FM_PARAM_COUNT] = {
         .min_value = 0,
         .max_value = FM_FREQ_COUNT-1,
         .default_value = 4,
-        .no_modulation = TRUE
+        .no_modulation = TRUE,
+        .enum_values = freq_enum_values
     },
     {
         .type = PARAM_DOUBLE,
         .name = "Operator 4 Volume",
         .min_value = 0,
-        .max_value = 1,
+        .max_value = 15,
         .default_value = 0
     },
 
@@ -434,14 +520,15 @@ inst_param_info_s fm_param_info[FM_PARAM_COUNT] = {
         .name = "Feedback Type",
         .min_value = 0,
         .max_value = FM_FEEDBACK_TYPE_COUNT-1,
-        .default_value = 0
+        .default_value = 0,
+        .enum_values = feedback_enum_values
     },
 
     {
         .type = PARAM_DOUBLE,
         .name = "Feedback Volume",
         .min_value = 0,
-        .max_value = 1,
+        .max_value = 15,
         .default_value = 0
     }
 };

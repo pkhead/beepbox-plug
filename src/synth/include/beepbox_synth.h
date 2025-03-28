@@ -55,6 +55,8 @@ typedef struct {
     double min_value;
     double max_value;
     double default_value;
+
+    const char **enum_values;
 } inst_param_info_s;
 
 typedef struct {
