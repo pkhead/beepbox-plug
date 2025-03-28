@@ -2,12 +2,52 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <assert.h>
 #include <math.h>
 
 #if __STDC_VERSION__ >= 201112L && !defined (__STDC_NO_THREADS__) && defined (CLAP_HAS_THREADS_H)
 #   define CLAP_HAS_THREAD
 #   include <threads.h>
+#endif
+
+// Apparently denormals aren't a problem on ARM & M1?
+// https://en.wikipedia.org/wiki/Subnormal_number
+// https://www.kvraudio.com/forum/viewtopic.php?t=575799
+#if __arm64__
+#define fp_env int
+static inline fp_env disable_denormals() {};
+static inline void enable_denormals(const fp_env *env) {};
+#elif defined(_WIN32)
+#include <immintrin.h>
+#define fp_env uint8_t
+
+static inline fp_env disable_denormals() {
+   const uint32_t mask = _MM_DENORMALS_ZERO_MASK | _MM_FLUSH_ZERO_MASK;
+   const uint32_t state = _mm_getcsr();
+   _mm_setcsr(state & ~mask);
+   return state & mask;
+}
+
+static inline void enable_denormals(const fp_env env) {
+   const uint32_t mask = _MM_DENORMALS_ZERO_MASK | _MM_FLUSH_ZERO_MASK;
+   _mm_setcsr((_mm_getcsr() & ~mask) | env);
+}
+
+#else
+#include <fenv.h>
+#define fp_env fenv_t;
+
+static inline fp_env disable_denormals() {
+   fenv_t env;
+   fegetenv(&env);
+   fesetenv(FE_DFL_DISABLE_SSE_DENORMS_ENV);
+   return env;
+}
+
+static inline void enable_denormals(const fp_env env) {
+   fesetenv(&env);
+}
 #endif
 
 #include <beepbox_synth.h>
@@ -637,6 +677,8 @@ static void plugin_stop_processing(const struct clap_plugin *plugin) {}
 static void plugin_reset(const struct clap_plugin *plugin) {}
 
 static clap_process_status plugin_process(const struct clap_plugin *plugin, const clap_process_t *process) {
+   fp_env env = disable_denormals();
+
    plugin_s *plug = plugin->plugin_data;
 
    if (plug->gui)
@@ -690,6 +732,8 @@ static clap_process_status plugin_process(const struct clap_plugin *plugin, cons
          plug->cur_beat += sample_len * frame_count / beats_per_sec;
       }
    }
+
+   enable_denormals(env);
 
    return CLAP_PROCESS_CONTINUE;
 }
