@@ -437,10 +437,10 @@ static const char *feedback_enum_values[] = {
     "1→2→3→4",
 };
 
-inst_param_info_s fm_param_info[FM_PARAM_COUNT] = {
+const inst_param_info_s fm_param_info[FM_PARAM_COUNT] = {
     {
         .type = PARAM_UINT8,
-        .flags = PARAM_FLAG_NO_AUTOMATION | PARAM_FLAG_NO_ENVELOPE,
+        .flags = PARAM_FLAG_NO_AUTOMATION,
 
         .name = "Algorithm",
         .min_value = 0,
@@ -540,7 +540,7 @@ inst_param_info_s fm_param_info[FM_PARAM_COUNT] = {
 
     {
         .type = PARAM_UINT8,
-        .flags = PARAM_FLAG_NO_AUTOMATION | PARAM_FLAG_NO_ENVELOPE,
+        .flags = PARAM_FLAG_NO_AUTOMATION,
 
         .name = "Feedback Type",
         .min_value = 0,
@@ -561,7 +561,19 @@ inst_param_info_s fm_param_info[FM_PARAM_COUNT] = {
     }
 };
 
-size_t fm_param_addresses[FM_PARAM_COUNT] = {
+const envelope_compute_index_e fm_env_targets[FM_MOD_COUNT] = {
+    ENV_INDEX_OPERATOR_FREQ0,
+    ENV_INDEX_OPERATOR_AMP0,
+    ENV_INDEX_OPERATOR_FREQ1,
+    ENV_INDEX_OPERATOR_AMP1,
+    ENV_INDEX_OPERATOR_FREQ2,
+    ENV_INDEX_OPERATOR_AMP2,
+    ENV_INDEX_OPERATOR_FREQ3,
+    ENV_INDEX_OPERATOR_AMP3,
+    ENV_INDEX_FEEDBACK_AMP
+};
+
+const size_t fm_param_addresses[FM_PARAM_COUNT] = {
     offsetof(fm_inst_s, algorithm),
     offsetof(fm_inst_s, freq_ratios[0]),
     offsetof(fm_inst_s, amplitudes[0]),

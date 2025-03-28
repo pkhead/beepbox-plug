@@ -243,9 +243,7 @@ envelope_s* inst_add_envelope(inst_s *inst) {
 
     envelope_s *new_env = &inst->envelopes[inst->envelope_count++];
     *new_env = (envelope_s) {
-        .target = ENV_TARGET_NONE,
-        .curve_type = ENV_CURVE_NONE,
-        .speed = 1.0
+        .index = ENV_INDEX_NONE,
     };
 
     return new_env;
@@ -295,4 +293,77 @@ void inst_run(inst_s* inst, const run_ctx_s *const run_ctx) {
 double inst_samples_fade_out(double setting, double bpm, double sample_rate) {
     const double samples_per_tick = calc_samples_per_tick(bpm, sample_rate);
     return ticks_fade_out(setting) * samples_per_tick;
+}
+
+const char *env_index_names[] = {
+    "none",
+    "note volume", // ENV_INDEX_NOTE_VOLUME
+    "n. filter freqs", // ENV_INDEX_NOTE_FILTER_ALL_FREQS
+    "pulse width", // ENV_INDEX_PULSE_WIDTH
+    "sustain", // ENV_INDEX_STRING_SUSTAIN
+    "unison", // ENV_INDEX_UNISON
+    "fm1 freq", // ENV_INDEX_OPERATOR_FREQ0
+    "fm2 freq", // ENV_INDEX_OPERATOR_FREQ1
+    "fm3 freq", // ENV_INDEX_OPERATOR_FREQ2
+    "fm4 freq", // ENV_INDEX_OPERATOR_FREQ3
+    "fm1 volume", // ENV_INDEX_OPERATOR_AMP0
+    "fm2 volume", // ENV_INDEX_OPERATOR_AMP1
+    "fm3 volume", // ENV_INDEX_OPERATOR_AMP2
+    "fm4 volume", // ENV_INDEX_OPERATOR_AMP3
+    "fm feedback", // ENV_INDEX_FEEDBACK_AMP
+    "pitch shift", // ENV_INDEX_PITCH_SHIFT
+    "detune", // ENV_INDEX_DETUNE
+    "vibrato range", // ENV_INDEX_VIBRATO_DEPTH
+    "n. filter 1 freq", // ENV_INDEX_NOTE_FILTER_FREQ0
+    "n. filter 2 freq", // ENV_INDEX_NOTE_FILTER_FREQ1
+    "n. filter 3 freq", // ENV_INDEX_NOTE_FILTER_FREQ2
+    "n. filter 4 freq", // ENV_INDEX_NOTE_FILTER_FREQ3
+    "n. filter 5 freq", // ENV_INDEX_NOTE_FILTER_FREQ4
+    "n. filter 6 freq", // ENV_INDEX_NOTE_FILTER_FREQ5
+    "n. filter 7 freq", // ENV_INDEX_NOTE_FILTER_FREQ6
+    "n. filter 8 freq", // ENV_INDEX_NOTE_FILTER_FREQ7
+    "n. filter 1 vol", // ENV_INDEX_NOTE_FILTER_GAIN0
+    "n. filter 2 vol", // ENV_INDEX_NOTE_FILTER_GAIN1
+    "n. filter 3 vol", // ENV_INDEX_NOTE_FILTER_GAIN2
+    "n. filter 4 vol", // ENV_INDEX_NOTE_FILTER_GAIN3
+    "n. filter 5 vol", // ENV_INDEX_NOTE_FILTER_GAIN4
+    "n. filter 6 vol", // ENV_INDEX_NOTE_FILTER_GAIN5
+    "n. filter 7 vol", // ENV_INDEX_NOTE_FILTER_GAIN6
+    "n. filter 8 vol", // ENV_INDEX_NOTE_FILTER_GAIN7
+    "dynamism", // ENV_INDEX_SUPERSAW_DYNAMISM
+    "spread", // ENV_INDEX_SUPERSAW_SPREAD
+    "saw↔pulse", // ENV_INDEX_SUPERSAW_SHAPE
+};
+
+const char* envelope_index_name(envelope_compute_index_e index) {
+    if (index < 0 || index >= sizeof(env_index_names)/sizeof(*env_index_names))
+        return NULL;
+
+    return env_index_names[index];
+}
+
+
+const char** envelope_curve_preset_names() {
+    static int need_init = 1;
+    static const char* env_curve_names[ENVELOPE_CURVE_PRESET_COUNT];
+
+    if (need_init) {
+        need_init = 0;
+        for (int i = 0; i < ENVELOPE_CURVE_PRESET_COUNT; i++) {
+            env_curve_names[i] = envelope_curve_presets[i].name;
+        }
+    }
+
+    return env_curve_names;
+}
+
+const envelope_compute_index_e* inst_envelope_targets(inst_type_e type, int *size) {
+    switch (type) {
+        case INSTRUMENT_FM:
+            *size = FM_MOD_COUNT;
+            return fm_env_targets;
+
+        default:
+            return NULL;
+    }
 }

@@ -4,6 +4,7 @@
 #include "include/plugin_gui.h"
 #include "platform.hpp"
 #include <imgui.h>
+#include <vector>
 
 constexpr int GUI_EVENT_QUEUE_MASK = GUI_EVENT_QUEUE_SIZE-1;
 
@@ -47,14 +48,15 @@ private:
     bool showAbout;
     double params[BASE_PARAM_COUNT + FM_PARAM_COUNT];
 
-    uint32_t envelope_count;
-    beepbox::envelope_s envelopes[MAX_ENVELOPE_COUNT];
+    std::vector<beepbox::envelope_s> envelopes;
 
     void updateParams();
     void sliderParameter(uint32_t paramId, const char *id, float v_min, float v_max, const char *fmt = "%.3f", bool normalized = false);
 
     void drawAbout(ImGuiWindowFlags winFlags);
     void drawFmGui(ImGuiWindowFlags winFlags);
+
+    void drawEnvelopes();
 
     void paramGestureBegin(uint32_t param_id);
     void paramChange(uint32_t param_id, double value);

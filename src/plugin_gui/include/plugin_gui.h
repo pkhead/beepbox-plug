@@ -6,9 +6,11 @@
 
 #ifdef __cplusplus
 #include <cstdint>
-using namespace beepbox;
+
+#define BEEPBOX(itm) beepbox::itm
 extern "C" {
 #else
+#define BEEPBOX(itm) itm
 #include <stdint.h>
 #endif
 
@@ -41,7 +43,10 @@ typedef struct {
             uint32_t index;
         } envelope_removal;
 
-        envelope_s envelope;
+        struct {
+            uint32_t index;
+            BEEPBOX(envelope_s) envelope;
+        } modify_envelope;
     };
 } gui_event_queue_item_s;
 
@@ -53,7 +58,7 @@ bool gui_event_dequeue(plugin_gui_s *iface, gui_event_queue_item_s *item);
 bool gui_is_api_supported(const char *api, bool is_floating);
 bool gui_get_preferred_api(const char **api, bool *is_floating);
 
-plugin_gui_s* gui_create(inst_s *instrument, const char *api, bool is_floating);
+plugin_gui_s* gui_create(BEEPBOX(inst_s) *instrument, const char *api, bool is_floating);
 void gui_destroy(plugin_gui_s *iface);
 
 bool gui_get_size(const plugin_gui_s *iface, uint32_t *width, uint32_t *height);
@@ -67,5 +72,7 @@ bool gui_hide(plugin_gui_s *iface);
 #ifdef __cplusplus
 }
 #endif
+
+#undef BEEPBOX
 
 #endif

@@ -8,6 +8,8 @@
 
 #include "plugin_controller.hpp"
 
+using namespace beepbox;
+
 #ifdef PLUGIN_VST3
 #include "resource/vst_logo.hpp"
 
@@ -75,8 +77,9 @@ PluginController::PluginController(beepbox::inst_s *instrument) : instrument(ins
             beepbox::inst_get_param_double(instrument, i, params+i);
         }
 
-        envelope_count = beepbox::inst_envelope_count(instrument);
-        memcpy(envelopes, beepbox::inst_get_envelope(instrument, 0), sizeof(envelope_s) * envelope_count);
+        envelopes.reserve(MAX_ENVELOPE_COUNT);
+        envelopes.resize(beepbox::inst_envelope_count(instrument));
+        memcpy(envelopes.data(), beepbox::inst_get_envelope(instrument, 0), sizeof(envelope_s) * envelopes.size());
     }
 }
 
@@ -283,10 +286,122 @@ void PluginController::drawFmGui(ImGuiWindowFlags winFlags) {
         ImGui::SetNextItemWidth(-FLT_MIN);
         sliderParameter(FM_PARAM_FEEDBACK_VOLUME, "##vol", 0.0f, 15.0f, "%.0f");
 
-        ImGui::SeparatorText("Envelopes");
-        ImGui::Button("Add");
+        drawEnvelopes();
 
     } ImGui::End();
+}
+
+void PluginController::drawEnvelopes() {
+    ImGui::SeparatorText("Envelopes");
+
+    if (ImGui::Button("Add")) {
+        if (envelopes.size() < MAX_ENVELOPE_COUNT) {
+            beepbox::envelope_s new_env {};
+            new_env.index = beepbox::ENV_INDEX_NONE;
+            new_env.curve_preset = 0,
+            envelopes.push_back(new_env);
+
+            gui_event_queue_item_s queue_item {};
+            queue_item.type = GUI_EVENT_ADD_ENVELOPE;
+            gui_to_plugin.enqueue(queue_item);
+        }
+    }
+
+    beepbox::inst_type_e instType = beepbox::inst_type(instrument);
+    const char **curveNames = beepbox::envelope_curve_preset_names();
+
+    for (int envIndex = 0; envIndex < envelopes.size(); envIndex++) {
+        envelope_s &env = envelopes[envIndex];
+        bool isEnvDirty = false;
+
+        const char *envTargetStr = beepbox::envelope_index_name(env.index);
+        assert(envTargetStr);
+
+        ImGui::PushID(envIndex);
+
+        // there will be a square deletion button at the right side of each line.
+        // then, i want to have each combobox take half of the available content width,
+        // and also have X spacing inbetween all items be the same as inner spacing X
+        ImGuiStyle &style = ImGui::GetStyle();
+        float itemWidth = (ImGui::GetContentRegionAvail().x - ImGui::GetFrameHeight() - style.ItemInnerSpacing.x * 2) / 2.f;
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(style.ItemInnerSpacing.x, style.ItemSpacing.y));
+        
+        // envelope target combobox
+        ImGui::SetNextItemWidth(itemWidth);
+        if (ImGui::BeginCombo("##target", envTargetStr)) {
+            std::vector<beepbox::envelope_compute_index_e> targets;
+            targets.push_back(beepbox::ENV_INDEX_NONE);
+
+            {
+                int size;
+                const envelope_compute_index_e *instTargets = beepbox::inst_envelope_targets(instType, &size);
+                targets.reserve(targets.size() + size);
+
+                for (int i = 0; i < size; i++) {
+                    targets.push_back(instTargets[i]);
+                }
+            }
+
+            for (int i = 0; i < targets.size(); i++) {
+                const char *name = beepbox::envelope_index_name(targets[i]);
+                assert(name);
+
+                bool isSelected = env.index == targets[i];
+                if (ImGui::Selectable(name, isSelected)) {
+                    env.index = targets[i];
+                    isEnvDirty = true;
+                }
+
+                if (isSelected)
+                    ImGui::SetItemDefaultFocus();
+            }
+
+            ImGui::EndCombo();
+        }
+
+        // envelope curve preset combobox
+        ImGui::SetNextItemWidth(itemWidth);
+        ImGui::SameLine();
+        if (ImGui::BeginCombo("##curve", curveNames[env.curve_preset])) {
+            for (int i = 0; i < ENVELOPE_CURVE_PRESET_COUNT; i++) {
+                bool isSelected = env.curve_preset == i;
+                if (ImGui::Selectable(curveNames[i], isSelected)) {
+                    env.curve_preset = i;
+                    isEnvDirty = true;
+                }
+
+                if (isSelected)
+                    ImGui::SetItemDefaultFocus();
+            }
+            ImGui::EndCombo();
+        }
+
+        // envelope deletion button
+        ImGui::SameLine();
+        if (ImGui::Button("×", ImVec2(ImGui::GetFrameHeight(), ImGui::GetFrameHeight()))) {
+            gui_event_queue_item_s queue_item {};
+            queue_item.type = GUI_EVENT_REMOVE_ENVELOPE;
+            queue_item.envelope_removal.index = envIndex;
+            gui_to_plugin.enqueue(queue_item);
+
+            envelopes.erase(envelopes.begin() + envIndex);
+            envIndex--;
+
+            // don't want to modify a deleted envelope...
+            isEnvDirty = false;
+        }
+        
+        ImGui::PopID();
+        ImGui::PopStyleVar();
+
+        if (isEnvDirty) {
+            gui_event_queue_item_s queue_item {};
+            queue_item.type = GUI_EVENT_MODIFY_ENVELOPE;
+            queue_item.modify_envelope.index = envIndex;
+            queue_item.modify_envelope.envelope = env;
+            gui_to_plugin.enqueue(queue_item);
+        }
+    }
 }
 
 void PluginController::draw(platform::Window *window) {
@@ -319,7 +434,7 @@ void PluginController::draw(platform::Window *window) {
         ImGuiViewport *viewport = ImGui::GetMainViewport();
         ImGui::SetNextWindowPos(viewport->WorkPos);
         ImGui::SetNextWindowSize(viewport->WorkSize);
-        ImGuiWindowFlags winFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove;
+        ImGuiWindowFlags winFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar;
 
         if (showAbout) {
             drawAbout(winFlags);

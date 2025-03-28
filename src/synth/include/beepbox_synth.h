@@ -32,6 +32,7 @@ extern "C" {
 
 #define BEEPBOX_API
 #define MAX_ENVELOPE_COUNT 12 // 16 in slarmoo's box
+#define ENVELOPE_CURVE_PRESET_COUNT 26
 
 typedef enum {
     INSTRUMENT_CHIP,
@@ -51,39 +52,68 @@ typedef enum {
 } inst_param_type_e;
 
 typedef enum {
-    PARAM_FLAG_NO_AUTOMATION = 1,
-    PARAM_FLAG_NO_ENVELOPE = 2,
+    PARAM_FLAG_NO_AUTOMATION = 1
 } inst_param_flags_e;
 
 typedef enum {
-    ENV_TARGET_NONE,
-    ENV_TARGET_NOTE_VOLUME,
-    ENV_TARGET_PARAMETER, // instrument parameter
-    ENV_TARGET_MODIFIER, // "effects" that are integrated with the synth code - pitch shift, detune, vibrato
-    ENV_TARGET_EFFECT
-} envelope_target_e;
+    ENV_INDEX_NONE,
+    ENV_INDEX_NOTE_VOLUME,
+    ENV_INDEX_NOTE_FILTER_ALL_FREQS,
+    ENV_INDEX_PULSE_WIDTH,
+    ENV_INDEX_STRING_SUSTAIN,
+    ENV_INDEX_UNISON,
+    ENV_INDEX_OPERATOR_FREQ0,
+    ENV_INDEX_OPERATOR_FREQ1,
+    ENV_INDEX_OPERATOR_FREQ2,
+    ENV_INDEX_OPERATOR_FREQ3,
+    ENV_INDEX_OPERATOR_AMP0,
+    ENV_INDEX_OPERATOR_AMP1,
+    ENV_INDEX_OPERATOR_AMP2,
+    ENV_INDEX_OPERATOR_AMP3,
+    ENV_INDEX_FEEDBACK_AMP,
+    ENV_INDEX_PITCH_SHIFT,
+    ENV_INDEX_DETUNE,
+    ENV_INDEX_VIBRATO_DEPTH,
+    ENV_INDEX_NOTE_FILTER_FREQ0,
+    ENV_INDEX_NOTE_FILTER_FREQ1,
+    ENV_INDEX_NOTE_FILTER_FREQ2,
+    ENV_INDEX_NOTE_FILTER_FREQ3,
+    ENV_INDEX_NOTE_FILTER_FREQ4,
+    ENV_INDEX_NOTE_FILTER_FREQ5,
+    ENV_INDEX_NOTE_FILTER_FREQ6,
+    ENV_INDEX_NOTE_FILTER_FREQ7,
+    ENV_INDEX_NOTE_FILTER_GAIN0,
+    ENV_INDEX_NOTE_FILTER_GAIN1,
+    ENV_INDEX_NOTE_FILTER_GAIN2,
+    ENV_INDEX_NOTE_FILTER_GAIN3,
+    ENV_INDEX_NOTE_FILTER_GAIN4,
+    ENV_INDEX_NOTE_FILTER_GAIN5,
+    ENV_INDEX_NOTE_FILTER_GAIN6,
+    ENV_INDEX_NOTE_FILTER_GAIN7,
+    ENV_INDEX_SUPERSAW_DYNAMISM,
+    ENV_INDEX_SUPERSAW_SPREAD,
+    ENV_INDEX_SUPERSAW_SHAPE,
+    ENV_INDEX_COUNT
+} envelope_compute_index_e;
 
-typedef enum {
-    ENV_CURVE_NONE,
-    ENV_CURVE_VOLUME, // probably MIDI CC 7 (Volume)
-    ENV_CURVE_PUNCH,
-    ENV_CURVE_FLARE,
-    ENV_CURVE_TWANG,
-    ENV_CURVE_SWELL,
-    ENV_CURVE_TREMOLO,
-    ENV_CURVE_TREMOLO2,
-    ENV_CURVE_DECAY,
+// typedef enum {
+//     ENV_CURVE_NONE,
+//     ENV_CURVE_VOLUME, // probably MIDI CC 7 (Volume)
+//     ENV_CURVE_PUNCH,
+//     ENV_CURVE_FLARE,
+//     ENV_CURVE_TWANG,
+//     ENV_CURVE_SWELL,
+//     ENV_CURVE_TREMOLO,
+//     ENV_CURVE_TREMOLO2,
+//     ENV_CURVE_DECAY,
 
-    ENV_CURVE_MOD_X, // probably MIDI CC 1 (Modulation wheel)
-    ENV_CURVE_MOD_Y,
-} envelope_curve_type_e;
+//     ENV_CURVE_MOD_X, // probably MIDI CC 1 (Modulation wheel)
+//     ENV_CURVE_MOD_Y,
+// } envelope_curve_type_e;
 
 typedef struct {
-    uint8_t target; // envelope_target_type_e
-    uint8_t parameter;
-    uint16_t curve_type;
-
-    double speed;
+    envelope_compute_index_e index;
+    uint8_t curve_preset;
 } envelope_s;
 
 typedef struct {
@@ -125,8 +155,12 @@ BEEPBOX_API int inst_set_param_double(inst_s* inst, int index, double value);
 BEEPBOX_API int inst_get_param_int(const inst_s* inst, int index, int *value);
 BEEPBOX_API int inst_get_param_double(const inst_s* inst, int index, double *value);
 
-BEEPBOX_API uint8_t inst_envelope_count(const inst_s *inst);
+BEEPBOX_API const char* envelope_index_name(envelope_compute_index_e index);
+BEEPBOX_API const char** envelope_curve_preset_names();
 
+BEEPBOX_API const envelope_compute_index_e* inst_envelope_targets(inst_type_e type, int *size);
+
+BEEPBOX_API uint8_t inst_envelope_count(const inst_s *inst);
 // note: envelopes are stored contiguously and in order, so it is valid to treat the return value
 // as an array.
 BEEPBOX_API envelope_s* inst_get_envelope(inst_s *inst, uint32_t index);

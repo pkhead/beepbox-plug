@@ -8,6 +8,7 @@
 #include "wavetables.h"
 
 #define FM_OP_COUNT 4
+#define FM_MOD_COUNT 9
 
 typedef struct {
     double phase;
@@ -70,7 +71,8 @@ int fm_midi_on(inst_s *inst, int key, int velocity);
 void fm_midi_off(inst_s *inst, int key, int velocity);
 void fm_run(inst_s *src_inst, const run_ctx_s *const run_ctx);
 
-extern inst_param_info_s fm_param_info[FM_PARAM_COUNT];
-extern size_t fm_param_addresses[FM_PARAM_COUNT];
+extern const inst_param_info_s fm_param_info[FM_PARAM_COUNT];
+extern const envelope_compute_index_e fm_env_targets[FM_MOD_COUNT];
+extern const size_t fm_param_addresses[FM_PARAM_COUNT];
 
 #endif

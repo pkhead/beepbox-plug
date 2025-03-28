@@ -117,6 +117,18 @@ static void process_gui_events(plugin_s *plug, const clap_output_events_t *out_e
             break;
          }
 
+         case GUI_EVENT_ADD_ENVELOPE:
+            inst_add_envelope(plug->instrument);
+            break;
+
+         case GUI_EVENT_MODIFY_ENVELOPE:
+            *inst_get_envelope(plug->instrument, item.modify_envelope.index) = item.modify_envelope.envelope;
+            break;
+         
+         case GUI_EVENT_REMOVE_ENVELOPE:
+            inst_remove_envelope(plug->instrument, item.envelope_removal.index);
+            break;
+
          default:
             break;
       }
