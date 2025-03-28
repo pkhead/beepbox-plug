@@ -367,22 +367,17 @@ bool plugin_params_value_to_text(
    switch (info->type) {
       case PARAM_UINT8:
       case PARAM_INT: {
-         int v;
-         if (inst_get_param_int(plug->instrument, param_id, &v)) return false;
-
          if (info->enum_values) {
-            snprintf(out_buf, out_buf_capacity, "%s", info->enum_values[v]);
+            snprintf(out_buf, out_buf_capacity, "%s", info->enum_values[(int)value]);
          } else {
-            snprintf(out_buf, out_buf_capacity, "%i", v);
+            snprintf(out_buf, out_buf_capacity, "%i", (int)value);
          }
 
          break;
       }
 
       case PARAM_DOUBLE: {
-         double v;
-         if (inst_get_param_double(plug->instrument, param_id, &v)) return false;
-         snprintf(out_buf, out_buf_capacity, "%.1f", v);
+         snprintf(out_buf, out_buf_capacity, "%.1f", value);
          break;
       }
 
