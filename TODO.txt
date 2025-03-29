@@ -1,2 +1,3 @@
 - fade in/out ui
 - prepend bpbx_ to all public beepbox synth structs/functions
+- tremolo is crackly ...
