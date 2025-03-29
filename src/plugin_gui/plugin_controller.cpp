@@ -331,6 +331,7 @@ void PluginController::drawEnvelopes() {
         if (ImGui::BeginCombo("##target", envTargetStr)) {
             std::vector<beepbox::envelope_compute_index_e> targets;
             targets.push_back(beepbox::ENV_INDEX_NONE);
+            targets.push_back(beepbox::ENV_INDEX_NOTE_VOLUME);
 
             {
                 int size;

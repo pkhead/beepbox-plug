@@ -14,6 +14,7 @@
 typedef struct {
     double phase;
     double phase_delta;
+    double phase_delta_scale;
     double expression;
     double expression_delta;
     double prev_pitch_expression;
@@ -32,6 +33,9 @@ typedef struct {
     
     double expression;
     double expression_delta;
+
+    double feedback_mult;
+    double feedback_delta;
 
     // how long the voice has been active in ticks
     // time2_secs is seconds to end of current run.

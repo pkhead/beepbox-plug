@@ -189,6 +189,12 @@ static void compute_voice(const fm_inst_s *const inst, fm_voice_s *const voice, 
     voice->time_secs = voice->time2_secs;
     voice->time2_secs = voice->time_secs + samples_per_tick / compute_data.sample_rate;
 
+    compute_envelopes(
+        &voice->env_computer,
+        compute_data.envelopes, compute_data.envelope_count,
+        compute_data.cur_beat, voice->time_secs, samples_per_tick * sample_len
+    );
+
     const double fade_in_secs = secs_fade_in(compute_data.fade_in);
 
     // precalculation/volume balancing/etc
@@ -214,12 +220,6 @@ static void compute_voice(const fm_inst_s *const inst, fm_voice_s *const voice, 
         }
     }
 
-    compute_envelopes(
-        &voice->env_computer,
-        compute_data.envelopes, compute_data.envelope_count,
-        compute_data.cur_beat, voice->time_secs, samples_per_tick * sample_len
-    );
-
     for (int op = 0; op < FM_OP_COUNT; op++) {
         // john nesky: I'm adding 1000 to the phase to ensure that it's never negative even when modulated
         // by other waves because negative numbers don't work with the modulus operator very well.
@@ -234,7 +234,19 @@ static void compute_voice(const fm_inst_s *const inst, fm_voice_s *const voice, 
         const double hz_offset = freq_data->hz_offset;
         const double target_freq = freq_mult * base_freq + hz_offset;
 
-        voice->op_states[op].phase_delta = target_freq * sample_len;
+        const double freq_env_start = voice->env_computer.envelope_starts[ENV_INDEX_OPERATOR_FREQ0 + op];
+        const double freq_env_end = voice->env_computer.envelope_ends[ENV_INDEX_OPERATOR_FREQ0 + op];
+        double freq_start, freq_end;
+        if (freq_env_start != 1.0 || freq_env_end != 1.0) {
+            freq_start = pow(2.0, log2(target_freq / base_freq) * freq_env_start) * base_freq;
+            freq_end = pow(2.0, log2(target_freq / base_freq) * freq_env_end) * base_freq;
+        } else {
+            freq_start = target_freq;
+            freq_end = target_freq;
+        }
+
+        voice->op_states[op].phase_delta = freq_start * sample_len;
+        voice->op_states[op].phase_delta_scale = pow(freq_end / freq_start, 1.0 / rounded_samples_per_tick);
 
         const double amplitude_curve = operator_amplitude_curve((double) inst->amplitudes[op]);
         const double amplitude_mult = amplitude_curve * freq_data->amplitude_sign;
@@ -270,10 +282,16 @@ static void compute_voice(const fm_inst_s *const inst, fm_voice_s *const voice, 
     sine_expr_boost *= 1.0 - min(1.0, max(0.0, total_carrier_expr - 1) / 2.0);
     sine_expr_boost = 1.0 + sine_expr_boost * 3.0;
 
-    const double expr_start = VOICE_BASE_EXPRESSION * sine_expr_boost * fade_expr_start;
-    const double expr_end = VOICE_BASE_EXPRESSION * sine_expr_boost * fade_expr_end;
+    const double expr_start = VOICE_BASE_EXPRESSION * sine_expr_boost * fade_expr_start * voice->env_computer.envelope_starts[ENV_INDEX_NOTE_VOLUME];
+    const double expr_end = VOICE_BASE_EXPRESSION * sine_expr_boost * fade_expr_end * voice->env_computer.envelope_ends[ENV_INDEX_NOTE_VOLUME];
     voice->expression = expr_start;
     voice->expression_delta = (expr_end - expr_start) / rounded_samples_per_tick;
+
+    const double feedback_amplitude = SINE_WAVE_LENGTH * 0.3 * inst->feedback / 15.0;
+    const double feedback_start = feedback_amplitude * voice->env_computer.envelope_starts[ENV_INDEX_FEEDBACK_AMP];
+    const double feedback_end = feedback_amplitude * voice->env_computer.envelope_ends[ENV_INDEX_FEEDBACK_AMP];
+    voice->feedback_mult = feedback_start;
+    voice->feedback_delta = (feedback_end - feedback_start) / rounded_samples_per_tick;
 
     if (released) {
         voice->ticks_since_release += 1.0;
@@ -298,8 +316,7 @@ void fm_run(inst_s *src_inst, const run_ctx_s *const run_ctx) {
 
     // zero-initialize sample data
     memset(out_samples, 0, frame_count * 2 * sizeof(float));
-
-    double feedback_amplitude = SINE_WAVE_LENGTH * 0.3 * inst.feedback / 15.0;
+    
     double inst_volume = inst_volume_to_mult(src_inst->volume);
 
     for (int i = 0; i < INST_MAX_VOICES; i++) {
@@ -336,12 +353,17 @@ void fm_run(inst_s *src_inst, const run_ctx_s *const run_ctx) {
             size_t run_length = end_frame - frame;
 
             for (; frame < end_frame; frame++) {      
-                float sample = (float) (algo_func(voice, feedback_amplitude) * voice->expression * inst_volume) * voice->volume;
+                float sample = (float) (algo_func(voice, voice->feedback_mult) * voice->expression * inst_volume) * voice->volume;
 
                 voice->op_states[0].phase += voice->op_states[0].phase_delta;
                 voice->op_states[1].phase += voice->op_states[1].phase_delta;
                 voice->op_states[2].phase += voice->op_states[2].phase_delta;
                 voice->op_states[3].phase += voice->op_states[3].phase_delta;
+
+                voice->op_states[0].phase_delta *= voice->op_states[0].phase_delta_scale;
+                voice->op_states[1].phase_delta *= voice->op_states[1].phase_delta_scale;
+                voice->op_states[2].phase_delta *= voice->op_states[2].phase_delta_scale;
+                voice->op_states[3].phase_delta *= voice->op_states[3].phase_delta_scale;
 
                 voice->op_states[0].expression += voice->op_states[0].expression_delta;
                 voice->op_states[1].expression += voice->op_states[1].expression_delta;
@@ -349,6 +371,7 @@ void fm_run(inst_s *src_inst, const run_ctx_s *const run_ctx) {
                 voice->op_states[3].expression += voice->op_states[3].expression_delta;
                 
                 voice->expression += voice->expression_delta;
+                voice->feedback_mult += voice->feedback_delta;
 
                 // assume two channels
                 out_samples[buffer_idx++] += sample;

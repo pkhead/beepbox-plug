@@ -12,7 +12,6 @@ The project itself comes with three modules, located in the src directory:
 - User interface
 
 ### To be implemented:
-- Envelopes
 - Presets
 - Themes
 - Linux/Mac support
