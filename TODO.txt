@@ -1,2 +1,2 @@
 - fade in/out ui
-- disable denormals during processing
+- prepend bpbx_ to all public beepbox synth structs/functions

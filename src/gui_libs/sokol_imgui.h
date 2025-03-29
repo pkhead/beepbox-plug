@@ -1,5 +1,6 @@
-// this is a version of sokol_imgui modified by pkhead to add a callback that is ran before
-// the font image is loaded into a texture.
+// this is a modified version of sokol_imgui with two changes:
+//  - a method of saving/restoring static simgui state
+//  - a callback that is given the font image data for modification before it is loaded into a texture.
 
 #if defined(SOKOL_IMPL) && !defined(SOKOL_IMGUI_IMPL)
 #define SOKOL_IMGUI_IMPL

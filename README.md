@@ -10,6 +10,7 @@ The project itself comes with three modules, located in the src directory:
 - CLAP plugin, with standalone and VST3 versions supported by [clap-wrapper](https://github.com/free-audio/clap-wrapper)
 - FM synthesizer
 - User interface
+- Envelopes
 
 ### To be implemented:
 - Presets
@@ -40,6 +41,11 @@ The project itself comes with three modules, located in the src directory:
     - Reverb
 
 # Building
+Checkout the repository with
+```bash
+git clone --recurse-submodules https://github.com/pkhead/beepbox-plug`
+```
+
 ## Building the synth code
 Requirements:
 - C11-compliant compiler
