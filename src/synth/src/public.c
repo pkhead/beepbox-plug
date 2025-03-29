@@ -8,6 +8,12 @@
 #include "util.h"
 #include "envelope.h"
 
+void beepbox_version(uint32_t *major, uint32_t *minor, uint32_t *revision) {
+    *major = BEEPBOX_VERSION_MAJOR;
+    *minor = BEEPBOX_VERSION_MINOR;
+    *revision = BEEPBOX_VERSION_REVISION;
+}
+
 static inst_param_info_s base_param_info[BASE_PARAM_COUNT] = {
     {
         .name = "Volume",
@@ -257,6 +263,10 @@ void inst_remove_envelope(inst_s *inst, uint8_t index) {
     }
 
     inst->envelope_count--;
+}
+
+void inst_clear_envelopes(inst_s *inst) {
+    inst->envelope_count = 0;
 }
 
 void inst_midi_on(inst_s *inst, int key, int velocity) {

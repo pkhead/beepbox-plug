@@ -67,6 +67,7 @@ public:
     static void graphicsInit();
     static void graphicsClose();
 
+    void sync();
     void event(platform::Event ev, platform::Window *window);
     void draw(platform::Window *window);
 

@@ -53,6 +53,7 @@ static inline void enable_denormals(const fp_env env) {
 #include <beepbox_synth.h>
 #include <clap/clap.h>
 #include <plugin_gui.h>
+#include "endianness.h"
 
 static const clap_plugin_descriptor_t s_my_plug_desc = {
    .clap_version = CLAP_VERSION_INIT,
@@ -364,17 +365,221 @@ static const clap_plugin_latency_t s_plugin_latency = {
 // clap_state //
 ////////////////
 
+// write primitive type in little-endian
+// return -1 on error
+static int64_t stream_write_prim(const clap_ostream_t *stream, const void *data, size_t data_size) {
+   if (endianness() == LITTLE_ENDIAN) {
+      size_t written = 0;
+
+      uint8_t *p = (uint8_t*)data;
+      while (written < data_size) {
+         int64_t res = stream->write(stream, p, data_size - written);
+         if (res <= 0) return -1;
+         written += res;
+         p += res;
+      }
+
+      assert(written == data_size);
+      if (written != data_size) return false;
+      return written;
+   } else {
+      size_t written = 0;
+
+      for (uint8_t *p = (uint8_t*)data + data_size - 1; p >= (uint8_t*)data; p--) {
+         int64_t res = stream->write(stream, p, sizeof(uint8_t));
+         if (res <= 0) return -1;
+         written += res;
+      }
+
+      assert(written == data_size);
+      return written;
+   }
+}
+
+// read primitive type in little-endian.
+// return -1 on error
+static int64_t stream_read_prim(const clap_istream_t *stream, void *data, size_t data_size) {
+   if (endianness() == LITTLE_ENDIAN) {
+      size_t read = 0;
+
+      uint8_t *p = (uint8_t*)data;
+      while (read < data_size) {
+         int64_t res = stream->read(stream, p, data_size - read);
+         if (res <= 0) return -1;
+         read += res;
+      }
+
+      assert(read == data_size);
+      if (read != data_size) return false;
+      return read;
+   } else {
+      int64_t read = 0;
+
+      for (uint8_t *write = (uint8_t*)data + data_size - 1; write >= (uint8_t*)data; write--) {
+         int64_t res = stream->read(stream, write, sizeof(uint8_t));
+         if (res == 0) break;
+         if (res == -1) return -1;
+         read += res;
+      }
+
+      return read;
+   }
+}
+
+#define STATE_SAVE_VER 0
+#define ERRCHK(v) if ((v) == -1) goto error
+
 bool plugin_state_save(const clap_plugin_t *plugin, const clap_ostream_t *stream) {
    plugin_s *plug = plugin->plugin_data;
-   // TODO: write the state into stream
+
+   // write save format revision (single number)
+   uint32_t save_version = STATE_SAVE_VER;
+   ERRCHK(stream_write_prim(stream, &save_version, sizeof(save_version)));
+
+   // write synth version
+   uint32_t synth_maj = BEEPBOX_VERSION_MAJOR;
+   uint32_t synth_min = BEEPBOX_VERSION_MINOR;
+   uint32_t synth_rev = BEEPBOX_VERSION_REVISION;
+   ERRCHK(stream_write_prim(stream, &synth_maj, sizeof(synth_maj)));
+   ERRCHK(stream_write_prim(stream, &synth_min, sizeof(synth_min)));
+   ERRCHK(stream_write_prim(stream, &synth_rev, sizeof(synth_rev)));
+
+   // first, write parameter data
+   inst_type_e type = inst_type(plug->instrument);
+
+   uint8_t param_count = (uint8_t) inst_param_count(type);
+   ERRCHK(stream_write_prim(stream, &param_count, sizeof(param_count)));
+
+   for (unsigned int i = 0; i < param_count; i++) {
+      const inst_param_info_s *info = inst_param_info(type, i);
+      if (info == NULL) return false;
+
+      // store type data - redundant, but whatever
+      uint8_t p_type = (uint8_t)info->type;
+      ERRCHK(stream_write_prim(stream, &p_type, sizeof(p_type)));
+
+      switch (info->type) {
+         case PARAM_UINT8: {
+            int intv;
+            if (inst_get_param_int(plug->instrument, i, &intv)) return false;
+
+            uint8_t uintv = (uint8_t)intv;
+            ERRCHK(stream_write_prim(stream, &uintv, sizeof(uintv)));
+            break;
+         }
+
+         case PARAM_INT: {
+            int v;
+            if (inst_get_param_int(plug->instrument, i, &v)) return false;
+            ERRCHK(stream_write_prim(stream, &v, sizeof(v)));
+            break;
+         }
+
+         case PARAM_DOUBLE: {
+            double v;
+            if (inst_get_param_double(plug->instrument, i, &v)) return false;
+            ERRCHK(stream_write_prim(stream, &v, sizeof(v)));
+            break;
+         }
+      }
+   }
+
+   // second, write envelope data
+   uint8_t envelope_count = inst_envelope_count(plug->instrument);
+   ERRCHK(stream_write_prim(stream, &envelope_count, sizeof(envelope_count)));
+
+   for (uint8_t i = 0; i < envelope_count; i++) {
+      const envelope_s *env = inst_get_envelope(plug->instrument, i);
+      if (env == NULL) return false;
+
+      ERRCHK(stream_write_prim(stream, &env->index, sizeof(env->index)));
+      ERRCHK(stream_write_prim(stream, &env->curve_preset, sizeof(env->curve_preset)));
+   }
+
    return true;
+
+   error: return false;
 }
 
 bool plugin_state_load(const clap_plugin_t *plugin, const clap_istream_t *stream) {
    plugin_s *plug = plugin->plugin_data;
-   // TODO: read the state from stream
+
+   // read versions; do strict version checking for now.
+   uint32_t save_version;
+   ERRCHK(stream_read_prim(stream, &save_version, sizeof(save_version)));
+
+   if (save_version != STATE_SAVE_VER) return false;
+
+   uint32_t synth_maj;
+   uint32_t synth_min;
+   uint32_t synth_rev;
+   ERRCHK(stream_read_prim(stream, &synth_maj, sizeof(synth_maj)));
+   ERRCHK(stream_read_prim(stream, &synth_min, sizeof(synth_min)));
+   ERRCHK(stream_read_prim(stream, &synth_rev, sizeof(synth_rev)));
+
+   if (synth_maj != BEEPBOX_VERSION_MAJOR) return false;
+   if (synth_min != BEEPBOX_VERSION_MINOR) return false;
+   if (synth_rev != BEEPBOX_VERSION_REVISION) return false;
+
+   // read parameters
+   inst_type_e type = inst_type(plug->instrument);
+
+   uint8_t param_count;
+   ERRCHK(stream_read_prim(stream, &param_count, sizeof(param_count)));
+
+   if (param_count != (uint8_t)inst_param_count(type)) return false;
+
+   for (unsigned int i = 0; i < param_count; i++) {
+      const inst_param_info_s *info = inst_param_info(type, i);
+      if (info == NULL) return false;
+
+      uint8_t p_type;
+      ERRCHK(stream_read_prim(stream, &p_type, sizeof(p_type)));
+      if (p_type != (uint8_t)info->type) return false;
+
+      switch (p_type) {
+         case PARAM_UINT8: {
+            uint8_t v;
+            ERRCHK(stream_read_prim(stream, &v, sizeof(v)));
+            inst_set_param_int(plug->instrument, i, v);
+            break;
+         }
+
+         case PARAM_INT: {
+            int v;
+            ERRCHK(stream_read_prim(stream, &v, sizeof(v)));
+            inst_set_param_int(plug->instrument, i, v);
+            break;
+         }
+
+         case PARAM_DOUBLE: {
+            double v;
+            ERRCHK(stream_read_prim(stream, &v, sizeof(v)));
+            inst_set_param_double(plug->instrument, i, v);
+            break;
+         }
+      }
+   }
+
+   // read envelopes
+   uint8_t envelope_count;
+   ERRCHK(stream_read_prim(stream, &envelope_count, sizeof(envelope_count)));
+
+   inst_clear_envelopes(plug->instrument);
+   for (uint8_t i = 0; i < envelope_count; i++) {
+      envelope_s *env = inst_add_envelope(plug->instrument);
+      ERRCHK(stream_read_prim(stream, &env->index, sizeof(env->index)));
+      ERRCHK(stream_read_prim(stream, &env->curve_preset, sizeof(env->curve_preset)));
+   }
+
+   if (plug->gui) gui_sync_state(plug->gui);
    return true;
+
+   error:
+      if (plug->gui) gui_sync_state(plug->gui);
+      return false;
 }
+#undef ERRCHK
 
 static const clap_plugin_state_t s_plugin_state = {
    .save = plugin_state_save,
@@ -748,8 +953,8 @@ static const void *plugin_get_extension(const struct clap_plugin *plugin, const 
    if (!strcmp(id, CLAP_EXT_NOTE_PORTS))
       return &s_plugin_note_ports;
 
-   // if (!strcmp(id, CLAP_EXT_STATE))
-   //    return &s_plugin_state;
+   if (!strcmp(id, CLAP_EXT_STATE))
+      return &s_plugin_state;
 
    if (!strcmp(id, CLAP_EXT_PARAMS))
       return &s_plugin_params;

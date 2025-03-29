@@ -34,6 +34,10 @@ extern "C" {
 #define MAX_ENVELOPE_COUNT 12 // 16 in slarmoo's box
 #define ENVELOPE_CURVE_PRESET_COUNT 26
 
+#define BEEPBOX_VERSION_MAJOR 0
+#define BEEPBOX_VERSION_MINOR 0
+#define BEEPBOX_VERSION_REVISION 1
+
 typedef enum {
     INSTRUMENT_CHIP,
     INSTRUMENT_FM,
@@ -133,6 +137,8 @@ typedef struct {
 
 typedef struct inst inst_s;
 
+BEEPBOX_API void beepbox_version(uint32_t *major, uint32_t *minor, uint32_t *revision);
+
 BEEPBOX_API const unsigned int inst_param_count(inst_type_e type);
 BEEPBOX_API const inst_param_info_s* inst_param_info(inst_type_e type, unsigned int index);
 
@@ -160,6 +166,7 @@ BEEPBOX_API uint8_t inst_envelope_count(const inst_s *inst);
 BEEPBOX_API envelope_s* inst_get_envelope(inst_s *inst, uint32_t index);
 BEEPBOX_API envelope_s* inst_add_envelope(inst_s *inst);
 BEEPBOX_API void inst_remove_envelope(inst_s *inst, uint8_t index);
+BEEPBOX_API void inst_clear_envelopes(inst_s *inst);
 
 BEEPBOX_API void inst_midi_on(inst_s *inst, int key, int velocity);
 BEEPBOX_API void inst_midi_off(inst_s *inst, int key, int velocity);

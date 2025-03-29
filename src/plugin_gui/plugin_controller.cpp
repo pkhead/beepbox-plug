@@ -68,19 +68,22 @@ PluginController::PluginController(beepbox::inst_s *instrument) : instrument(ins
     showAbout = false;
 
     // initialize copy of plugin state
-    {
-        beepbox::inst_type_e type = beepbox::inst_type(instrument);
-        constexpr uint32_t param_count = sizeof(params)/sizeof(*params);
-        assert(beepbox::inst_param_count(type) == param_count);
+    sync();
+}
 
-        for (int i = 0; i < param_count; i++) {
-            beepbox::inst_get_param_double(instrument, i, params+i);
-        }
+void PluginController::sync() {
+    beepbox::inst_type_e type = beepbox::inst_type(instrument);
+    constexpr uint32_t param_count = sizeof(params)/sizeof(*params);
+    assert(beepbox::inst_param_count(type) == param_count);
 
-        envelopes.reserve(MAX_ENVELOPE_COUNT);
-        envelopes.resize(beepbox::inst_envelope_count(instrument));
-        memcpy(envelopes.data(), beepbox::inst_get_envelope(instrument, 0), sizeof(envelope_s) * envelopes.size());
+    for (int i = 0; i < param_count; i++) {
+        beepbox::inst_get_param_double(instrument, i, params+i);
     }
+
+    envelopes.clear();
+    envelopes.reserve(MAX_ENVELOPE_COUNT);
+    envelopes.resize(beepbox::inst_envelope_count(instrument));
+    memcpy(envelopes.data(), beepbox::inst_get_envelope(instrument, 0), sizeof(envelope_s) * envelopes.size());
 }
 
 void PluginController::updateParams() {

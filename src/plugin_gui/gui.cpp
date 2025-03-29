@@ -327,6 +327,10 @@ void gui_destroy(plugin_gui_s *gui) {
     }
 }
 
+void gui_sync_state(plugin_gui_s *gui) {
+    gui->control.sync();
+}
+
 bool gui_get_size(const plugin_gui_s *iface, uint32_t *width, uint32_t *height) {
     *width = (uint32_t) platform::getWidth(iface->window);
     *height = (uint32_t) platform::getHeight(iface->window);

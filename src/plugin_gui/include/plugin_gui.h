@@ -60,6 +60,7 @@ bool gui_get_preferred_api(const char **api, bool *is_floating);
 
 plugin_gui_s* gui_create(BEEPBOX(inst_s) *instrument, const char *api, bool is_floating);
 void gui_destroy(plugin_gui_s *iface);
+void gui_sync_state(plugin_gui_s *gui);
 
 bool gui_get_size(const plugin_gui_s *iface, uint32_t *width, uint32_t *height);
 bool gui_set_parent(plugin_gui_s *iface, const clap_window_t *window);
