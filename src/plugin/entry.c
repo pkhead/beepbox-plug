@@ -181,6 +181,26 @@ static void process_gui_events(plugin_s *plug, const clap_output_events_t *out_e
    }
 }
 
+static void plugin_process_transport(plugin_s *plug, const clap_event_transport_t *ev) {
+   if (ev->flags & CLAP_TRANSPORT_HAS_TEMPO) {
+      plug->bpm = ev->tempo;
+   } else {
+      plug->bpm = 60.0;
+   }
+
+   plug->is_playing = (ev->flags & CLAP_TRANSPORT_IS_PLAYING) != 0;
+
+   if (ev->flags & CLAP_TRANSPORT_HAS_BEATS_TIMELINE) {
+      if (plug->is_playing) {
+         int64_t beats_int = ev->song_pos_beats / CLAP_BEATTIME_FACTOR;
+         int64_t beats_frac = ev->song_pos_beats % CLAP_BEATTIME_FACTOR;
+         plug->cur_beat = (double)beats_int + (double)beats_frac / CLAP_BEATTIME_FACTOR;
+      }
+   } else {
+      plug->is_playing = false;
+   }
+}
+
 static void plugin_process_event(plugin_s *plug, const clap_event_header_t *hdr) {
    if (hdr->space_id == CLAP_CORE_EVENT_SPACE_ID) {
       switch (hdr->type) {
@@ -214,12 +234,6 @@ static void plugin_process_event(plugin_s *plug, const clap_event_header_t *hdr)
 
       case CLAP_EVENT_PARAM_VALUE: {
          const clap_event_param_value_t *ev = (const clap_event_param_value_t *)hdr;
-
-         if (plug->host_log) {
-            char buf[128];
-            snprintf(buf, sizeof(buf), "param_id: %i, value: %f", ev->param_id, ev->value);
-            plug->host_log->log(plug->host, CLAP_LOG_INFO, buf);
-         }
          
          plugin_set_param(plug, ev->param_id, ev->value);
 
@@ -242,23 +256,7 @@ static void plugin_process_event(plugin_s *plug, const clap_event_header_t *hdr)
 
       case CLAP_EVENT_TRANSPORT: {
          const clap_event_transport_t *ev = (const clap_event_transport_t *)hdr;
-
-         if (ev->flags & CLAP_TRANSPORT_HAS_TEMPO) {
-            plug->bpm = ev->tempo;
-         } else {
-            plug->bpm = 60.0;
-         }
-
-         plug->is_playing = (ev->flags & CLAP_TRANSPORT_IS_PLAYING) != 0;
-
-         if (ev->flags & CLAP_TRANSPORT_HAS_BEATS_TIMELINE) {
-            int64_t beats_int = ev->song_pos_beats / CLAP_BEATTIME_FACTOR;
-            int64_t beats_frac = ev->song_pos_beats % CLAP_BEATTIME_FACTOR;
-            plug->cur_beat = (double)beats_int + (double)beats_frac / CLAP_BEATTIME_FACTOR;
-         } else {
-            plug->cur_beat = 0;
-            plug->is_playing = false;
-         }
+         plugin_process_transport(plug, ev);
       }
 
       case CLAP_EVENT_MIDI: {
@@ -888,6 +886,10 @@ static clap_process_status plugin_process(const struct clap_plugin *plugin, cons
 
    if (plug->gui)
       process_gui_events(plug, process->out_events);
+
+   if (process->transport) {
+      plugin_process_transport(plug, process->transport);
+   }
 
    const double sample_len = 1.0 / plug->sample_rate;
    const double beats_per_sec = plug->bpm / 60.0;
