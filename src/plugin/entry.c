@@ -185,20 +185,22 @@ static void plugin_process_transport(plugin_s *plug, const clap_event_transport_
    if (ev->flags & CLAP_TRANSPORT_HAS_TEMPO) {
       plug->bpm = ev->tempo;
    } else {
-      plug->bpm = 60.0;
+      plug->bpm = 150.0;
    }
 
-   plug->is_playing = (ev->flags & CLAP_TRANSPORT_IS_PLAYING) != 0;
+   bool is_playing = (ev->flags & CLAP_TRANSPORT_IS_PLAYING) != 0;
 
-   if (ev->flags & CLAP_TRANSPORT_HAS_BEATS_TIMELINE) {
-      if (plug->is_playing) {
+   // if playing state changed, update current beat from transport event.
+   // otherwise plugin should increment cur beat on its own using bpm info.
+   if (is_playing != plug->is_playing) {
+      if (ev->flags & CLAP_TRANSPORT_HAS_BEATS_TIMELINE) {
          int64_t beats_int = ev->song_pos_beats / CLAP_BEATTIME_FACTOR;
          int64_t beats_frac = ev->song_pos_beats % CLAP_BEATTIME_FACTOR;
          plug->cur_beat = (double)beats_int + (double)beats_frac / CLAP_BEATTIME_FACTOR;
       }
-   } else {
-      plug->is_playing = false;
    }
+
+   plug->is_playing = is_playing;
 }
 
 static void plugin_process_event(plugin_s *plug, const clap_event_header_t *hdr) {
@@ -934,10 +936,8 @@ static clap_process_status plugin_process(const struct clap_plugin *plugin, cons
          process->audio_outputs[0].data32[0][i] = plug->process_block[buffer_idx++];
          process->audio_outputs[0].data32[1][i] = plug->process_block[buffer_idx++];
       }
-
-      if (!plug->is_playing) {
-         plug->cur_beat += sample_len * frame_count / beats_per_sec;
-      }
+      
+      plug->cur_beat += beats_per_sec * sample_len * frame_count;
    }
 
    enable_denormals(env);
@@ -986,7 +986,7 @@ clap_plugin_t *plugin_create(const clap_host_t *host) {
       .plugin.get_extension = plugin_get_extension,
       .plugin.on_main_thread = plugin_on_main_thread,
 
-      .bpm = 60.0
+      .bpm = 150.0
    };
 
    // Don't call into the host here
