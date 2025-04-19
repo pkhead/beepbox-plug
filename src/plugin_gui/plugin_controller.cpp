@@ -64,7 +64,11 @@ void PluginController::graphicsClose() {
     #endif
 }
 
-PluginController::PluginController(beepbox::bpbx_inst_s *instrument) : instrument(instrument) {
+PluginController::PluginController(bpbx_inst_s *instrument) :
+    instrument(instrument),
+    plugin_to_gui(GUI_EVENT_QUEUE_SIZE),
+    gui_to_plugin(GUI_EVENT_QUEUE_SIZE)
+{
     showAbout = false;
 
     // initialize copy of plugin state
@@ -72,18 +76,18 @@ PluginController::PluginController(beepbox::bpbx_inst_s *instrument) : instrumen
 }
 
 void PluginController::sync() {
-    beepbox::bpbx_inst_type_e type = beepbox::bpbx_inst_type(instrument);
+    bpbx_inst_type_e type = bpbx_inst_type(instrument);
     constexpr uint32_t param_count = sizeof(params)/sizeof(*params);
-    assert(beepbox::bpbx_param_count(type) == param_count);
+    assert(bpbx_param_count(type) == param_count);
 
     for (int i = 0; i < param_count; i++) {
-        beepbox::bpbx_inst_get_param_double(instrument, i, params+i);
+        bpbx_inst_get_param_double(instrument, i, params+i);
     }
 
     envelopes.clear();
     envelopes.reserve(BPBX_MAX_ENVELOPE_COUNT);
-    envelopes.resize(beepbox::bpbx_inst_envelope_count(instrument));
-    memcpy(envelopes.data(), beepbox::bpbx_inst_get_envelope(instrument, 0), sizeof(bpbx_envelope_s) * envelopes.size());
+    envelopes.resize(bpbx_inst_envelope_count(instrument));
+    memcpy(envelopes.data(), bpbx_inst_get_envelope(instrument, 0), sizeof(bpbx_envelope_s) * envelopes.size());
 }
 
 void PluginController::updateParams() {
@@ -299,8 +303,8 @@ void PluginController::drawEnvelopes() {
 
     if (ImGui::Button("Add")) {
         if (envelopes.size() < BPBX_MAX_ENVELOPE_COUNT) {
-            beepbox::bpbx_envelope_s new_env {};
-            new_env.index = beepbox::BPBX_ENV_INDEX_NONE;
+            bpbx_envelope_s new_env {};
+            new_env.index = BPBX_ENV_INDEX_NONE;
             new_env.curve_preset = 0,
             envelopes.push_back(new_env);
 
@@ -310,14 +314,14 @@ void PluginController::drawEnvelopes() {
         }
     }
 
-    beepbox::bpbx_inst_type_e instType = beepbox::bpbx_inst_type(instrument);
-    const char **curveNames = beepbox::bpbx_envelope_curve_preset_names();
+    bpbx_inst_type_e instType = bpbx_inst_type(instrument);
+    const char **curveNames = bpbx_envelope_curve_preset_names();
 
     for (int envIndex = 0; envIndex < envelopes.size(); envIndex++) {
         bpbx_envelope_s &env = envelopes[envIndex];
         bool isEnvDirty = false;
 
-        const char *envTargetStr = beepbox::bpbx_envelope_index_name(env.index);
+        const char *envTargetStr = bpbx_envelope_index_name(env.index);
         assert(envTargetStr);
 
         ImGui::PushID(envIndex);
@@ -332,13 +336,13 @@ void PluginController::drawEnvelopes() {
         // envelope target combobox
         ImGui::SetNextItemWidth(itemWidth);
         if (ImGui::BeginCombo("##target", envTargetStr)) {
-            std::vector<beepbox::bpbx_envelope_compute_index_e> targets;
-            targets.push_back(beepbox::BPBX_ENV_INDEX_NONE);
-            targets.push_back(beepbox::BPBX_ENV_INDEX_NOTE_VOLUME);
+            std::vector<bpbx_envelope_compute_index_e> targets;
+            targets.push_back(BPBX_ENV_INDEX_NONE);
+            targets.push_back(BPBX_ENV_INDEX_NOTE_VOLUME);
 
             {
                 int size;
-                const bpbx_envelope_compute_index_e *instTargets = beepbox::bpbx_envelope_targets(instType, &size);
+                const bpbx_envelope_compute_index_e *instTargets = bpbx_envelope_targets(instType, &size);
                 targets.reserve(targets.size() + size);
 
                 for (int i = 0; i < size; i++) {
@@ -347,7 +351,7 @@ void PluginController::drawEnvelopes() {
             }
 
             for (int i = 0; i < targets.size(); i++) {
-                const char *name = beepbox::bpbx_envelope_index_name(targets[i]);
+                const char *name = bpbx_envelope_index_name(targets[i]);
                 assert(name);
 
                 bool isSelected = env.index == targets[i];

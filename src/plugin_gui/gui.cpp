@@ -20,7 +20,7 @@ typedef struct plugin_gui_s {
     _simgui_state_t simgui_state;
     PluginController control;
 
-    plugin_gui_s(beepbox::bpbx_inst_s *inst) : control(inst) {} 
+    plugin_gui_s(bpbx_inst_s *inst) : control(inst) {} 
 } plugin_gui_s;
 
 void gui_event_enqueue(plugin_gui_s *iface, gui_event_queue_item_s item) {
@@ -265,7 +265,7 @@ bool gui_get_preferred_api(const char **api, bool *is_floating) {
     return true;
 }
 
-plugin_gui_s* gui_create(beepbox::bpbx_inst_s *instrument, const char *api, bool is_floating) {
+plugin_gui_s* gui_create(bpbx_inst_s *instrument, const char *api, bool is_floating) {
     plugin_gui_s *gui = new plugin_gui_s(instrument);
 
     if (openGuiCount == 0) {

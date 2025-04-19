@@ -8,17 +8,18 @@
 
 constexpr int GUI_EVENT_QUEUE_MASK = GUI_EVENT_QUEUE_SIZE-1;
 
-template <typename T, size_t SIZE>
+template <typename T>
 struct EventQueue {
 private:
-    T data[SIZE];
+    T *data;
     std::atomic_size_t write_ptr;
     std::atomic_size_t read_ptr;
 
 public:
-    EventQueue() {};
+    EventQueue(size_t size) noexcept : data(new T[size]) {};
     EventQueue(EventQueue&) = delete;
     EventQueue operator=(EventQueue&) = delete;
+    ~EventQueue() noexcept { delete[] data; }
 
     void enqueue(const T &item) {
         uint32_t ptr = write_ptr.load();
@@ -43,12 +44,12 @@ public:
 // ImGui gui for plugin controller
 class PluginController {
 private:
-    beepbox::bpbx_inst_s *const instrument;
+    bpbx_inst_s *const instrument;
 
     bool showAbout;
     double params[BPBX_BASE_PARAM_COUNT + BPBX_FM_PARAM_COUNT];
 
-    std::vector<beepbox::bpbx_envelope_s> envelopes;
+    std::vector<bpbx_envelope_s> envelopes;
 
     void updateParams();
     void sliderParameter(uint32_t paramId, const char *id, float v_min, float v_max, const char *fmt = "%.3f", bool normalized = false);
@@ -62,7 +63,7 @@ private:
     void paramChange(uint32_t param_id, double value);
     void paramGestureEnd(uint32_t param_id);
 public:
-    PluginController(beepbox::bpbx_inst_s *instrument);
+    PluginController(bpbx_inst_s *instrument);
 
     static void graphicsInit();
     static void graphicsClose();
@@ -71,6 +72,6 @@ public:
     void event(platform::Event ev, platform::Window *window);
     void draw(platform::Window *window);
 
-    EventQueue<gui_event_queue_item_s, GUI_EVENT_QUEUE_SIZE> gui_to_plugin;
-    EventQueue<gui_event_queue_item_s, GUI_EVENT_QUEUE_SIZE> plugin_to_gui;
+    EventQueue<gui_event_queue_item_s> gui_to_plugin;
+    EventQueue<gui_event_queue_item_s> plugin_to_gui;
 }; // class PluginController
