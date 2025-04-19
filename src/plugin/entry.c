@@ -78,7 +78,7 @@ typedef struct {
    const clap_host_thread_check_t *host_thread_check;
    const clap_host_state_t *host_state;
    
-   inst_s *instrument;
+   bpbx_inst_s *instrument;
    float *process_block;
 
    double sample_rate;
@@ -88,18 +88,18 @@ typedef struct {
 } plugin_s;
 
 static bool plugin_set_param(plugin_s *plug, int id, double value) {
-   inst_type_e type = inst_type(plug->instrument);
-   const inst_param_info_s *info = inst_param_info(type, id);
+   bpbx_inst_type_e type = bpbx_inst_type(plug->instrument);
+   const bpbx_inst_param_info_s *info = bpbx_param_info(type, id);
    if (!info) return false;
    
    switch (info->type) {
-      case PARAM_UINT8:
-      case PARAM_INT:
-         inst_set_param_int(plug->instrument, id, (int)value);
+      case BPBX_PARAM_UINT8:
+      case BPBX_PARAM_INT:
+         bpbx_inst_set_param_int(plug->instrument, id, (int)value);
          break;
 
-      case PARAM_DOUBLE:
-         inst_set_param_double(plug->instrument, id, value);
+      case BPBX_PARAM_DOUBLE:
+         bpbx_inst_set_param_double(plug->instrument, id, value);
          break;
    }
    
@@ -164,15 +164,15 @@ static void process_gui_events(plugin_s *plug, const clap_output_events_t *out_e
          }
 
          case GUI_EVENT_ADD_ENVELOPE:
-            inst_add_envelope(plug->instrument);
+            bpbx_inst_add_envelope(plug->instrument);
             break;
 
          case GUI_EVENT_MODIFY_ENVELOPE:
-            *inst_get_envelope(plug->instrument, item.modify_envelope.index) = item.modify_envelope.envelope;
+            *bpbx_inst_get_envelope(plug->instrument, item.modify_envelope.index) = item.modify_envelope.envelope;
             break;
          
          case GUI_EVENT_REMOVE_ENVELOPE:
-            inst_remove_envelope(plug->instrument, item.envelope_removal.index);
+            bpbx_inst_remove_envelope(plug->instrument, item.envelope_removal.index);
             break;
 
          default:
@@ -207,7 +207,7 @@ static void plugin_process_event(plugin_s *plug, const clap_event_header_t *hdr)
       case CLAP_EVENT_NOTE_ON: {
          const clap_event_note_t *ev = (const clap_event_note_t *)hdr;
 
-         inst_midi_on(plug->instrument, ev->key, (int)(ev->velocity * 127.0));
+         bpbx_inst_midi_on(plug->instrument, ev->key, (int)(ev->velocity * 127.0));
          
          break;
       }
@@ -215,7 +215,7 @@ static void plugin_process_event(plugin_s *plug, const clap_event_header_t *hdr)
       case CLAP_EVENT_NOTE_OFF: {
          const clap_event_note_t *ev = (const clap_event_note_t *)hdr;
 
-         inst_midi_off(plug->instrument, ev->key, 0);
+         bpbx_inst_midi_off(plug->instrument, ev->key, 0);
          
          break;
       }
@@ -266,12 +266,12 @@ static void plugin_process_event(plugin_s *plug, const clap_event_header_t *hdr)
 
          // off
          if ((status == 0x80) || ((status == 0x90) && ev->data[2] == 0)) {
-            inst_midi_off(plug->instrument, ev->data[1], ev->data[2]);
+            bpbx_inst_midi_off(plug->instrument, ev->data[1], ev->data[2]);
          }
          
          // on
          else if (status == 0x90) {
-            inst_midi_on(plug->instrument, ev->data[1], ev->data[2]);
+            bpbx_inst_midi_on(plug->instrument, ev->data[1], ev->data[2]);
          }
 
          break;
@@ -435,21 +435,21 @@ bool plugin_state_save(const clap_plugin_t *plugin, const clap_ostream_t *stream
    ERRCHK(stream_write_prim(stream, &save_version, sizeof(save_version)));
 
    // write synth version
-   uint32_t synth_maj = BEEPBOX_VERSION_MAJOR;
-   uint32_t synth_min = BEEPBOX_VERSION_MINOR;
-   uint32_t synth_rev = BEEPBOX_VERSION_REVISION;
+   uint32_t synth_maj = BPBX_VERSION_MAJOR;
+   uint32_t synth_min = BPBX_VERSION_MINOR;
+   uint32_t synth_rev = BPBX_VERSION_REVISION;
    ERRCHK(stream_write_prim(stream, &synth_maj, sizeof(synth_maj)));
    ERRCHK(stream_write_prim(stream, &synth_min, sizeof(synth_min)));
    ERRCHK(stream_write_prim(stream, &synth_rev, sizeof(synth_rev)));
 
    // first, write parameter data
-   inst_type_e type = inst_type(plug->instrument);
+   bpbx_inst_type_e type = bpbx_inst_type(plug->instrument);
 
-   uint8_t param_count = (uint8_t) inst_param_count(type);
+   uint8_t param_count = (uint8_t) bpbx_param_count(type);
    ERRCHK(stream_write_prim(stream, &param_count, sizeof(param_count)));
 
    for (unsigned int i = 0; i < param_count; i++) {
-      const inst_param_info_s *info = inst_param_info(type, i);
+      const bpbx_inst_param_info_s *info = bpbx_param_info(type, i);
       if (info == NULL) return false;
 
       // store type data - redundant, but whatever
@@ -457,25 +457,25 @@ bool plugin_state_save(const clap_plugin_t *plugin, const clap_ostream_t *stream
       ERRCHK(stream_write_prim(stream, &p_type, sizeof(p_type)));
 
       switch (info->type) {
-         case PARAM_UINT8: {
+         case BPBX_PARAM_UINT8: {
             int intv;
-            if (inst_get_param_int(plug->instrument, i, &intv)) return false;
+            if (bpbx_inst_get_param_int(plug->instrument, i, &intv)) return false;
 
             uint8_t uintv = (uint8_t)intv;
             ERRCHK(stream_write_prim(stream, &uintv, sizeof(uintv)));
             break;
          }
 
-         case PARAM_INT: {
+         case BPBX_PARAM_INT: {
             int v;
-            if (inst_get_param_int(plug->instrument, i, &v)) return false;
+            if (bpbx_inst_get_param_int(plug->instrument, i, &v)) return false;
             ERRCHK(stream_write_prim(stream, &v, sizeof(v)));
             break;
          }
 
-         case PARAM_DOUBLE: {
+         case BPBX_PARAM_DOUBLE: {
             double v;
-            if (inst_get_param_double(plug->instrument, i, &v)) return false;
+            if (bpbx_inst_get_param_double(plug->instrument, i, &v)) return false;
             ERRCHK(stream_write_prim(stream, &v, sizeof(v)));
             break;
          }
@@ -483,11 +483,11 @@ bool plugin_state_save(const clap_plugin_t *plugin, const clap_ostream_t *stream
    }
 
    // second, write envelope data
-   uint8_t envelope_count = inst_envelope_count(plug->instrument);
+   uint8_t envelope_count = bpbx_inst_envelope_count(plug->instrument);
    ERRCHK(stream_write_prim(stream, &envelope_count, sizeof(envelope_count)));
 
    for (uint8_t i = 0; i < envelope_count; i++) {
-      const envelope_s *env = inst_get_envelope(plug->instrument, i);
+      const bpbx_envelope_s *env = bpbx_inst_get_envelope(plug->instrument, i);
       if (env == NULL) return false;
 
       ERRCHK(stream_write_prim(stream, &env->index, sizeof(env->index)));
@@ -515,20 +515,20 @@ bool plugin_state_load(const clap_plugin_t *plugin, const clap_istream_t *stream
    ERRCHK(stream_read_prim(stream, &synth_min, sizeof(synth_min)));
    ERRCHK(stream_read_prim(stream, &synth_rev, sizeof(synth_rev)));
 
-   if (synth_maj != BEEPBOX_VERSION_MAJOR) return false;
-   if (synth_min != BEEPBOX_VERSION_MINOR) return false;
-   if (synth_rev != BEEPBOX_VERSION_REVISION) return false;
+   if (synth_maj != BPBX_VERSION_MAJOR) return false;
+   if (synth_min != BPBX_VERSION_MINOR) return false;
+   if (synth_rev != BPBX_VERSION_REVISION) return false;
 
    // read parameters
-   inst_type_e type = inst_type(plug->instrument);
+   bpbx_inst_type_e type = bpbx_inst_type(plug->instrument);
 
    uint8_t param_count;
    ERRCHK(stream_read_prim(stream, &param_count, sizeof(param_count)));
 
-   if (param_count != (uint8_t)inst_param_count(type)) return false;
+   if (param_count != (uint8_t)bpbx_param_count(type)) return false;
 
    for (unsigned int i = 0; i < param_count; i++) {
-      const inst_param_info_s *info = inst_param_info(type, i);
+      const bpbx_inst_param_info_s *info = bpbx_param_info(type, i);
       if (info == NULL) return false;
 
       uint8_t p_type;
@@ -536,24 +536,24 @@ bool plugin_state_load(const clap_plugin_t *plugin, const clap_istream_t *stream
       if (p_type != (uint8_t)info->type) return false;
 
       switch (p_type) {
-         case PARAM_UINT8: {
+         case BPBX_PARAM_UINT8: {
             uint8_t v;
             ERRCHK(stream_read_prim(stream, &v, sizeof(v)));
-            inst_set_param_int(plug->instrument, i, v);
+            bpbx_inst_set_param_int(plug->instrument, i, v);
             break;
          }
 
-         case PARAM_INT: {
+         case BPBX_PARAM_INT: {
             int v;
             ERRCHK(stream_read_prim(stream, &v, sizeof(v)));
-            inst_set_param_int(plug->instrument, i, v);
+            bpbx_inst_set_param_int(plug->instrument, i, v);
             break;
          }
 
-         case PARAM_DOUBLE: {
+         case BPBX_PARAM_DOUBLE: {
             double v;
             ERRCHK(stream_read_prim(stream, &v, sizeof(v)));
-            inst_set_param_double(plug->instrument, i, v);
+            bpbx_inst_set_param_double(plug->instrument, i, v);
             break;
          }
       }
@@ -563,9 +563,9 @@ bool plugin_state_load(const clap_plugin_t *plugin, const clap_istream_t *stream
    uint8_t envelope_count;
    ERRCHK(stream_read_prim(stream, &envelope_count, sizeof(envelope_count)));
 
-   inst_clear_envelopes(plug->instrument);
+   bpbx_inst_clear_envelopes(plug->instrument);
    for (uint8_t i = 0; i < envelope_count; i++) {
-      envelope_s *env = inst_add_envelope(plug->instrument);
+      bpbx_envelope_s *env = bpbx_inst_add_envelope(plug->instrument);
       ERRCHK(stream_read_prim(stream, &env->index, sizeof(env->index)));
       ERRCHK(stream_read_prim(stream, &env->curve_preset, sizeof(env->curve_preset)));
    }
@@ -590,13 +590,13 @@ static const clap_plugin_state_t s_plugin_state = {
 
 uint32_t plugin_params_count(const clap_plugin_t *plugin) {
    plugin_s *plug = plugin->plugin_data;
-   return (uint32_t) inst_param_count(inst_type(plug->instrument));
+   return (uint32_t) bpbx_param_count(bpbx_inst_type(plug->instrument));
 }
 
 bool plugin_params_get_info(const clap_plugin_t *plugin, uint32_t param_index, clap_param_info_t *param_info) {
    plugin_s *plug = plugin->plugin_data;
 
-   const inst_param_info_s *info = inst_param_info(inst_type(plug->instrument), (unsigned int)param_index);
+   const bpbx_inst_param_info_s *info = bpbx_param_info(bpbx_inst_type(plug->instrument), (unsigned int)param_index);
    if (info == NULL)
       return false;
 
@@ -609,7 +609,7 @@ bool plugin_params_get_info(const clap_plugin_t *plugin, uint32_t param_index, c
    param_info->max_value = info->max_value;
 
    param_info->flags = CLAP_PARAM_IS_AUTOMATABLE;
-   if (info->type == PARAM_UINT8 || info->type == PARAM_INT) {
+   if (info->type == BPBX_PARAM_UINT8 || info->type == BPBX_PARAM_INT) {
       param_info->flags |= CLAP_PARAM_IS_STEPPED;
 
       if (info->enum_values) param_info->flags |= CLAP_PARAM_IS_ENUM;
@@ -625,7 +625,7 @@ bool plugin_params_get_info(const clap_plugin_t *plugin, uint32_t param_index, c
 bool plugin_params_get_value(const clap_plugin_t *plugin, clap_id param_id, double *out_value) {
    plugin_s *plug = plugin->plugin_data;
 
-   return !inst_get_param_double(plug->instrument, param_id, out_value);
+   return !bpbx_inst_get_param_double(plug->instrument, param_id, out_value);
 }
 
 bool plugin_params_value_to_text(
@@ -635,13 +635,13 @@ bool plugin_params_value_to_text(
 ) {
    plugin_s *plug = plugin->plugin_data;
 
-   const inst_param_info_s *info = inst_param_info(inst_type(plug->instrument), param_id);
+   const bpbx_inst_param_info_s *info = bpbx_param_info(bpbx_inst_type(plug->instrument), param_id);
    if (info == NULL)
       return false;
 
    switch (info->type) {
-      case PARAM_UINT8:
-      case PARAM_INT: {
+      case BPBX_PARAM_UINT8:
+      case BPBX_PARAM_INT: {
          if (info->enum_values) {
             snprintf(out_buf, out_buf_capacity, "%s", info->enum_values[(int)value]);
          } else {
@@ -651,7 +651,7 @@ bool plugin_params_value_to_text(
          break;
       }
 
-      case PARAM_DOUBLE: {
+      case BPBX_PARAM_DOUBLE: {
          snprintf(out_buf, out_buf_capacity, "%.1f", value);
          break;
       }
@@ -666,13 +666,13 @@ bool plugin_params_value_to_text(
 bool plugin_params_text_to_value(const clap_plugin_t *plugin, clap_id param_id, const char *param_value_text, double *out_value) {
    plugin_s *plug = plugin->plugin_data;
 
-   const inst_param_info_s *info = inst_param_info(inst_type(plug->instrument), param_id);
+   const bpbx_inst_param_info_s *info = bpbx_param_info(bpbx_inst_type(plug->instrument), param_id);
    if (info == NULL)
       return false;
 
    switch (info->type) {
-      case PARAM_UINT8:
-      case PARAM_INT:
+      case BPBX_PARAM_UINT8:
+      case BPBX_PARAM_INT:
          if (info->enum_values) {
             int end_value = (int)info->max_value;
             for (int i = (int)info->min_value; i <= end_value; i++) {
@@ -691,7 +691,7 @@ bool plugin_params_text_to_value(const clap_plugin_t *plugin, clap_id param_id, 
 
          break;
 
-      case PARAM_DOUBLE:
+      case BPBX_PARAM_DOUBLE:
          *out_value = atof(param_value_text);
          break;
 
@@ -841,7 +841,7 @@ static bool plugin_init(const struct clap_plugin *plugin) {
    plug->host_latency = (const clap_host_latency_t *)plug->host->get_extension(plug->host, CLAP_EXT_LATENCY);
    plug->host_state = (const clap_host_state_t *)plug->host->get_extension(plug->host, CLAP_EXT_STATE);
 
-   plug->instrument = inst_new(INSTRUMENT_FM);
+   plug->instrument = bpbx_inst_new(BPBX_INSTRUMENT_FM);
 
    return true;
 }
@@ -850,7 +850,7 @@ static void plugin_destroy(const struct clap_plugin *plugin) {
    plugin_s *plug = plugin->plugin_data;
 
    if (plug->instrument)
-      inst_destroy(plug->instrument);
+      bpbx_inst_destroy(plug->instrument);
 
    free(plug);
 }
@@ -859,7 +859,7 @@ static bool plugin_activate(const struct clap_plugin *plugin, double sample_rate
    plugin_s *plug = plugin->plugin_data;
    
    plug->sample_rate = sample_rate;
-   inst_set_sample_rate(plug->instrument, plug->sample_rate);
+   bpbx_inst_set_sample_rate(plug->instrument, plug->sample_rate);
 
    free(plug->process_block);
    plug->process_block = malloc(max_frames_count * sizeof(float) * 2);
@@ -920,7 +920,7 @@ static clap_process_status plugin_process(const struct clap_plugin *plugin, cons
 
       /* process every samples until the next event */
       uint32_t frame_count = next_ev_frame - i;
-      inst_run(plug->instrument, &(run_ctx_s){
+      bpbx_inst_run(plug->instrument, &(bpbx_run_ctx_s){
          .bpm = plug->bpm,
          .beat = plug->cur_beat,
          

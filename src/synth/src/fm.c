@@ -55,8 +55,8 @@ typedef struct {
     double amplitude_sign;
 } fm_freq_data_s;
 
-static fm_freq_data_s frequency_data[FM_FREQ_COUNT];
-static int algo_associated_carriers[FM_ALGORITHM_COUNT][4];
+static fm_freq_data_s frequency_data[BPBX_FM_FREQ_COUNT];
+static int algo_associated_carriers[BPBX_FM_ALGORITHM_COUNT][4];
 static double carrier_intervals[FM_OP_COUNT];
 
 #define EXPRESSION_REFERENCE_PITCH 16 // A low "E" as a MIDI pitch.
@@ -102,7 +102,7 @@ static void setup_algorithm(fm_inst_s *inst) {
 void fm_init(fm_inst_s *inst) {    
     memset(inst, 0, sizeof(*inst));
 
-    for (int i = 0; i < INST_MAX_VOICES; i++) {
+    for (int i = 0; i < BPBX_INST_MAX_VOICES; i++) {
         inst->voices[i].active = FALSE;
     }
 
@@ -121,14 +121,14 @@ void fm_init(fm_inst_s *inst) {
     inst->feedback = 0;
 }
 
-int fm_midi_on(inst_s *inst, int key, int velocity) {
+int fm_midi_on(bpbx_inst_s *inst, int key, int velocity) {
     fm_inst_s *const fm = inst->fm;
 
     float velocity_f = velocity / 127.f;
 
     int voice_index = 0;
 
-    for (int i = 0; i < INST_MAX_VOICES; i++) {
+    for (int i = 0; i < BPBX_INST_MAX_VOICES; i++) {
         if (fm->voices[i].active) continue;
         voice_index = i;
         break;
@@ -156,10 +156,10 @@ int fm_midi_on(inst_s *inst, int key, int velocity) {
     return voice_index;
 }
 
-void fm_midi_off(inst_s *inst, int key, int velocity) {
+void fm_midi_off(bpbx_inst_s *inst, int key, int velocity) {
     fm_inst_s *const fm = inst->fm;
     
-    for (int i = 0; i < INST_MAX_VOICES; i++) {
+    for (int i = 0; i < BPBX_INST_MAX_VOICES; i++) {
         fm_voice_s *voice = &fm->voices[i];
         if (voice->active && !voice->released && voice->key == key) {
             voice->released = 1;
@@ -176,7 +176,7 @@ typedef struct {
     double cur_beat;
 
     uint8_t envelope_count;
-    envelope_s *envelopes;
+    bpbx_envelope_s *envelopes;
 } tone_compute_s;
 
 static void compute_voice(const fm_inst_s *const inst, fm_voice_s *const voice, tone_compute_s compute_data) {
@@ -234,8 +234,8 @@ static void compute_voice(const fm_inst_s *const inst, fm_voice_s *const voice, 
         const double hz_offset = freq_data->hz_offset;
         const double target_freq = freq_mult * base_freq + hz_offset;
 
-        const double freq_env_start = voice->env_computer.envelope_starts[ENV_INDEX_OPERATOR_FREQ0 + op];
-        const double freq_env_end = voice->env_computer.envelope_ends[ENV_INDEX_OPERATOR_FREQ0 + op];
+        const double freq_env_start = voice->env_computer.envelope_starts[BPBX_ENV_INDEX_OPERATOR_FREQ0 + op];
+        const double freq_env_end = voice->env_computer.envelope_ends[BPBX_ENV_INDEX_OPERATOR_FREQ0 + op];
         double freq_start, freq_end;
         if (freq_env_start != 1.0 || freq_env_end != 1.0) {
             freq_start = pow(2.0, log2(target_freq / base_freq) * freq_env_start) * base_freq;
@@ -271,8 +271,8 @@ static void compute_voice(const fm_inst_s *const inst, fm_voice_s *const voice, 
             sine_expr_boost *= 1.0 - min(1.0, inst->amplitudes[op] / 15.0);
         }
 
-        double expression_start = expression * voice->env_computer.envelope_starts[ENV_INDEX_OPERATOR_AMP0 + op];
-        double expression_end = expression * voice->env_computer.envelope_ends[ENV_INDEX_OPERATOR_AMP0 + op];
+        double expression_start = expression * voice->env_computer.envelope_starts[BPBX_ENV_INDEX_OPERATOR_AMP0 + op];
+        double expression_end = expression * voice->env_computer.envelope_ends[BPBX_ENV_INDEX_OPERATOR_AMP0 + op];
 
         voice->op_states[op].expression = expression_start;
         voice->op_states[op].expression_delta = (expression_end - expression_start) / rounded_samples_per_tick;
@@ -282,14 +282,14 @@ static void compute_voice(const fm_inst_s *const inst, fm_voice_s *const voice, 
     sine_expr_boost *= 1.0 - min(1.0, max(0.0, total_carrier_expr - 1) / 2.0);
     sine_expr_boost = 1.0 + sine_expr_boost * 3.0;
 
-    const double expr_start = VOICE_BASE_EXPRESSION * sine_expr_boost * fade_expr_start * voice->env_computer.envelope_starts[ENV_INDEX_NOTE_VOLUME];
-    const double expr_end = VOICE_BASE_EXPRESSION * sine_expr_boost * fade_expr_end * voice->env_computer.envelope_ends[ENV_INDEX_NOTE_VOLUME];
+    const double expr_start = VOICE_BASE_EXPRESSION * sine_expr_boost * fade_expr_start * voice->env_computer.envelope_starts[BPBX_ENV_INDEX_NOTE_VOLUME];
+    const double expr_end = VOICE_BASE_EXPRESSION * sine_expr_boost * fade_expr_end * voice->env_computer.envelope_ends[BPBX_ENV_INDEX_NOTE_VOLUME];
     voice->expression = expr_start;
     voice->expression_delta = (expr_end - expr_start) / rounded_samples_per_tick;
 
     const double feedback_amplitude = SINE_WAVE_LENGTH * 0.3 * inst->feedback / 15.0;
-    const double feedback_start = feedback_amplitude * voice->env_computer.envelope_starts[ENV_INDEX_FEEDBACK_AMP];
-    const double feedback_end = feedback_amplitude * voice->env_computer.envelope_ends[ENV_INDEX_FEEDBACK_AMP];
+    const double feedback_start = feedback_amplitude * voice->env_computer.envelope_starts[BPBX_ENV_INDEX_FEEDBACK_AMP];
+    const double feedback_end = feedback_amplitude * voice->env_computer.envelope_ends[BPBX_ENV_INDEX_FEEDBACK_AMP];
     voice->feedback_mult = feedback_start;
     voice->feedback_delta = (feedback_end - feedback_start) / rounded_samples_per_tick;
 
@@ -299,7 +299,7 @@ static void compute_voice(const fm_inst_s *const inst, fm_voice_s *const voice, 
     }
 }
 
-void fm_run(inst_s *src_inst, const run_ctx_s *const run_ctx) {
+void fm_run(bpbx_inst_s *src_inst, const bpbx_run_ctx_s *const run_ctx) {
     const double sample_rate = src_inst->sample_rate;
     const size_t frame_count = run_ctx->frame_count;
     float *const out_samples = run_ctx->out_samples;
@@ -309,7 +309,7 @@ void fm_run(inst_s *src_inst, const run_ctx_s *const run_ctx) {
     fm_inst_s inst = *src_inst->fm;
     setup_algorithm(&inst);
 
-    fm_algo_f algo_func = fm_algorithm_table[inst.algorithm * FM_FEEDBACK_TYPE_COUNT + inst.feedback_type];
+    fm_algo_f algo_func = fm_algorithm_table[inst.algorithm * BPBX_FM_FEEDBACK_TYPE_COUNT + inst.feedback_type];
     const double samples_per_tick = calc_samples_per_tick(run_ctx->bpm, sample_rate);
     const double fade_in = src_inst->fade_in;
     const double fade_out = src_inst->fade_out;
@@ -319,7 +319,7 @@ void fm_run(inst_s *src_inst, const run_ctx_s *const run_ctx) {
     
     double inst_volume = inst_volume_to_mult(src_inst->volume);
 
-    for (int i = 0; i < INST_MAX_VOICES; i++) {
+    for (int i = 0; i < BPBX_INST_MAX_VOICES; i++) {
         fm_voice_s *voice = inst.voices + i;
         if (!voice->active) continue;
 
@@ -484,10 +484,10 @@ static const char *feedback_enum_values[] = {
     "1→2→3→4",
 };
 
-const inst_param_info_s fm_param_info[FM_PARAM_COUNT] = {
+const bpbx_inst_param_info_s fm_param_info[BPBX_FM_PARAM_COUNT] = {
     {
-        .type = PARAM_UINT8,
-        .flags = PARAM_FLAG_NO_AUTOMATION,
+        .type = BPBX_PARAM_UINT8,
+        .flags = BPBX_PARAM_FLAG_NO_AUTOMATION,
 
         .name = "Algorithm",
         .min_value = 0,
@@ -498,19 +498,19 @@ const inst_param_info_s fm_param_info[FM_PARAM_COUNT] = {
     },
 
     {
-        .type = PARAM_UINT8,
-        .flags = PARAM_FLAG_NO_AUTOMATION,
+        .type = BPBX_PARAM_UINT8,
+        .flags = BPBX_PARAM_FLAG_NO_AUTOMATION,
         .name = "Operator 1 Frequency",
         .envelope_name = "fm1 freq",
 
         .min_value = 0,
-        .max_value = FM_FREQ_COUNT-1,
+        .max_value = BPBX_FM_FREQ_COUNT-1,
         .default_value = 4,
 
         .enum_values = freq_enum_values
     },
     {
-        .type = PARAM_DOUBLE,
+        .type = BPBX_PARAM_DOUBLE,
         .name = "Operator 1 Volume",
         .envelope_name = "fm1 volume",
 
@@ -520,19 +520,19 @@ const inst_param_info_s fm_param_info[FM_PARAM_COUNT] = {
     },
 
     {
-        .type = PARAM_UINT8,
-        .flags = PARAM_FLAG_NO_AUTOMATION,
+        .type = BPBX_PARAM_UINT8,
+        .flags = BPBX_PARAM_FLAG_NO_AUTOMATION,
         .name = "Operator 2 Frequency",
         .envelope_name = "fm2 freq",
         
         .min_value = 0,
-        .max_value = FM_FREQ_COUNT-1,
+        .max_value = BPBX_FM_FREQ_COUNT-1,
         .default_value = 4,
 
         .enum_values = freq_enum_values
     },
     {
-        .type = PARAM_DOUBLE,
+        .type = BPBX_PARAM_DOUBLE,
         .name = "Operator 2 Volume",
         .envelope_name = "fm2 volume",
 
@@ -542,19 +542,19 @@ const inst_param_info_s fm_param_info[FM_PARAM_COUNT] = {
     },
 
     {
-        .type = PARAM_UINT8,
-        .flags = PARAM_FLAG_NO_AUTOMATION,
+        .type = BPBX_PARAM_UINT8,
+        .flags = BPBX_PARAM_FLAG_NO_AUTOMATION,
         .name = "Operator 3 Frequency",
         .envelope_name = "fm3 freq",
 
         .min_value = 0,
-        .max_value = FM_FREQ_COUNT-1,
+        .max_value = BPBX_FM_FREQ_COUNT-1,
         .default_value = 4,
         
         .enum_values = freq_enum_values
     },
     {
-        .type = PARAM_DOUBLE,
+        .type = BPBX_PARAM_DOUBLE,
         .name = "Operator 3 Volume",
         .envelope_name = "fm3 volume",
 
@@ -564,19 +564,19 @@ const inst_param_info_s fm_param_info[FM_PARAM_COUNT] = {
     },
 
     {
-        .type = PARAM_UINT8,
-        .flags = PARAM_FLAG_NO_AUTOMATION,
+        .type = BPBX_PARAM_UINT8,
+        .flags = BPBX_PARAM_FLAG_NO_AUTOMATION,
         .name = "Operator 4 Frequency",
         .envelope_name = "fm4 freq",
 
         .min_value = 0,
-        .max_value = FM_FREQ_COUNT-1,
+        .max_value = BPBX_FM_FREQ_COUNT-1,
         .default_value = 4,
         
         .enum_values = freq_enum_values
     },
     {
-        .type = PARAM_DOUBLE,
+        .type = BPBX_PARAM_DOUBLE,
         .name = "Operator 4 Volume",
         .envelope_name = "fm4 volume",
 
@@ -586,19 +586,19 @@ const inst_param_info_s fm_param_info[FM_PARAM_COUNT] = {
     },
 
     {
-        .type = PARAM_UINT8,
-        .flags = PARAM_FLAG_NO_AUTOMATION,
+        .type = BPBX_PARAM_UINT8,
+        .flags = BPBX_PARAM_FLAG_NO_AUTOMATION,
 
         .name = "Feedback Type",
         .min_value = 0,
-        .max_value = FM_FEEDBACK_TYPE_COUNT-1,
+        .max_value = BPBX_FM_FEEDBACK_TYPE_COUNT-1,
         .default_value = 0,
 
         .enum_values = feedback_enum_values
     },
 
     {
-        .type = PARAM_DOUBLE,
+        .type = BPBX_PARAM_DOUBLE,
         .name = "Feedback Volume",
         .envelope_name = "fm feedback",
 
@@ -608,19 +608,19 @@ const inst_param_info_s fm_param_info[FM_PARAM_COUNT] = {
     }
 };
 
-const envelope_compute_index_e fm_env_targets[FM_MOD_COUNT] = {
-    ENV_INDEX_OPERATOR_FREQ0,
-    ENV_INDEX_OPERATOR_AMP0,
-    ENV_INDEX_OPERATOR_FREQ1,
-    ENV_INDEX_OPERATOR_AMP1,
-    ENV_INDEX_OPERATOR_FREQ2,
-    ENV_INDEX_OPERATOR_AMP2,
-    ENV_INDEX_OPERATOR_FREQ3,
-    ENV_INDEX_OPERATOR_AMP3,
-    ENV_INDEX_FEEDBACK_AMP
+const bpbx_envelope_compute_index_e fm_env_targets[FM_MOD_COUNT] = {
+    BPBX_ENV_INDEX_OPERATOR_FREQ0,
+    BPBX_ENV_INDEX_OPERATOR_AMP0,
+    BPBX_ENV_INDEX_OPERATOR_FREQ1,
+    BPBX_ENV_INDEX_OPERATOR_AMP1,
+    BPBX_ENV_INDEX_OPERATOR_FREQ2,
+    BPBX_ENV_INDEX_OPERATOR_AMP2,
+    BPBX_ENV_INDEX_OPERATOR_FREQ3,
+    BPBX_ENV_INDEX_OPERATOR_AMP3,
+    BPBX_ENV_INDEX_FEEDBACK_AMP
 };
 
-const size_t fm_param_addresses[FM_PARAM_COUNT] = {
+const size_t fm_param_addresses[BPBX_FM_PARAM_COUNT] = {
     offsetof(fm_inst_s, algorithm),
     offsetof(fm_inst_s, freq_ratios[0]),
     offsetof(fm_inst_s, amplitudes[0]),
@@ -634,7 +634,7 @@ const size_t fm_param_addresses[FM_PARAM_COUNT] = {
     offsetof(fm_inst_s, feedback),
 };
 
-static fm_freq_data_s frequency_data[FM_FREQ_COUNT] = {
+static fm_freq_data_s frequency_data[BPBX_FM_FREQ_COUNT] = {
     { .mult = 0.125,    .hz_offset= 0.0,      .amplitude_sign = 1.0 },
     { .mult= 0.25,      .hz_offset= 0.0,      .amplitude_sign= 1.0 },
     { .mult= 0.5,       .hz_offset= 0.0,      .amplitude_sign= 1.0 },
@@ -678,7 +678,7 @@ static fm_freq_data_s frequency_data[FM_FREQ_COUNT] = {
     { .mult= 250.0,     .hz_offset= 0.0,      .amplitude_sign= 1.0},
 };
 
-static int algo_associated_carriers[FM_ALGORITHM_COUNT][4] = {
+static int algo_associated_carriers[BPBX_FM_ALGORITHM_COUNT][4] = {
     { 1, 1, 1, 1 },
     { 1, 1, 1, 1 },
     { 1, 1, 1, 1 },

@@ -10,8 +10,8 @@
 #define PARTS_PER_BEAT 24
 #define TICKS_PER_PART 2
 
-typedef struct inst {
-    inst_type_e type;
+typedef struct bpbx_inst_s {
+    bpbx_inst_type_e type;
     double sample_rate;
 
     double volume;
@@ -25,8 +25,8 @@ typedef struct inst {
 
     // envelopes
     uint8_t envelope_count;
-    envelope_s envelopes[MAX_ENVELOPE_COUNT];
-} inst_s;
+    bpbx_envelope_s envelopes[BPBX_MAX_ENVELOPE_COUNT];
+} bpbx_inst_s;
 
 double calc_samples_per_tick(double bpm, double sample_rate);
 double note_size_to_volume_mult(double size);

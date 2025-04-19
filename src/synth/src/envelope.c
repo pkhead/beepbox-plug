@@ -48,7 +48,7 @@ static double compute_envelope(const envelope_curve_preset_s *curve, double time
 }
 
 void envelope_computer_init(envelope_computer_s *env_computer) {
-    for (int i = 0; i < ENV_INDEX_COUNT; i++) {
+    for (int i = 0; i < BPBX_ENV_INDEX_COUNT; i++) {
         env_computer->envelope_starts[i] = 1.0;
         env_computer->envelope_ends[i] = 1.0;
     }
@@ -56,7 +56,7 @@ void envelope_computer_init(envelope_computer_s *env_computer) {
 
 void compute_envelopes(
     envelope_computer_s *env_computer,
-    const envelope_s *envelopes, unsigned int envelope_count,
+    const bpbx_envelope_s *envelopes, unsigned int envelope_count,
     double beat_start, double tick_time_start, double secs_per_tick
 ) {
     env_computer->note_secs_start = env_computer->note_secs_end;
@@ -68,13 +68,13 @@ void compute_envelopes(
     const double beats_time_start = beat_start;
     const double beats_time_end = beat_start + beats_per_tick;
 
-    for (int i = 0; i < ENV_INDEX_COUNT; i++) {
+    for (int i = 0; i < BPBX_ENV_INDEX_COUNT; i++) {
         env_computer->envelope_starts[i] = 1.0;
         env_computer->envelope_ends[i] = 1.0;
     }
 
     for (unsigned int i = 0; i < envelope_count; i++) {
-        const envelope_s *env = &envelopes[i];
+        const bpbx_envelope_s *env = &envelopes[i];
         const envelope_curve_preset_s curve = envelope_curve_presets[env->curve_preset];
 
         env_computer->envelope_starts[env->index] *= compute_envelope(&curve, env_computer->note_secs_start, beats_time_start, NOTE_SIZE_MAX, 0.0, 0.0);
@@ -90,7 +90,7 @@ void compute_envelopes(
 //  DATA  //
 ////////////
 
-const envelope_curve_preset_s envelope_curve_presets[ENVELOPE_CURVE_PRESET_COUNT] = {
+const envelope_curve_preset_s envelope_curve_presets[BPBX_ENVELOPE_CURVE_PRESET_COUNT] = {
     {
         .name = "none",
         .curve_type = ENV_CURVE_NONE,

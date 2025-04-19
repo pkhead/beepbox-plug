@@ -43,12 +43,12 @@ public:
 // ImGui gui for plugin controller
 class PluginController {
 private:
-    beepbox::inst_s *const instrument;
+    beepbox::bpbx_inst_s *const instrument;
 
     bool showAbout;
-    double params[BASE_PARAM_COUNT + FM_PARAM_COUNT];
+    double params[BPBX_BASE_PARAM_COUNT + BPBX_FM_PARAM_COUNT];
 
-    std::vector<beepbox::envelope_s> envelopes;
+    std::vector<beepbox::bpbx_envelope_s> envelopes;
 
     void updateParams();
     void sliderParameter(uint32_t paramId, const char *id, float v_min, float v_max, const char *fmt = "%.3f", bool normalized = false);
@@ -62,7 +62,7 @@ private:
     void paramChange(uint32_t param_id, double value);
     void paramGestureEnd(uint32_t param_id);
 public:
-    PluginController(beepbox::inst_s *instrument);
+    PluginController(beepbox::bpbx_inst_s *instrument);
 
     static void graphicsInit();
     static void graphicsClose();

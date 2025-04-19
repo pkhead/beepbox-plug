@@ -9,8 +9,8 @@
 #define FADE_OUT_MAX 6
 
 typedef struct {
-    double envelope_starts[ENV_INDEX_COUNT];
-    double envelope_ends[ENV_INDEX_COUNT];
+    double envelope_starts[BPBX_ENV_INDEX_COUNT];
+    double envelope_ends[BPBX_ENV_INDEX_COUNT];
     double tick;
     double note_secs_start;
     double note_secs_end;
@@ -45,10 +45,10 @@ void envelope_computer_init(envelope_computer_s *env_computer);
 
 void compute_envelopes(
     envelope_computer_s *env_computer,
-    const envelope_s *envelopes, unsigned int envelope_count,
+    const bpbx_envelope_s *envelopes, unsigned int envelope_count,
     double beat_start, double tick_time_start, double secs_per_tick
 );
 
-extern const envelope_curve_preset_s envelope_curve_presets[ENVELOPE_CURVE_PRESET_COUNT];
+extern const envelope_curve_preset_s envelope_curve_presets[BPBX_ENVELOPE_CURVE_PRESET_COUNT];
 
 #endif

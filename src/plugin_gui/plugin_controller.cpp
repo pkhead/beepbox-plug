@@ -64,7 +64,7 @@ void PluginController::graphicsClose() {
     #endif
 }
 
-PluginController::PluginController(beepbox::inst_s *instrument) : instrument(instrument) {
+PluginController::PluginController(beepbox::bpbx_inst_s *instrument) : instrument(instrument) {
     showAbout = false;
 
     // initialize copy of plugin state
@@ -72,18 +72,18 @@ PluginController::PluginController(beepbox::inst_s *instrument) : instrument(ins
 }
 
 void PluginController::sync() {
-    beepbox::inst_type_e type = beepbox::inst_type(instrument);
+    beepbox::bpbx_inst_type_e type = beepbox::bpbx_inst_type(instrument);
     constexpr uint32_t param_count = sizeof(params)/sizeof(*params);
-    assert(beepbox::inst_param_count(type) == param_count);
+    assert(beepbox::bpbx_param_count(type) == param_count);
 
     for (int i = 0; i < param_count; i++) {
-        beepbox::inst_get_param_double(instrument, i, params+i);
+        beepbox::bpbx_inst_get_param_double(instrument, i, params+i);
     }
 
     envelopes.clear();
-    envelopes.reserve(MAX_ENVELOPE_COUNT);
-    envelopes.resize(beepbox::inst_envelope_count(instrument));
-    memcpy(envelopes.data(), beepbox::inst_get_envelope(instrument, 0), sizeof(envelope_s) * envelopes.size());
+    envelopes.reserve(BPBX_MAX_ENVELOPE_COUNT);
+    envelopes.resize(beepbox::bpbx_inst_envelope_count(instrument));
+    memcpy(envelopes.data(), beepbox::bpbx_inst_get_envelope(instrument, 0), sizeof(bpbx_envelope_s) * envelopes.size());
 }
 
 void PluginController::updateParams() {
@@ -179,33 +179,33 @@ void PluginController::drawFmGui(ImGuiWindowFlags winFlags) {
         "1.", "2.", "3.", "4."
     };
 
-    int p_algo = (int) params[FM_PARAM_ALGORITHM];
+    int p_algo = (int) params[BPBX_FM_PARAM_ALGORITHM];
     int p_freq[4] = {
-        (int) params[FM_PARAM_FREQ1],
-        (int) params[FM_PARAM_FREQ2],
-        (int) params[FM_PARAM_FREQ3],
-        (int) params[FM_PARAM_FREQ4],
+        (int) params[BPBX_FM_PARAM_FREQ1],
+        (int) params[BPBX_FM_PARAM_FREQ2],
+        (int) params[BPBX_FM_PARAM_FREQ3],
+        (int) params[BPBX_FM_PARAM_FREQ4],
     };
-    int p_fdbkType = (int) params[FM_PARAM_FEEDBACK_TYPE];
+    int p_fdbkType = (int) params[BPBX_FM_PARAM_FEEDBACK_TYPE];
     
     if (ImGui::Begin("fm", NULL, winFlags)) {
         // volume
         ImGui::AlignTextToFramePadding();
         ImGui::Text("Volume");
         ImGui::SameLine();
-        sliderParameter(PARAM_VOLUME, "##volume", -25.0, 25.0, "%.0f");
+        sliderParameter(BPBX_PARAM_VOLUME, "##volume", -25.0, 25.0, "%.0f");
 
         // fade in
         ImGui::AlignTextToFramePadding();
         ImGui::Text("Fadein");
         ImGui::SameLine();
-        sliderParameter(PARAM_FADE_IN, "##fadein", 0.0, 9.0, "%.0f");
+        sliderParameter(BPBX_PARAM_FADE_IN, "##fadein", 0.0, 9.0, "%.0f");
 
         // fade out
         ImGui::AlignTextToFramePadding();
         ImGui::Text("Fadeout");
         ImGui::SameLine();
-        sliderParameter(PARAM_FADE_OUT, "##fadeout", -4.0, 6.0, "%.0f");
+        sliderParameter(BPBX_PARAM_FADE_OUT, "##fadeout", -4.0, 6.0, "%.0f");
 
         // algorithm
         ImGui::AlignTextToFramePadding();
@@ -216,13 +216,13 @@ void PluginController::drawFmGui(ImGuiWindowFlags winFlags) {
         ImGui::SetNextItemWidth(-FLT_MIN);
 
         {
-            const inst_param_info_s *p_info = inst_param_info(inst_type(instrument), FM_PARAM_ALGORITHM);
+            const bpbx_inst_param_info_s *p_info = bpbx_param_info(bpbx_inst_type(instrument), BPBX_FM_PARAM_ALGORITHM);
             assert(p_info);
             const char **algoNames = p_info->enum_values;
             if (ImGui::Combo("##algo", &p_algo, algoNames, 13)) {
-                paramGestureBegin(FM_PARAM_ALGORITHM);
-                paramChange(FM_PARAM_ALGORITHM, (double)p_algo);
-                paramGestureEnd(FM_PARAM_ALGORITHM);
+                paramGestureBegin(BPBX_FM_PARAM_ALGORITHM);
+                paramChange(BPBX_FM_PARAM_ALGORITHM, (double)p_algo);
+                paramGestureEnd(BPBX_FM_PARAM_ALGORITHM);
             }
         }
 
@@ -236,13 +236,13 @@ void PluginController::drawFmGui(ImGuiWindowFlags winFlags) {
             ImGui::SetNextItemWidth(algoEndX - ImGui::GetCursorPosX() - ImGui::GetStyle().ItemSpacing.x);
             //ImGui::Text("%i", gui->freq[op]);
 
-            const uint32_t id = FM_PARAM_FREQ1 + op * 2;
+            const uint32_t id = BPBX_FM_PARAM_FREQ1 + op * 2;
 
-            const inst_param_info_s *p_info = inst_param_info(inst_type(instrument), id);
+            const bpbx_inst_param_info_s *p_info = bpbx_param_info(bpbx_inst_type(instrument), id);
             assert(p_info);
             const char **freqRatios = p_info->enum_values;
 
-            if (ImGui::Combo("##freq", &p_freq[op], freqRatios, FM_FREQ_COUNT, ImGuiComboFlags_HeightLargest)) {
+            if (ImGui::Combo("##freq", &p_freq[op], freqRatios, BPBX_FM_FREQ_COUNT, ImGuiComboFlags_HeightLargest)) {
 
                 paramGestureBegin(id);
                 paramChange(id, p_freq[op]);
@@ -257,7 +257,7 @@ void PluginController::drawFmGui(ImGuiWindowFlags winFlags) {
 
             ImGui::SameLine();
             ImGui::SetNextItemWidth(-FLT_MIN);
-            sliderParameter(FM_PARAM_VOLUME1 + op*2, "##vol", 0.0f, 15.0f, "%.0f");
+            sliderParameter(BPBX_FM_PARAM_VOLUME1 + op*2, "##vol", 0.0f, 15.0f, "%.0f");
             ImGui::PopID();
         }
 
@@ -269,14 +269,14 @@ void PluginController::drawFmGui(ImGuiWindowFlags winFlags) {
         float feedbackEndX = ImGui::GetCursorPosX();
         ImGui::SetNextItemWidth(-FLT_MIN);
         {
-            const inst_param_info_s *p_info = inst_param_info(inst_type(instrument), FM_PARAM_FEEDBACK_TYPE);
+            const bpbx_inst_param_info_s *p_info = bpbx_param_info(bpbx_inst_type(instrument), BPBX_FM_PARAM_FEEDBACK_TYPE);
             assert(p_info);
             const char **feedbackNames = p_info->enum_values;
 
-            if (ImGui::Combo("##fdbk", &p_fdbkType, feedbackNames, FM_FEEDBACK_TYPE_COUNT)) {
-                paramGestureBegin(FM_PARAM_FEEDBACK_TYPE);
-                paramChange(FM_PARAM_FEEDBACK_TYPE, (double)p_fdbkType);
-                paramGestureEnd(FM_PARAM_FEEDBACK_TYPE);
+            if (ImGui::Combo("##fdbk", &p_fdbkType, feedbackNames, BPBX_FM_FEEDBACK_TYPE_COUNT)) {
+                paramGestureBegin(BPBX_FM_PARAM_FEEDBACK_TYPE);
+                paramChange(BPBX_FM_PARAM_FEEDBACK_TYPE, (double)p_fdbkType);
+                paramGestureEnd(BPBX_FM_PARAM_FEEDBACK_TYPE);
             }
         }
 
@@ -287,7 +287,7 @@ void PluginController::drawFmGui(ImGuiWindowFlags winFlags) {
         ImGui::SameLine();
         ImGui::SetCursorPosX(feedbackEndX);
         ImGui::SetNextItemWidth(-FLT_MIN);
-        sliderParameter(FM_PARAM_FEEDBACK_VOLUME, "##vol", 0.0f, 15.0f, "%.0f");
+        sliderParameter(BPBX_FM_PARAM_FEEDBACK_VOLUME, "##vol", 0.0f, 15.0f, "%.0f");
 
         drawEnvelopes();
 
@@ -298,9 +298,9 @@ void PluginController::drawEnvelopes() {
     ImGui::SeparatorText("Envelopes");
 
     if (ImGui::Button("Add")) {
-        if (envelopes.size() < MAX_ENVELOPE_COUNT) {
-            beepbox::envelope_s new_env {};
-            new_env.index = beepbox::ENV_INDEX_NONE;
+        if (envelopes.size() < BPBX_MAX_ENVELOPE_COUNT) {
+            beepbox::bpbx_envelope_s new_env {};
+            new_env.index = beepbox::BPBX_ENV_INDEX_NONE;
             new_env.curve_preset = 0,
             envelopes.push_back(new_env);
 
@@ -310,14 +310,14 @@ void PluginController::drawEnvelopes() {
         }
     }
 
-    beepbox::inst_type_e instType = beepbox::inst_type(instrument);
-    const char **curveNames = beepbox::envelope_curve_preset_names();
+    beepbox::bpbx_inst_type_e instType = beepbox::bpbx_inst_type(instrument);
+    const char **curveNames = beepbox::bpbx_envelope_curve_preset_names();
 
     for (int envIndex = 0; envIndex < envelopes.size(); envIndex++) {
-        envelope_s &env = envelopes[envIndex];
+        bpbx_envelope_s &env = envelopes[envIndex];
         bool isEnvDirty = false;
 
-        const char *envTargetStr = beepbox::envelope_index_name(env.index);
+        const char *envTargetStr = beepbox::bpbx_envelope_index_name(env.index);
         assert(envTargetStr);
 
         ImGui::PushID(envIndex);
@@ -332,13 +332,13 @@ void PluginController::drawEnvelopes() {
         // envelope target combobox
         ImGui::SetNextItemWidth(itemWidth);
         if (ImGui::BeginCombo("##target", envTargetStr)) {
-            std::vector<beepbox::envelope_compute_index_e> targets;
-            targets.push_back(beepbox::ENV_INDEX_NONE);
-            targets.push_back(beepbox::ENV_INDEX_NOTE_VOLUME);
+            std::vector<beepbox::bpbx_envelope_compute_index_e> targets;
+            targets.push_back(beepbox::BPBX_ENV_INDEX_NONE);
+            targets.push_back(beepbox::BPBX_ENV_INDEX_NOTE_VOLUME);
 
             {
                 int size;
-                const envelope_compute_index_e *instTargets = beepbox::inst_envelope_targets(instType, &size);
+                const bpbx_envelope_compute_index_e *instTargets = beepbox::bpbx_envelope_targets(instType, &size);
                 targets.reserve(targets.size() + size);
 
                 for (int i = 0; i < size; i++) {
@@ -347,7 +347,7 @@ void PluginController::drawEnvelopes() {
             }
 
             for (int i = 0; i < targets.size(); i++) {
-                const char *name = beepbox::envelope_index_name(targets[i]);
+                const char *name = beepbox::bpbx_envelope_index_name(targets[i]);
                 assert(name);
 
                 bool isSelected = env.index == targets[i];
@@ -367,7 +367,7 @@ void PluginController::drawEnvelopes() {
         ImGui::SetNextItemWidth(itemWidth);
         ImGui::SameLine();
         if (ImGui::BeginCombo("##curve", curveNames[env.curve_preset])) {
-            for (int i = 0; i < ENVELOPE_CURVE_PRESET_COUNT; i++) {
+            for (int i = 0; i < BPBX_ENVELOPE_CURVE_PRESET_COUNT; i++) {
                 bool isSelected = env.curve_preset == i;
                 if (ImGui::Selectable(curveNames[i], isSelected)) {
                     env.curve_preset = i;

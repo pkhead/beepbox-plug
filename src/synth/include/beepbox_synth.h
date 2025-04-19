@@ -31,83 +31,83 @@ extern "C" {
 #include "beepbox_instrument_data.h"
 
 #define BEEPBOX_API
-#define MAX_ENVELOPE_COUNT 12 // 16 in slarmoo's box
-#define ENVELOPE_CURVE_PRESET_COUNT 26
+#define BPBX_MAX_ENVELOPE_COUNT 12 // 16 in slarmoo's box
+#define BPBX_ENVELOPE_CURVE_PRESET_COUNT 26
 
-#define BEEPBOX_VERSION_MAJOR 0
-#define BEEPBOX_VERSION_MINOR 0
-#define BEEPBOX_VERSION_REVISION 1
-
-typedef enum {
-    INSTRUMENT_CHIP,
-    INSTRUMENT_FM,
-    INSTRUMENT_NOISE,
-    INSTRUMENT_PULSE_WIDTH,
-    INSTRUMENT_HARMONICS,
-    INSTRUMENT_SPECTRUM,
-    INSTRUMENT_PICKED_STRING,
-    INSTRUMENT_SUPERSAW,
-} inst_type_e;
+#define BPBX_VERSION_MAJOR 0
+#define BPBX_VERSION_MINOR 0
+#define BPBX_VERSION_REVISION 1
 
 typedef enum {
-    PARAM_UINT8,
-    PARAM_INT,
-    PARAM_DOUBLE
-} inst_param_type_e;
+    BPBX_INSTRUMENT_CHIP,
+    BPBX_INSTRUMENT_FM,
+    BPBX_INSTRUMENT_NOISE,
+    BPBX_INSTRUMENT_PULSE_WIDTH,
+    BPBX_INSTRUMENT_HARMONICS,
+    BPBX_INSTRUMENT_SPECTRUM,
+    BPBX_INSTRUMENT_PICKED_STRING,
+    BPBX_INSTRUMENT_SUPERSAW,
+} bpbx_inst_type_e;
 
 typedef enum {
-    PARAM_FLAG_NO_AUTOMATION = 1
-} inst_param_flags_e;
+    BPBX_PARAM_UINT8,
+    BPBX_PARAM_INT,
+    BPBX_PARAM_DOUBLE
+} bpbx_inst_param_type_e;
 
 typedef enum {
-    ENV_INDEX_NONE,
-    ENV_INDEX_NOTE_VOLUME,
-    ENV_INDEX_NOTE_FILTER_ALL_FREQS,
-    ENV_INDEX_PULSE_WIDTH,
-    ENV_INDEX_STRING_SUSTAIN,
-    ENV_INDEX_UNISON,
-    ENV_INDEX_OPERATOR_FREQ0,
-    ENV_INDEX_OPERATOR_FREQ1,
-    ENV_INDEX_OPERATOR_FREQ2,
-    ENV_INDEX_OPERATOR_FREQ3,
-    ENV_INDEX_OPERATOR_AMP0,
-    ENV_INDEX_OPERATOR_AMP1,
-    ENV_INDEX_OPERATOR_AMP2,
-    ENV_INDEX_OPERATOR_AMP3,
-    ENV_INDEX_FEEDBACK_AMP,
-    ENV_INDEX_PITCH_SHIFT,
-    ENV_INDEX_DETUNE,
-    ENV_INDEX_VIBRATO_DEPTH,
-    ENV_INDEX_NOTE_FILTER_FREQ0,
-    ENV_INDEX_NOTE_FILTER_FREQ1,
-    ENV_INDEX_NOTE_FILTER_FREQ2,
-    ENV_INDEX_NOTE_FILTER_FREQ3,
-    ENV_INDEX_NOTE_FILTER_FREQ4,
-    ENV_INDEX_NOTE_FILTER_FREQ5,
-    ENV_INDEX_NOTE_FILTER_FREQ6,
-    ENV_INDEX_NOTE_FILTER_FREQ7,
-    ENV_INDEX_NOTE_FILTER_GAIN0,
-    ENV_INDEX_NOTE_FILTER_GAIN1,
-    ENV_INDEX_NOTE_FILTER_GAIN2,
-    ENV_INDEX_NOTE_FILTER_GAIN3,
-    ENV_INDEX_NOTE_FILTER_GAIN4,
-    ENV_INDEX_NOTE_FILTER_GAIN5,
-    ENV_INDEX_NOTE_FILTER_GAIN6,
-    ENV_INDEX_NOTE_FILTER_GAIN7,
-    ENV_INDEX_SUPERSAW_DYNAMISM,
-    ENV_INDEX_SUPERSAW_SPREAD,
-    ENV_INDEX_SUPERSAW_SHAPE,
-    ENV_INDEX_COUNT
-} envelope_compute_index_e;
+    BPBX_PARAM_FLAG_NO_AUTOMATION = 1
+} bpbx_inst_param_flags_e;
+
+typedef enum {
+    BPBX_ENV_INDEX_NONE,
+    BPBX_ENV_INDEX_NOTE_VOLUME,
+    BPBX_ENV_INDEX_NOTE_FILTER_ALL_FREQS,
+    BPBX_ENV_INDEX_PULSE_WIDTH,
+    BPBX_ENV_INDEX_STRING_SUSTAIN,
+    BPBX_ENV_INDEX_UNISON,
+    BPBX_ENV_INDEX_OPERATOR_FREQ0,
+    BPBX_ENV_INDEX_OPERATOR_FREQ1,
+    BPBX_ENV_INDEX_OPERATOR_FREQ2,
+    BPBX_ENV_INDEX_OPERATOR_FREQ3,
+    BPBX_ENV_INDEX_OPERATOR_AMP0,
+    BPBX_ENV_INDEX_OPERATOR_AMP1,
+    BPBX_ENV_INDEX_OPERATOR_AMP2,
+    BPBX_ENV_INDEX_OPERATOR_AMP3,
+    BPBX_ENV_INDEX_FEEDBACK_AMP,
+    BPBX_ENV_INDEX_PITCH_SHIFT,
+    BPBX_ENV_INDEX_DETUNE,
+    BPBX_ENV_INDEX_VIBRATO_DEPTH,
+    BPBX_ENV_INDEX_NOTE_FILTER_FREQ0,
+    BPBX_ENV_INDEX_NOTE_FILTER_FREQ1,
+    BPBX_ENV_INDEX_NOTE_FILTER_FREQ2,
+    BPBX_ENV_INDEX_NOTE_FILTER_FREQ3,
+    BPBX_ENV_INDEX_NOTE_FILTER_FREQ4,
+    BPBX_ENV_INDEX_NOTE_FILTER_FREQ5,
+    BPBX_ENV_INDEX_NOTE_FILTER_FREQ6,
+    BPBX_ENV_INDEX_NOTE_FILTER_FREQ7,
+    BPBX_ENV_INDEX_NOTE_FILTER_GAIN0,
+    BPBX_ENV_INDEX_NOTE_FILTER_GAIN1,
+    BPBX_ENV_INDEX_NOTE_FILTER_GAIN2,
+    BPBX_ENV_INDEX_NOTE_FILTER_GAIN3,
+    BPBX_ENV_INDEX_NOTE_FILTER_GAIN4,
+    BPBX_ENV_INDEX_NOTE_FILTER_GAIN5,
+    BPBX_ENV_INDEX_NOTE_FILTER_GAIN6,
+    BPBX_ENV_INDEX_NOTE_FILTER_GAIN7,
+    BPBX_ENV_INDEX_SUPERSAW_DYNAMISM,
+    BPBX_ENV_INDEX_SUPERSAW_SPREAD,
+    BPBX_ENV_INDEX_SUPERSAW_SHAPE,
+    BPBX_ENV_INDEX_COUNT
+} bpbx_envelope_compute_index_e;
 
 typedef struct {
-    envelope_compute_index_e index;
+    bpbx_envelope_compute_index_e index;
     uint8_t curve_preset;
-} envelope_s;
+} bpbx_envelope_s;
 
 typedef struct {
-    inst_param_type_e type;
-    uint32_t flags; // inst_param_flags_e
+    bpbx_inst_param_type_e type;
+    uint32_t flags; // bpbx_inst_param_flags_e
 
     const char *name;
     const char *envelope_name;
@@ -117,7 +117,7 @@ typedef struct {
     double default_value;
 
     const char **enum_values;
-} inst_param_info_s;
+} bpbx_inst_param_info_s;
 
 typedef struct {
     float *out_samples;
@@ -133,49 +133,49 @@ typedef struct {
     // if you don't have that information or the song isn't playing,
     // simply constantly increase this by the bpm.
     double beat;
-} run_ctx_s;
+} bpbx_run_ctx_s;
 
-typedef struct inst inst_s;
+typedef struct bpbx_inst_s bpbx_inst_s;
 
-BEEPBOX_API void beepbox_version(uint32_t *major, uint32_t *minor, uint32_t *revision);
+BEEPBOX_API void bpbx_version(uint32_t *major, uint32_t *minor, uint32_t *revision);
 
-BEEPBOX_API const unsigned int inst_param_count(inst_type_e type);
-BEEPBOX_API const inst_param_info_s* inst_param_info(inst_type_e type, unsigned int index);
+BEEPBOX_API const unsigned int bpbx_param_count(bpbx_inst_type_e type);
+BEEPBOX_API const bpbx_inst_param_info_s* bpbx_param_info(bpbx_inst_type_e type, unsigned int index);
 
-BEEPBOX_API inst_s* inst_new(inst_type_e inst_type);
-BEEPBOX_API void inst_destroy(inst_s* inst);
+BEEPBOX_API bpbx_inst_s* bpbx_inst_new(bpbx_inst_type_e inst_type);
+BEEPBOX_API void bpbx_inst_destroy(bpbx_inst_s* inst);
 
-BEEPBOX_API inst_type_e inst_type(const inst_s *inst);
+BEEPBOX_API bpbx_inst_type_e bpbx_inst_type(const bpbx_inst_s *inst);
 
-BEEPBOX_API void inst_set_sample_rate(inst_s *inst, double sample_rate);
+BEEPBOX_API void bpbx_inst_set_sample_rate(bpbx_inst_s *inst, double sample_rate);
 
-BEEPBOX_API int inst_set_param_int(inst_s* inst, int index, int value);
-BEEPBOX_API int inst_set_param_double(inst_s* inst, int index, double value);
+BEEPBOX_API int bpbx_inst_set_param_int(bpbx_inst_s* inst, int index, int value);
+BEEPBOX_API int bpbx_inst_set_param_double(bpbx_inst_s* inst, int index, double value);
 
-BEEPBOX_API int inst_get_param_int(const inst_s* inst, int index, int *value);
-BEEPBOX_API int inst_get_param_double(const inst_s* inst, int index, double *value);
+BEEPBOX_API int bpbx_inst_get_param_int(const bpbx_inst_s* inst, int index, int *value);
+BEEPBOX_API int bpbx_inst_get_param_double(const bpbx_inst_s* inst, int index, double *value);
 
-BEEPBOX_API const char* envelope_index_name(envelope_compute_index_e index);
-BEEPBOX_API const char** envelope_curve_preset_names();
+BEEPBOX_API const char* bpbx_envelope_index_name(bpbx_envelope_compute_index_e index);
+BEEPBOX_API const char** bpbx_envelope_curve_preset_names();
 
-BEEPBOX_API const envelope_compute_index_e* inst_envelope_targets(inst_type_e type, int *size);
+BEEPBOX_API const bpbx_envelope_compute_index_e* bpbx_envelope_targets(bpbx_inst_type_e type, int *size);
 
-BEEPBOX_API uint8_t inst_envelope_count(const inst_s *inst);
+BEEPBOX_API uint8_t bpbx_inst_envelope_count(const bpbx_inst_s *inst);
 // note: envelopes are stored contiguously and in order, so it is valid to treat the return value
 // as an array.
-BEEPBOX_API envelope_s* inst_get_envelope(inst_s *inst, uint32_t index);
-BEEPBOX_API envelope_s* inst_add_envelope(inst_s *inst);
-BEEPBOX_API void inst_remove_envelope(inst_s *inst, uint8_t index);
-BEEPBOX_API void inst_clear_envelopes(inst_s *inst);
+BEEPBOX_API bpbx_envelope_s* bpbx_inst_get_envelope(bpbx_inst_s *inst, uint32_t index);
+BEEPBOX_API bpbx_envelope_s* bpbx_inst_add_envelope(bpbx_inst_s *inst);
+BEEPBOX_API void bpbx_inst_remove_envelope(bpbx_inst_s *inst, uint8_t index);
+BEEPBOX_API void bpbx_inst_clear_envelopes(bpbx_inst_s *inst);
 
-BEEPBOX_API void inst_midi_on(inst_s *inst, int key, int velocity);
-BEEPBOX_API void inst_midi_off(inst_s *inst, int key, int velocity);
+BEEPBOX_API void bpbx_inst_midi_on(bpbx_inst_s *inst, int key, int velocity);
+BEEPBOX_API void bpbx_inst_midi_off(bpbx_inst_s *inst, int key, int velocity);
 
 // if you know the length of each note, and the result of this is negative,
 // call midi_off that positive number of samples before the note actually ends.
-BEEPBOX_API double inst_samples_fade_out(double setting, double bpm, double sample_rate);
+BEEPBOX_API double bpbx_samples_fade_out(double setting, double bpm, double sample_rate);
 
-BEEPBOX_API void inst_run(inst_s* inst, const run_ctx_s *const run_ctx);
+BEEPBOX_API void bpbx_inst_run(bpbx_inst_s* inst, const bpbx_run_ctx_s *const run_ctx);
 
 
 #ifdef __cplusplus

@@ -63,7 +63,7 @@ typedef struct {
     double feedback;
 
     int carrier_count;
-    fm_voice_s voices[INST_MAX_VOICES];
+    fm_voice_s voices[BPBX_INST_MAX_VOICES];
 } fm_inst_s;
 
 static inline double fm_calc_op(const double phase_mix) {
@@ -74,12 +74,12 @@ static inline double fm_calc_op(const double phase_mix) {
 }
 
 void fm_init(fm_inst_s *inst);
-int fm_midi_on(inst_s *inst, int key, int velocity);
-void fm_midi_off(inst_s *inst, int key, int velocity);
-void fm_run(inst_s *src_inst, const run_ctx_s *const run_ctx);
+int fm_midi_on(bpbx_inst_s *inst, int key, int velocity);
+void fm_midi_off(bpbx_inst_s *inst, int key, int velocity);
+void fm_run(bpbx_inst_s *src_inst, const bpbx_run_ctx_s *const run_ctx);
 
-extern const inst_param_info_s fm_param_info[FM_PARAM_COUNT];
-extern const envelope_compute_index_e fm_env_targets[FM_MOD_COUNT];
-extern const size_t fm_param_addresses[FM_PARAM_COUNT];
+extern const bpbx_inst_param_info_s fm_param_info[BPBX_FM_PARAM_COUNT];
+extern const bpbx_envelope_compute_index_e fm_env_targets[FM_MOD_COUNT];
+extern const size_t fm_param_addresses[BPBX_FM_PARAM_COUNT];
 
 #endif

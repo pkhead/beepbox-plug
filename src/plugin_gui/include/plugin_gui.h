@@ -45,7 +45,7 @@ typedef struct {
 
         struct {
             uint32_t index;
-            BEEPBOX(envelope_s) envelope;
+            BEEPBOX(bpbx_envelope_s) envelope;
         } modify_envelope;
     };
 } gui_event_queue_item_s;
@@ -58,7 +58,7 @@ bool gui_event_dequeue(plugin_gui_s *iface, gui_event_queue_item_s *item);
 bool gui_is_api_supported(const char *api, bool is_floating);
 bool gui_get_preferred_api(const char **api, bool *is_floating);
 
-plugin_gui_s* gui_create(BEEPBOX(inst_s) *instrument, const char *api, bool is_floating);
+plugin_gui_s* gui_create(BEEPBOX(bpbx_inst_s) *instrument, const char *api, bool is_floating);
 void gui_destroy(plugin_gui_s *iface);
 void gui_sync_state(plugin_gui_s *gui);
 
