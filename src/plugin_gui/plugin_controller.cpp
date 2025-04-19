@@ -7,6 +7,7 @@
 #include <cstring>
 
 #include "plugin_controller.hpp"
+#include "util.hpp"
 
 using namespace beepbox;
 
@@ -66,8 +67,8 @@ void PluginController::graphicsClose() {
 
 PluginController::PluginController(bpbx_inst_s *instrument) :
     instrument(instrument),
-    plugin_to_gui(GUI_EVENT_QUEUE_SIZE),
-    gui_to_plugin(GUI_EVENT_QUEUE_SIZE)
+    plugin_to_gui(),
+    gui_to_plugin()
 {
     showAbout = false;
     useCustomColors = false;
@@ -178,7 +179,7 @@ void PluginController::drawAbout(ImGuiWindowFlags winFlags) {
     ImGui::End();
 }
 
-void PluginController::drawFmGui(ImGuiWindowFlags winFlags) {
+void PluginController::drawFmGui() {
     // operator parameters
     static const char *name[] = {
         "1.", "2.", "3.", "4."
@@ -192,111 +193,88 @@ void PluginController::drawFmGui(ImGuiWindowFlags winFlags) {
         (int) params[BPBX_FM_PARAM_FREQ4],
     };
     int p_fdbkType = (int) params[BPBX_FM_PARAM_FEEDBACK_TYPE];
+
+    // algorithm
+    ImGui::AlignTextToFramePadding();
+    ImGui::Text("Algorithm");
+
+    sameLineRightCol();
+    float algoEndX = ImGui::GetCursorPosX();
+    ImGui::SetNextItemWidth(-FLT_MIN);
+
+    {
+        const bpbx_inst_param_info_s *p_info = bpbx_param_info(bpbx_inst_type(instrument), BPBX_FM_PARAM_ALGORITHM);
+        assert(p_info);
+        const char **algoNames = p_info->enum_values;
+        if (ImGui::Combo("##algo", &p_algo, algoNames, 13)) {
+            paramGestureBegin(BPBX_FM_PARAM_ALGORITHM);
+            paramChange(BPBX_FM_PARAM_ALGORITHM, (double)p_algo);
+            paramGestureEnd(BPBX_FM_PARAM_ALGORITHM);
+        }
+    }
+
+    // operator parameters
+    for (int op = 0; op < 4; op++) {
+        ImGui::AlignTextToFramePadding();
+        ImGui::Text("%s", name[op]);
+        ImGui::PushID(op);
+
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(algoEndX - ImGui::GetCursorPosX() - ImGui::GetStyle().ItemSpacing.x);
+        //ImGui::Text("%i", gui->freq[op]);
+
+        const uint32_t id = BPBX_FM_PARAM_FREQ1 + op * 2;
+
+        const bpbx_inst_param_info_s *p_info = bpbx_param_info(bpbx_inst_type(instrument), id);
+        assert(p_info);
+        const char **freqRatios = p_info->enum_values;
+
+        if (ImGui::Combo("##freq", &p_freq[op], freqRatios, BPBX_FM_FREQ_COUNT, ImGuiComboFlags_HeightLargest)) {
+
+            paramGestureBegin(id);
+            paramChange(id, p_freq[op]);
+            paramGestureEnd(id);
+        }
+        // if (ImGui::BeginCombo("##freq", freqRatios[gui->freq[op]], ImGuiComboFlags_HeightLargest)) {
+        //     for (int i = 0; i < sizeof(freqRatios) / sizeof(*freqRatios); i++) {
+        //         ImGui::Selectable(freqRatios[i]);
+        //     }
+        //     ImGui::EndCombo();
+        // }
+
+        sameLineRightCol();
+        ImGui::SetNextItemWidth(-FLT_MIN);
+        sliderParameter(BPBX_FM_PARAM_VOLUME1 + op*2, "##vol", 0.0f, 15.0f, "%.0f");
+        ImGui::PopID();
+    }
+
+    // feedback type
+    ImGui::AlignTextToFramePadding();
+    ImGui::Text("Feedback");
+
+    sameLineRightCol();
+    float feedbackEndX = ImGui::GetCursorPosX();
+    ImGui::SetNextItemWidth(-FLT_MIN);
+    {
+        const bpbx_inst_param_info_s *p_info = bpbx_param_info(bpbx_inst_type(instrument), BPBX_FM_PARAM_FEEDBACK_TYPE);
+        assert(p_info);
+        const char **feedbackNames = p_info->enum_values;
+
+        if (ImGui::Combo("##fdbk", &p_fdbkType, feedbackNames, BPBX_FM_FEEDBACK_TYPE_COUNT)) {
+            paramGestureBegin(BPBX_FM_PARAM_FEEDBACK_TYPE);
+            paramChange(BPBX_FM_PARAM_FEEDBACK_TYPE, (double)p_fdbkType);
+            paramGestureEnd(BPBX_FM_PARAM_FEEDBACK_TYPE);
+        }
+    }
+
+    // feedback volume
+    ImGui::AlignTextToFramePadding();
+    ImGui::Text("Fdbk Vol");
     
-    if (ImGui::Begin("fm", NULL, winFlags)) {
-        // volume
-        ImGui::AlignTextToFramePadding();
-        ImGui::Text("Volume");
-        ImGui::SameLine();
-        sliderParameter(BPBX_PARAM_VOLUME, "##volume", -25.0, 25.0, "%.0f");
-
-        // fade in
-        ImGui::AlignTextToFramePadding();
-        ImGui::Text("Fadein");
-        ImGui::SameLine();
-        sliderParameter(BPBX_PARAM_FADE_IN, "##fadein", 0.0, 9.0, "%.0f");
-
-        // fade out
-        ImGui::AlignTextToFramePadding();
-        ImGui::Text("Fadeout");
-        ImGui::SameLine();
-        sliderParameter(BPBX_PARAM_FADE_OUT, "##fadeout", -4.0, 6.0, "%.0f");
-
-        // algorithm
-        ImGui::AlignTextToFramePadding();
-        ImGui::Text("Algorithm");
-
-        ImGui::SameLine();
-        float algoEndX = ImGui::GetCursorPosX();
-        ImGui::SetNextItemWidth(-FLT_MIN);
-
-        {
-            const bpbx_inst_param_info_s *p_info = bpbx_param_info(bpbx_inst_type(instrument), BPBX_FM_PARAM_ALGORITHM);
-            assert(p_info);
-            const char **algoNames = p_info->enum_values;
-            if (ImGui::Combo("##algo", &p_algo, algoNames, 13)) {
-                paramGestureBegin(BPBX_FM_PARAM_ALGORITHM);
-                paramChange(BPBX_FM_PARAM_ALGORITHM, (double)p_algo);
-                paramGestureEnd(BPBX_FM_PARAM_ALGORITHM);
-            }
-        }
-
-        // operator parameters
-        for (int op = 0; op < 4; op++) {
-            ImGui::AlignTextToFramePadding();
-            ImGui::Text("%s", name[op]);
-            ImGui::PushID(op);
-
-            ImGui::SameLine();
-            ImGui::SetNextItemWidth(algoEndX - ImGui::GetCursorPosX() - ImGui::GetStyle().ItemSpacing.x);
-            //ImGui::Text("%i", gui->freq[op]);
-
-            const uint32_t id = BPBX_FM_PARAM_FREQ1 + op * 2;
-
-            const bpbx_inst_param_info_s *p_info = bpbx_param_info(bpbx_inst_type(instrument), id);
-            assert(p_info);
-            const char **freqRatios = p_info->enum_values;
-
-            if (ImGui::Combo("##freq", &p_freq[op], freqRatios, BPBX_FM_FREQ_COUNT, ImGuiComboFlags_HeightLargest)) {
-
-                paramGestureBegin(id);
-                paramChange(id, p_freq[op]);
-                paramGestureEnd(id);
-            }
-            // if (ImGui::BeginCombo("##freq", freqRatios[gui->freq[op]], ImGuiComboFlags_HeightLargest)) {
-            //     for (int i = 0; i < sizeof(freqRatios) / sizeof(*freqRatios); i++) {
-            //         ImGui::Selectable(freqRatios[i]);
-            //     }
-            //     ImGui::EndCombo();
-            // }
-
-            ImGui::SameLine();
-            ImGui::SetNextItemWidth(-FLT_MIN);
-            sliderParameter(BPBX_FM_PARAM_VOLUME1 + op*2, "##vol", 0.0f, 15.0f, "%.0f");
-            ImGui::PopID();
-        }
-
-        // feedback type
-        ImGui::AlignTextToFramePadding();
-        ImGui::Text("Feedback");
-
-        ImGui::SameLine();
-        float feedbackEndX = ImGui::GetCursorPosX();
-        ImGui::SetNextItemWidth(-FLT_MIN);
-        {
-            const bpbx_inst_param_info_s *p_info = bpbx_param_info(bpbx_inst_type(instrument), BPBX_FM_PARAM_FEEDBACK_TYPE);
-            assert(p_info);
-            const char **feedbackNames = p_info->enum_values;
-
-            if (ImGui::Combo("##fdbk", &p_fdbkType, feedbackNames, BPBX_FM_FEEDBACK_TYPE_COUNT)) {
-                paramGestureBegin(BPBX_FM_PARAM_FEEDBACK_TYPE);
-                paramChange(BPBX_FM_PARAM_FEEDBACK_TYPE, (double)p_fdbkType);
-                paramGestureEnd(BPBX_FM_PARAM_FEEDBACK_TYPE);
-            }
-        }
-
-        // feedback volume
-        ImGui::AlignTextToFramePadding();
-        ImGui::Text("Fdbk Vol");
-        
-        ImGui::SameLine();
-        ImGui::SetCursorPosX(feedbackEndX);
-        ImGui::SetNextItemWidth(-FLT_MIN);
-        sliderParameter(BPBX_FM_PARAM_FEEDBACK_VOLUME, "##vol", 0.0f, 15.0f, "%.0f");
-
-        drawEnvelopes();
-
-    } ImGui::End();
+    sameLineRightCol();
+    ImGui::SetCursorPosX(feedbackEndX);
+    ImGui::SetNextItemWidth(-FLT_MIN);
+    sliderParameter(BPBX_FM_PARAM_FEEDBACK_VOLUME, "##vol", 0.0f, 15.0f, "%.0f");
 }
 
 void PluginController::drawEnvelopes() {
@@ -413,6 +391,154 @@ void PluginController::drawEnvelopes() {
     }
 }
 
+void PluginController::drawFadeWidget(const char *id, ImVec2 size) {
+    ImDrawList *drawList = ImGui::GetWindowDrawList();
+    ImVec2 ui_origin = ImGui::GetCursorScreenPos();
+    ImVec2 ui_end = ImVec2(ui_origin.x + size.x, ui_origin.y + size.y);
+
+    constexpr int FADE_IN_MAX = 9;
+    constexpr int FADE_OUT_MAX = 6;
+    constexpr int FADE_OUT_MIN = -4;
+
+    const int steps = FADE_OUT_MAX - FADE_OUT_MIN + FADE_IN_MAX + 2;
+    const float pixelsPerStep = size.x / steps;
+
+    const float fadeInVal =  (float) params[BPBX_PARAM_FADE_IN];
+    const float fadeOutVal = (float) params[BPBX_PARAM_FADE_OUT];
+
+    float fadeInX = ui_origin.x + pixelsPerStep * fadeInVal;
+    float fadeOutRestX = ui_end.x - pixelsPerStep * FADE_OUT_MAX;
+    float fadeOutX = fadeOutRestX + pixelsPerStep * fadeOutVal;
+
+    ImU32 barColor = ImGui::GetColorU32(ImGuiCol_ButtonHovered);
+    ImU32 graphColor = ImGui::GetColorU32(ImGuiCol_Header);
+
+    // draw "graph"
+    {
+        // fade in triangle
+        if (fadeInVal > 0) {
+            drawList->AddTriangleFilled(
+                ImVec2(fadeInX, ui_origin.y),
+                ImVec2(fadeInX, ui_end.y),
+                ImVec2(ui_origin.x, ui_end.y),
+                graphColor
+            );
+        }
+
+        // the rect inbetween fade in and fade out
+        drawList->AddRectFilled(
+            ImVec2(fadeInX, ui_origin.y),
+            ImVec2(min(fadeOutX, fadeOutRestX), ui_end.y),
+            graphColor
+        );
+
+        // fade out triangle
+        if (fadeOutVal > 0) {
+            drawList->AddTriangleFilled(
+                ImVec2(fadeOutRestX, ui_origin.y),
+                ImVec2(fadeOutX, ui_end.y),
+                ImVec2(fadeOutRestX, ui_end.y),
+                graphColor
+            );
+        } else if (fadeOutVal < 0) {
+            drawList->AddTriangleFilled(
+                ImVec2(fadeOutX, ui_origin.y),
+                ImVec2(fadeOutRestX, ui_end.y),
+                ImVec2(fadeOutX, ui_end.y),
+                graphColor
+            );
+        }
+    }
+
+    // draw fade in bar
+    drawList->AddRectFilled(
+        ImVec2(fadeInX, ui_origin.y),
+        ImVec2(fadeInX + 2.f, ui_end.y),
+        barColor
+    );
+
+    // draw dashed line for fade out rest bar
+    float dashHeight = 4.f;
+    float dashSpaceHeight = 3.f;
+    int i = 0;
+    for (float y = ui_origin.y; y < ui_end.y;) {
+        if (i++ % 2 == 0) {
+            float endY = clamp(y + dashHeight, ui_origin.y, ui_end.y);
+            drawList->AddRectFilled(
+                ImVec2(fadeOutRestX - 1.f, y),
+                ImVec2(fadeOutRestX, endY),
+                barColor
+            );
+
+            y += dashHeight;
+        } else {
+            y += dashSpaceHeight;
+        }
+    }
+
+    // draw fade out bar
+    drawList->AddRectFilled(
+        ImVec2(fadeOutX - 2.f, ui_origin.y),
+        ImVec2(fadeOutX, ui_end.y),
+        barColor
+    );
+
+    // ui controls
+    ImGui::InvisibleButton(id, size);
+
+    if (ImGui::IsItemHovered() || ImGui::IsItemActive()) {
+        ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+    }
+
+    if (ImGui::IsItemActivated()) {
+        float centerX = ui_origin.x + pixelsPerStep * (FADE_IN_MAX + 1);
+        float mouseX = ImGui::GetMousePos().x;
+
+        if (mouseX < centerX) {
+            fadeDragMode = 1;
+            fadeDragInit = params[BPBX_PARAM_FADE_IN];
+            paramGestureBegin(BPBX_PARAM_FADE_IN);
+        } else {
+            fadeDragMode = 2;
+            fadeDragInit = params[BPBX_PARAM_FADE_OUT];
+            paramGestureBegin(BPBX_PARAM_FADE_OUT);
+        }
+    }
+
+    if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+        float drag_x = ImGui::GetMouseDragDelta().x;
+
+        double pos = fadeDragInit + (int)(drag_x / pixelsPerStep);
+
+        if (fadeDragMode == 1) {
+            double newValue = clamp(pos, 0.0, (double)FADE_IN_MAX);
+
+            if (newValue != params[BPBX_PARAM_FADE_IN]) {
+                paramChange(BPBX_PARAM_FADE_IN, newValue);
+            }
+        } else if (fadeDragMode == 2) {
+            double newValue = clamp(pos, (double)FADE_OUT_MIN, (double)FADE_OUT_MAX);
+
+            if (newValue != params[BPBX_PARAM_FADE_OUT]) {
+                paramChange(BPBX_PARAM_FADE_OUT, newValue);
+            }
+        }
+    }
+
+    if (ImGui::IsItemDeactivated()) {
+        if (fadeDragMode == 1) {
+            paramGestureEnd(BPBX_PARAM_FADE_IN);
+        } else if (fadeDragMode == 2) {
+            paramGestureEnd(BPBX_PARAM_FADE_OUT);
+        }
+    }
+}
+
+void PluginController::sameLineRightCol() {
+    ImGui::SameLine();
+    ImGui::SetCursorPosX(uiRightCol);
+}
+
 void PluginController::draw(platform::Window *window) {
     updateParams();
 
@@ -447,10 +573,46 @@ void PluginController::draw(platform::Window *window) {
         ImGui::SetNextWindowSize(viewport->WorkSize);
         ImGuiWindowFlags winFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar;
 
+        // about window ui
         if (showAbout) {
             drawAbout(winFlags);
+
+        // instrument ui
         } else {
-            drawFmGui(winFlags);
+            if (ImGui::Begin("inst", NULL, winFlags)) {
+                uiRightCol = ImGui::GetFontSize() * 6.f;
+                
+                // volume
+                ImGui::AlignTextToFramePadding();
+                ImGui::Text("Volume");
+                sameLineRightCol();
+                ImGui::SetNextItemWidth(-FLT_MIN);
+                sliderParameter(BPBX_PARAM_VOLUME, "##volume", -25.0, 25.0, "%.0f");
+
+                ImGui::AlignTextToFramePadding();
+                ImGui::Text("Fade");
+                sameLineRightCol();
+                drawFadeWidget("fadectl", ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() * 1.75f));
+        
+                // fade in
+                // ImGui::AlignTextToFramePadding();
+                // ImGui::Text("Fadein");
+                // sameLineRightCol();
+                // ImGui::SetNextItemWidth(-FLT_MIN);
+                // sliderParameter(BPBX_PARAM_FADE_IN, "##fadein", 0.0, 9.0, "%.0f");
+        
+                // // fade out
+                // ImGui::AlignTextToFramePadding();
+                // ImGui::Text("Fadeout");
+                // sameLineRightCol();
+                // ImGui::SetNextItemWidth(-FLT_MIN);
+                // sliderParameter(BPBX_PARAM_FADE_OUT, "##fadeout", -4.0, 6.0, "%.0f");
+
+                // specific instrument ui
+                drawFmGui();
+
+                drawEnvelopes();
+            } ImGui::End();
         }
     }
 
@@ -468,28 +630,6 @@ void PluginController::draw(platform::Window *window) {
 
     // end pass
     sg_end_pass();
-}
-
-struct HSV {
-    float h;
-    float s;
-    float v;
-
-    inline constexpr HSV(float h, float s, float v) : h(h), s(s), v(v) {}
-};
-
-// b must be a positive number
-static float fwrapf(float a, float b) {
-    float mod = fmodf(a, b);
-    if (mod < 0.0) return b + mod;
-    return mod;
-}
-
-template <typename T>
-T clamp(T v, T min = 0, T max = 1) {
-    if (v < min) return min;
-    if (v > max) return max;
-    return v;
 }
 
 // https://stackoverflow.com/questions/3018313/algorithm-to-convert-rgb-to-hsv-and-hsv-to-rgb-in-range-0-255-for-both
