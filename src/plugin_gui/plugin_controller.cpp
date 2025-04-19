@@ -70,6 +70,7 @@ PluginController::PluginController(bpbx_inst_s *instrument) :
     gui_to_plugin(GUI_EVENT_QUEUE_SIZE)
 {
     showAbout = false;
+    useCustomColors = false;
 
     // initialize copy of plugin state
     sync();
@@ -422,7 +423,9 @@ void PluginController::draw(platform::Window *window) {
         desc.height = platform::getHeight(window);
         desc.delta_time = 1.0f / 60.0f; // TODO
         simgui_new_frame(&desc);
+        updateColors();
     }
+
 
     // imgui
     {
@@ -465,4 +468,220 @@ void PluginController::draw(platform::Window *window) {
 
     // end pass
     sg_end_pass();
+}
+
+struct HSV {
+    float h;
+    float s;
+    float v;
+
+    inline constexpr HSV(float h, float s, float v) : h(h), s(s), v(v) {}
+};
+
+// b must be a positive number
+static float fwrapf(float a, float b) {
+    float mod = fmodf(a, b);
+    if (mod < 0.0) return b + mod;
+    return mod;
+}
+
+template <typename T>
+T clamp(T v, T min = 0, T max = 1) {
+    if (v < min) return min;
+    if (v > max) return max;
+    return v;
+}
+
+// https://stackoverflow.com/questions/3018313/algorithm-to-convert-rgb-to-hsv-and-hsv-to-rgb-in-range-0-255-for-both
+Hsv Color::toHsv() const {
+    float r = clamp(this->r);
+    float g = clamp(this->g);
+    float b = clamp(this->b);
+
+    Hsv out;
+    double min, max, delta;
+
+    min = r   < g ? r   : g;
+    min = min < b ? min : b;
+
+    max = r   > g ? r   : g;
+    max = max > b ? max : b;
+
+    out.v = max;                                // v
+    delta = max - min;
+    if (delta < 0.00001) {
+        out.s = 0;
+        out.h = 0; // undefined, maybe nan?
+        goto end;
+    }
+
+    if (max > 0.0) {    // NOTE: if Max is == 0, this divide would cause a crash
+        out.s = (delta / max);
+    } else {
+        // if max is 0, then r = g = b = 0              
+        // s = 0, h is undefined
+        out.s = 0.0;
+        out.h = NAN; // its now undefined
+        goto end;
+    }
+
+    if (r >= max)                  // > is bogus, just keeps compilor happy
+        out.h = ( g - b ) / delta; // between yellow & magenta
+    else if (g >= max)
+        out.h = 2.0 + ( b - r ) / delta;  // between cyan & yellow
+    else
+        out.h = 4.0 + ( r - g ) / delta;  // between magenta & cyan
+
+    out.h *= 60.0;                              // degrees
+
+    if( out.h < 0.0 )
+        out.h += 360.0;
+
+    end:;
+    out.h /= 360.0f;
+    return out;
+}
+
+Color Color::fromHsv(const Hsv &hsv) {
+    Hsv in(fwrapf(hsv.h, 1.0f) * 360.0, clamp(hsv.s), clamp(hsv.v));
+
+    Color out;
+
+    double hh, p, q, t, ff;
+    long   i;
+
+    if (in.s <= 0.0) {       // < is bogus, just shuts up warnings
+        out.r = in.v;
+        out.g = in.v;
+        out.b = in.v;
+        return out;
+    }
+
+    hh = in.h;
+    if (hh >= 360.0) hh = 0.0;
+    hh /= 60.0;
+    i = (long)hh;
+    ff = hh - i;
+    p = in.v * (1.0 - in.s);
+    q = in.v * (1.0 - (in.s * ff));
+    t = in.v * (1.0 - (in.s * (1.0 - ff)));
+
+    switch(i) {
+    case 0:
+        out.r = in.v;
+        out.g = t;
+        out.b = p;
+        break;
+    case 1:
+        out.r = q;
+        out.g = in.v;
+        out.b = p;
+        break;
+    case 2:
+        out.r = p;
+        out.g = in.v;
+        out.b = t;
+        break;
+
+    case 3:
+        out.r = p;
+        out.g = q;
+        out.b = in.v;
+        break;
+    case 4:
+        out.r = t;
+        out.g = p;
+        out.b = in.v;
+        break;
+    case 5:
+    default:
+        out.r = in.v;
+        out.g = p;
+        out.b = q;
+        break;
+    }
+
+    return out;
+}
+
+void PluginController::updateColors() {
+    ImGui::StyleColorsDark();
+
+    if (useCustomColors) {
+        ImGuiStyle &style = ImGui::GetStyle();
+
+        Hsv customColorHsv = customColor.toHsv();
+        style.Colors[ImGuiCol_WindowBg] = (customColor * 0.1f).toImVec4(240.0f / 255.0f);
+        style.Colors[ImGuiCol_PopupBg] = (customColor * 0.12f).toImVec4(240.0f / 255.0f);
+
+        Color menuBarBg;
+        {
+            Hsv hsv = customColorHsv;
+            hsv.s *= 0.5f;
+            hsv.v = 0.1f;
+            menuBarBg = Color::fromHsv(hsv);
+        }
+
+        style.Colors[ImGuiCol_MenuBarBg] = menuBarBg;
+
+        Color frameBgBase;
+        {
+            Hsv hsv = customColorHsv;
+            hsv.s *= 1.1f;
+            hsv.v *= 0.4f;
+            frameBgBase = Color::fromHsv(hsv);
+        }
+
+        Color frameBgHovered;
+        {
+            Hsv hsv = frameBgBase.toHsv();
+            hsv.s *= 0.5f;
+            hsv.v *= 1.5f;
+            frameBgHovered = Color::fromHsv(hsv);
+        }
+
+        Color buttonBase;
+        {
+            Hsv hsv = customColorHsv;
+            hsv.v *= 1.4f;
+            buttonBase = Color::fromHsv(hsv);
+        }
+
+        Color buttonActive;
+        {
+            Hsv hsv = customColorHsv;
+            hsv.s *= 1.3f;
+            buttonActive = Color::fromHsv(hsv);
+        }
+
+        Color sliderBase;
+        {
+            Hsv hsv = customColorHsv;
+            hsv.s *= 0.9f;
+            hsv.v *= 0.8f;
+            sliderBase = Color::fromHsv(hsv);
+        }
+
+        Color sliderHovered;
+        {
+            Hsv hsv = customColorHsv;
+            hsv.s *= 0.9f;
+            sliderHovered = Color::fromHsv(hsv);
+        }
+
+        style.Colors[ImGuiCol_FrameBg] = frameBgBase.toImVec4(138.f / 255.f);
+        style.Colors[ImGuiCol_FrameBgHovered] = frameBgHovered.toImVec4(102.f / 255.f);
+        style.Colors[ImGuiCol_FrameBgActive] = frameBgHovered.toImVec4(171.f / 255.f);
+
+        style.Colors[ImGuiCol_SliderGrab] = sliderBase;
+        style.Colors[ImGuiCol_SliderGrabActive] = sliderHovered;
+
+        style.Colors[ImGuiCol_Button] = buttonBase.toImVec4(102.f / 255.f);
+        style.Colors[ImGuiCol_ButtonHovered] = buttonBase;
+        style.Colors[ImGuiCol_ButtonActive] = buttonActive;
+
+        style.Colors[ImGuiCol_Header] = buttonBase.toImVec4(79.f / 255.f);
+        style.Colors[ImGuiCol_HeaderHovered] = buttonBase.toImVec4(204.f / 255.f);
+        style.Colors[ImGuiCol_HeaderActive] = buttonBase;
+    }
 }

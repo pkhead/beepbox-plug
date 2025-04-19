@@ -72,11 +72,15 @@ typedef struct {
    clap_plugin_t plugin;
    plugin_gui_s *gui;
 
+   bool has_track_color;
+   clap_color_t track_color;
+
    const clap_host_t *host;
    const clap_host_latency_t *host_latency;
    const clap_host_log_t *host_log;
    const clap_host_thread_check_t *host_thread_check;
    const clap_host_state_t *host_state;
+   const clap_host_track_info_t *host_track_info;
    
    bpbx_inst_s *instrument;
    float *process_block;
@@ -741,6 +745,13 @@ bool plugin_gui_get_preferred_api(const clap_plugin_t *plugin, const char **api,
 bool plugin_gui_create(const clap_plugin_t *plugin, const char *api, bool is_floating) {
    plugin_s *plug = plugin->plugin_data;
    plug->gui = gui_create(plug->instrument, api, is_floating);
+
+   if (plug->gui) {
+      if (plug->has_track_color) {
+         gui_update_color(plug->gui, plug->track_color);
+      }
+   }
+
    return plug->gui != NULL;
 }
 
@@ -829,6 +840,37 @@ static clap_plugin_gui_t s_plugin_gui = {
    .hide = plugin_gui_hide
 };
 
+/////////////////////
+// clap_track_info //
+/////////////////////
+
+void plugin_track_info_changed(const clap_plugin_t *plugin) {
+   plugin_s *plug = plugin->plugin_data;
+
+   clap_track_info_t track_info;
+
+   // fetch track color info
+   if ( plug->host_track_info->get(plug->host, &track_info) ) {
+      plug->has_track_color = (track_info.flags & CLAP_TRACK_INFO_HAS_TRACK_COLOR) != 0;
+      plug->track_color = track_info.color;
+   } else {
+      plug->has_track_color = false;
+   }
+
+   // update gui
+   if (plug->gui) {
+      if (plug->has_track_color) {
+         gui_update_color(plug->gui, plug->track_color);
+      } else {
+         gui_update_color(plug->gui, (clap_color_t) { 0, 0, 0, 0 });
+      }
+   }
+}
+
+static const clap_plugin_track_info_t s_plugin_track_info = {
+   .changed = plugin_track_info_changed
+};
+
 /////////////////
 // clap_plugin //
 /////////////////
@@ -842,8 +884,13 @@ static bool plugin_init(const struct clap_plugin *plugin) {
    plug->host_thread_check = (const clap_host_thread_check_t *)plug->host->get_extension(plug->host, CLAP_EXT_THREAD_CHECK);
    plug->host_latency = (const clap_host_latency_t *)plug->host->get_extension(plug->host, CLAP_EXT_LATENCY);
    plug->host_state = (const clap_host_state_t *)plug->host->get_extension(plug->host, CLAP_EXT_STATE);
+   plug->host_track_info = (const clap_host_track_info_t*) plug->host->get_extension(plug->host, CLAP_EXT_TRACK_INFO);
 
    plug->instrument = bpbx_inst_new(BPBX_INSTRUMENT_FM);
+
+   if (plug->host_track_info) {
+      plugin_track_info_changed(plugin);
+   }
 
    return true;
 }
@@ -964,6 +1011,9 @@ static const void *plugin_get_extension(const struct clap_plugin *plugin, const 
    if (!strcmp(id, CLAP_EXT_GUI))
       return &s_plugin_gui;
 
+   if (!strcmp(id, CLAP_EXT_TRACK_INFO))
+      return &s_plugin_track_info;
+
    return NULL;
 }
 
@@ -985,6 +1035,8 @@ clap_plugin_t *plugin_create(const clap_host_t *host) {
       .plugin.process = plugin_process,
       .plugin.get_extension = plugin_get_extension,
       .plugin.on_main_thread = plugin_on_main_thread,
+
+      .has_track_color = false,
 
       .bpm = 150.0
    };

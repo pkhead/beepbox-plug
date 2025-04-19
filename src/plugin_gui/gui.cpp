@@ -360,3 +360,16 @@ bool gui_hide(plugin_gui_s *iface) {
     platform::setVisible(iface->window, false);
     return true;
 }
+
+void gui_update_color(plugin_gui_s *gui, clap_color_t color) {
+    if (color.alpha == 0) {
+        gui->control.useCustomColors = false;
+    } else {
+        gui->control.useCustomColors = true;
+        gui->control.customColor = Color(
+            (float)color.red / 255.f,
+            (float)color.green / 255.f,
+            (float)color.blue / 255.f
+        );
+    }
+}

@@ -3,6 +3,7 @@
 
 #include <synth/include/beepbox_synth.h>
 #include <clap/include/clap/ext/gui.h>
+#include <clap/include/clap/ext/track-info.h>
 
 #ifdef __cplusplus
 #include <cstdint>
@@ -53,6 +54,7 @@ typedef struct plugin_gui_s plugin_gui_s;
 
 void gui_event_enqueue(plugin_gui_s *iface, gui_event_queue_item_s item);
 bool gui_event_dequeue(plugin_gui_s *iface, gui_event_queue_item_s *item);
+void gui_update_color(plugin_gui_s *gui, clap_color_t color);
 
 bool gui_is_api_supported(const char *api, bool is_floating);
 bool gui_get_preferred_api(const char **api, bool *is_floating);

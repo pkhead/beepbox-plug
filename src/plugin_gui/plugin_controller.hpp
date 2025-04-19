@@ -8,6 +8,45 @@
 
 constexpr int GUI_EVENT_QUEUE_MASK = GUI_EVENT_QUEUE_SIZE-1;
 
+struct Hsv {
+public:
+    float h;
+    float s;
+    float v;
+
+    inline constexpr Hsv() : h(0.f), s(0.f), v(0.f) {}
+    inline constexpr Hsv(float h, float s, float v) : h(h), s(s), v(v) {}
+};
+
+struct Color {
+public:
+    float r;
+    float g;
+    float b;
+
+    inline constexpr Color() : r(0.f), g(0.f), b(0.f) {}
+    inline constexpr Color(float r, float g = 0.f, float b = 0.f) noexcept : r(r), g(g), b(b) {}
+
+    Hsv toHsv() const;
+    static Color fromHsv(const Hsv &hsv);
+
+    inline constexpr ImVec4 toImVec4(float a) {
+        return ImVec4(r, g, b, a);
+    }
+
+    inline constexpr operator ImVec4() {
+        return ImVec4(r, g, b, 1.0f);
+    }
+};
+
+inline constexpr Color operator*(const Color &col, float mul) {
+    return Color(col.r * mul, col.g * mul, col.b * mul);
+}
+
+inline constexpr Color operator/(const Color &col, float mul) {
+    return Color(col.r / mul, col.g / mul, col.b / mul);
+}
+
 template <typename T>
 struct EventQueue {
 private:
@@ -52,6 +91,7 @@ private:
     std::vector<bpbx_envelope_s> envelopes;
 
     void updateParams();
+    void updateColors(); // update style based on custom colors
     void sliderParameter(uint32_t paramId, const char *id, float v_min, float v_max, const char *fmt = "%.3f", bool normalized = false);
 
     void drawAbout(ImGuiWindowFlags winFlags);
@@ -71,6 +111,9 @@ public:
     void sync();
     void event(platform::Event ev, platform::Window *window);
     void draw(platform::Window *window);
+    
+    bool useCustomColors;
+    Color customColor;
 
     EventQueue<gui_event_queue_item_s> gui_to_plugin;
     EventQueue<gui_event_queue_item_s> plugin_to_gui;
