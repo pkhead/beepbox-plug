@@ -23,6 +23,8 @@ private:
 
     void updateParams();
     void updateColors(); // update style based on custom colors
+
+    void paramControls(uint32_t paramId);
     void sliderParameter(uint32_t paramId, const char *id, float v_min, float v_max, const char *fmt = "%.3f", bool normalized = false);
     void vertSliderParameter(uint32_t paramId, const char *id, ImVec2 size, float v_min, float v_max, const char *fmt = "%.3f", bool normalized = false);
 
@@ -41,6 +43,9 @@ private:
     int fadeDragMode;
     double fadeDragInit;
 public:
+    show_context_menu_f popupContextMenu;
+    void *pluginUserdata;
+
     PluginController(bpbx_inst_s *instrument);
 
     static void graphicsInit();

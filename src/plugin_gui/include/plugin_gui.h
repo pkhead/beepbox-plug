@@ -51,6 +51,17 @@ typedef struct {
 } gui_event_queue_item_s;
 
 typedef struct plugin_gui_s plugin_gui_s;
+typedef void (*show_context_menu_f)(int x, int y, uint32_t param, void *userdata);
+
+typedef struct {
+    const char *api;
+    bool is_floating;
+
+    bpbx_inst_s *instrument;
+
+    show_context_menu_f show_context_menu;
+    void *userdata;
+} gui_creation_params_s;
 
 void gui_event_enqueue(plugin_gui_s *iface, gui_event_queue_item_s item);
 bool gui_event_dequeue(plugin_gui_s *iface, gui_event_queue_item_s *item);
@@ -59,7 +70,7 @@ void gui_update_color(plugin_gui_s *gui, clap_color_t color);
 bool gui_is_api_supported(const char *api, bool is_floating);
 bool gui_get_preferred_api(const char **api, bool *is_floating);
 
-plugin_gui_s* gui_create(bpbx_inst_s *instrument, const char *api, bool is_floating);
+plugin_gui_s* gui_create(const gui_creation_params_s *params);
 void gui_destroy(plugin_gui_s *iface);
 void gui_sync_state(plugin_gui_s *gui);
 

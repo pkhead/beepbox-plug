@@ -265,8 +265,10 @@ bool gui_get_preferred_api(const char **api, bool *is_floating) {
     return true;
 }
 
-plugin_gui_s* gui_create(bpbx_inst_s *instrument, const char *api, bool is_floating) {
-    plugin_gui_s *gui = new plugin_gui_s(instrument);
+plugin_gui_s* gui_create(const gui_creation_params_s *params) {
+    plugin_gui_s *gui = new plugin_gui_s(params->instrument);
+    gui->control.popupContextMenu = params->show_context_menu;
+    gui->control.pluginUserdata = params->userdata;
 
     if (openGuiCount == 0) {
         platform::setup();

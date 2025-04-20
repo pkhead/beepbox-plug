@@ -107,6 +107,13 @@ void PluginController::updateParams() {
     }
 }
 
+void PluginController::paramControls(uint32_t paramId) {
+    if (ImGui::IsItemClicked(ImGuiMouseButton_Right) && popupContextMenu) {
+        ImVec2 mousePos = ImGui::GetMousePos();
+        popupContextMenu((int)mousePos.x, (int)mousePos.y, paramId, pluginUserdata);
+    }
+}
+
 void PluginController::sliderParameter(uint32_t paramId, const char *id, float v_min, float v_max, const char *fmt, bool normalized) {
     double v = params[paramId];
     float floatV = (float)v;
@@ -131,6 +138,8 @@ void PluginController::sliderParameter(uint32_t paramId, const char *id, float v
     if (ImGui::IsItemDeactivated()) {
         paramGestureEnd(paramId);
     }
+
+    paramControls(paramId);
 }
 
 void PluginController::vertSliderParameter(uint32_t paramId, const char *id, ImVec2 size, float v_min, float v_max, const char *fmt, bool normalized) {
@@ -157,6 +166,8 @@ void PluginController::vertSliderParameter(uint32_t paramId, const char *id, ImV
     if (ImGui::IsItemDeactivated()) {
         paramGestureEnd(paramId);
     }
+
+    paramControls(paramId);
 }
 
 void PluginController::paramGestureBegin(uint32_t param_id) {
@@ -247,6 +258,8 @@ void PluginController::drawFmGui() {
             paramChange(BPBX_FM_PARAM_ALGORITHM, (double)p_algo);
             paramGestureEnd(BPBX_FM_PARAM_ALGORITHM);
         }
+
+        paramControls(BPBX_FM_PARAM_ALGORITHM);
     }
 
     // operator parameters
@@ -266,17 +279,11 @@ void PluginController::drawFmGui() {
         const char **freqRatios = p_info->enum_values;
 
         if (ImGui::Combo("##freq", &p_freq[op], freqRatios, BPBX_FM_FREQ_COUNT, ImGuiComboFlags_HeightLargest)) {
-
             paramGestureBegin(id);
             paramChange(id, p_freq[op]);
             paramGestureEnd(id);
         }
-        // if (ImGui::BeginCombo("##freq", freqRatios[gui->freq[op]], ImGuiComboFlags_HeightLargest)) {
-        //     for (int i = 0; i < sizeof(freqRatios) / sizeof(*freqRatios); i++) {
-        //         ImGui::Selectable(freqRatios[i]);
-        //     }
-        //     ImGui::EndCombo();
-        // }
+        paramControls(BPBX_FM_PARAM_FREQ1 + op * 2);
 
         sameLineRightCol();
         ImGui::SetNextItemWidth(-FLT_MIN);
@@ -301,6 +308,8 @@ void PluginController::drawFmGui() {
             paramChange(BPBX_FM_PARAM_FEEDBACK_TYPE, (double)p_fdbkType);
             paramGestureEnd(BPBX_FM_PARAM_FEEDBACK_TYPE);
         }
+
+        paramControls(BPBX_FM_PARAM_FEEDBACK_TYPE);
     }
 
     // feedback volume
@@ -384,6 +393,7 @@ void PluginController::drawEffects() {
             paramChange(BPBX_PARAM_VIBRATO_PRESET, (double)curItem);
             paramGestureEnd(BPBX_PARAM_VIBRATO_PRESET);
         }
+        paramControls(BPBX_PARAM_VIBRATO_PRESET);
 
         // show custom vibrato
         if (params[BPBX_PARAM_VIBRATO_PRESET] == BPBX_VIBRATO_PRESET_CUSTOM) {
@@ -428,6 +438,7 @@ void PluginController::drawEffects() {
                 paramChange(BPBX_PARAM_VIBRATO_TYPE, (double)vibratoType);
                 paramGestureEnd(BPBX_PARAM_VIBRATO_TYPE);
             }
+            paramControls(BPBX_PARAM_VIBRATO_TYPE);
         }
     }
 }

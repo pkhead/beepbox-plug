@@ -81,6 +81,7 @@ typedef struct {
    const clap_host_thread_check_t *host_thread_check;
    const clap_host_state_t *host_state;
    const clap_host_track_info_t *host_track_info;
+   const clap_host_context_menu_t *host_context_menu;
    
    bpbx_inst_s *instrument;
    float *process_block;
@@ -783,6 +784,22 @@ static const clap_plugin_params_t s_plugin_params = {
 // clap_gui //
 //////////////
 
+static void gui_show_context_menu(int x, int y, uint32_t param, void *userdata) {
+   plugin_s *plug = (plugin_s*) userdata;
+
+   const clap_host_context_menu_t *host_context_menu = plug->host_context_menu;
+   if (!host_context_menu) return;
+
+   if (host_context_menu->can_popup(plug->host)) {
+      clap_context_menu_target_t target = {
+         .kind = CLAP_CONTEXT_MENU_TARGET_KIND_PARAM,
+         .id = param
+      };
+
+      host_context_menu->popup(plug->host, &target, 0, x, y);
+   }
+}
+
 bool plugin_gui_is_api_supported(const clap_plugin_t *plugin, const char *api, bool is_floating) {
    return gui_is_api_supported(api, is_floating);
 }
@@ -793,7 +810,14 @@ bool plugin_gui_get_preferred_api(const clap_plugin_t *plugin, const char **api,
 
 bool plugin_gui_create(const clap_plugin_t *plugin, const char *api, bool is_floating) {
    plugin_s *plug = plugin->plugin_data;
-   plug->gui = gui_create(plug->instrument, api, is_floating);
+
+   plug->gui = gui_create(&(gui_creation_params_s) {
+      .api = api,
+      .is_floating = is_floating,
+      .instrument = plug->instrument,
+      .show_context_menu = gui_show_context_menu,
+      .userdata = plug
+   });
 
    if (plug->gui) {
       if (plug->has_track_color) {
@@ -889,6 +913,31 @@ static clap_plugin_gui_t s_plugin_gui = {
    .hide = plugin_gui_hide
 };
 
+///////////////////////
+// clap_context_menu //
+///////////////////////
+
+bool plugin_context_menu_populate(
+   const clap_plugin_t *plugin,
+   const clap_context_menu_target_t *target,
+   const clap_context_menu_builder_t *builder
+) {
+   return true;
+}
+
+bool plugin_context_menu_perform(
+   const clap_plugin_t *plugin,
+   const clap_context_menu_target_t *target,
+   clap_id action_id
+) {
+   return true;
+}
+
+static clap_plugin_context_menu_t s_plugin_context_menu = {
+   .populate = plugin_context_menu_populate,
+   .perform = plugin_context_menu_perform
+};
+
 /////////////////////
 // clap_track_info //
 /////////////////////
@@ -934,6 +983,7 @@ static bool plugin_init(const struct clap_plugin *plugin) {
    plug->host_latency = (const clap_host_latency_t *)plug->host->get_extension(plug->host, CLAP_EXT_LATENCY);
    plug->host_state = (const clap_host_state_t *)plug->host->get_extension(plug->host, CLAP_EXT_STATE);
    plug->host_track_info = (const clap_host_track_info_t*) plug->host->get_extension(plug->host, CLAP_EXT_TRACK_INFO);
+   plug->host_context_menu = (const clap_host_context_menu_t*) plug->host->get_extension(plug->host, CLAP_EXT_CONTEXT_MENU);
 
    plug->instrument = bpbx_inst_new(BPBX_INSTRUMENT_FM);
 
@@ -1062,6 +1112,9 @@ static const void *plugin_get_extension(const struct clap_plugin *plugin, const 
 
    if (!strcmp(id, CLAP_EXT_TRACK_INFO))
       return &s_plugin_track_info;
+
+   if (!strcmp(id, CLAP_EXT_CONTEXT_MENU))
+      return &s_plugin_context_menu;
 
    return NULL;
 }
