@@ -6,6 +6,7 @@
 #include <stb_image.h>
 #include <cstring>
 
+#include <cbeepsynth/include/beepbox_synth.h>
 #include "plugin_controller.hpp"
 #include "util.hpp"
 
@@ -278,12 +279,131 @@ void PluginController::drawFmGui() {
 
     // feedback volume
     ImGui::AlignTextToFramePadding();
-    ImGui::Text("Fdbk Vol");
+    ImGui::Text("Fdback Vol");
     
     sameLineRightCol();
     ImGui::SetCursorPosX(feedbackEndX);
     ImGui::SetNextItemWidth(-FLT_MIN);
     sliderParameter(BPBX_FM_PARAM_FEEDBACK_VOLUME, "##vol", 0.0f, 15.0f, "%.0f");
+}
+
+void PluginController::drawEffects() {
+    ImGui::AlignTextToFramePadding();
+    ImGui::SetCursorPosX((ImGui::GetWindowContentRegionMax().x - ImGui::CalcTextSize("Effects").x) / 2.f);
+    ImGui::Text("Effects");
+
+    ImGui::SameLine();
+    // why do i need to subtract one pixel
+    ImGui::SetCursorPosX(ImGui::GetWindowContentRegionMax().x - ImGui::GetFrameHeight() - 1);
+
+    //if (ImGui::Button("v##ToggleEffects", ImVec2(ImGui::GetFrameHeight(), ImGui::GetFrameHeight()))) {
+    if (ImGui::ArrowButton("##ToggleEffects", ImGuiDir_Down)) {
+        ImGui::OpenPopup("EffectsMenu");
+    }
+
+    if (ImGui::BeginPopup("EffectsMenu")) {
+        static const char *effectNames[] = {"transition type", "chord type", "pitch shift", "detune", "vibrato", "note filter"};
+
+        for (int i = 0; i < 6; i++) {
+            unsigned int toggle_param = bpbx_effect_toggle_param((bpbx_instfx_type_e) i);
+            bool is_active = params[toggle_param] != 0.0;
+            bool is_functional = i >= 2; // TODO: impl transition type and chord type
+
+            if (ImGui::Selectable(effectNames[i], is_active, !is_functional ? ImGuiSelectableFlags_Disabled : 0)) {
+                if (is_functional) {
+                    paramGestureBegin(toggle_param);
+                    paramChange(toggle_param, (!is_active) ? 1.0 : 0.0);
+                    paramGestureEnd(toggle_param);
+
+                    ImGui::CloseCurrentPopup();
+                }
+            }
+        }
+
+        ImGui::EndPopup();
+    }
+
+    // pitch shift
+    if (params[BPBX_PARAM_ENABLE_PITCH_SHIFT] != 0.0) {
+        ImGui::AlignTextToFramePadding();
+        ImGui::Text("Pitch Shift");
+        sameLineRightCol();
+        ImGui::SetNextItemWidth(-FLT_MIN);
+
+        sliderParameter(BPBX_PARAM_PITCH_SHIFT, "##Pitch Shift", -12.f, 12.f, "%.0f");
+    }
+
+    // detune
+    if (params[BPBX_PARAM_ENABLE_DETUNE] != 0.0) {
+        ImGui::AlignTextToFramePadding();
+        ImGui::Text("Detune");
+        sameLineRightCol();
+        ImGui::SetNextItemWidth(-FLT_MIN);
+
+        sliderParameter(BPBX_PARAM_DETUNE, "##Detune", -12.f, 12.f, "%.0f");
+    }
+
+    // vibrato
+    if (params[BPBX_PARAM_ENABLE_VIBRATO] != 0.0) {
+        static const char *vibratoPresets[] = {"none", "light", "delayed", "heavy", "shaky", "custom"};
+
+        ImGui::AlignTextToFramePadding();
+        ImGui::Text("Vibrato");
+        sameLineRightCol();
+        ImGui::SetNextItemWidth(-FLT_MIN);
+
+        int curItem = (int)params[BPBX_PARAM_VIBRATO_PRESET];
+        if (ImGui::Combo("##VibratoPresets", &curItem, vibratoPresets, 6)) {
+            paramGestureBegin(BPBX_PARAM_VIBRATO_PRESET);
+            paramChange(BPBX_PARAM_VIBRATO_PRESET, (double)curItem);
+            paramGestureEnd(BPBX_PARAM_VIBRATO_PRESET);
+        }
+
+        // show custom vibrato
+        if (params[BPBX_PARAM_VIBRATO_PRESET] == BPBX_VIBRATO_PRESET_CUSTOM) {
+            // vibrato depth
+            ImGui::AlignTextToFramePadding();
+            ImGui::Bullet();
+            ImGui::Text("Depth");
+
+            sameLineRightCol();
+            ImGui::SetNextItemWidth(-FLT_MIN);
+            sliderParameter(BPBX_PARAM_VIBRATO_DEPTH, "##VibratoDepth", 0.f, 2.f, "%.2f");
+
+            // vibrato speed
+            ImGui::AlignTextToFramePadding();
+            ImGui::Bullet();
+            ImGui::Text("Speed");
+
+            sameLineRightCol();
+            ImGui::SetNextItemWidth(-FLT_MIN);
+            sliderParameter(BPBX_PARAM_VIBRATO_SPEED, "##VibratoSpeed", 0.f, 3.f, "×%.1f");
+
+            // vibrato delay
+            ImGui::AlignTextToFramePadding();
+            ImGui::Bullet();
+            ImGui::Text("Delay");
+
+            sameLineRightCol();
+            ImGui::SetNextItemWidth(-FLT_MIN);
+            sliderParameter(BPBX_PARAM_VIBRATO_DELAY, "##VibratoDelay", 0.f, 50.f, "%.0f");
+
+            // vibrato type
+            ImGui::AlignTextToFramePadding();
+            ImGui::Bullet();
+            ImGui::Text("Type");
+
+            int vibratoType = (int) params[BPBX_PARAM_VIBRATO_TYPE];
+
+            sameLineRightCol();
+            ImGui::SetNextItemWidth(-FLT_MIN);
+            if (ImGui::Combo("##VibratoType", &vibratoType, "normal\0shaky\0")) {
+                paramGestureBegin(BPBX_PARAM_VIBRATO_TYPE);
+                paramChange(BPBX_PARAM_VIBRATO_TYPE, (double)vibratoType);
+                paramGestureEnd(BPBX_PARAM_VIBRATO_TYPE);
+            }
+        }
+    }
 }
 
 void PluginController::drawEnvelopes() {
@@ -293,12 +413,12 @@ void PluginController::drawEnvelopes() {
     ImGui::SetCursorPosX((ImGui::GetWindowContentRegionMax().x - ImGui::CalcTextSize("Envelopes").x) / 2.f);
     ImGui::Text("Envelopes");
 
-    ImGui::SameLine();
-    // why do i need to subtract one pixel
-    ImGui::SetCursorPosX(ImGui::GetWindowContentRegionMax().x - ImGui::GetFrameHeight() - 1);
+    if (envelopes.size() < BPBX_MAX_ENVELOPE_COUNT) {
+        ImGui::SameLine();
+        // why do i need to subtract one pixel
+        ImGui::SetCursorPosX(ImGui::GetWindowContentRegionMax().x - ImGui::GetFrameHeight() - 1);
 
-    if (ImGui::Button("+##AddEnvelope", ImVec2(ImGui::GetFrameHeight(), ImGui::GetFrameHeight()))) {
-        if (envelopes.size() < BPBX_MAX_ENVELOPE_COUNT) {
+        if (ImGui::Button("+##AddEnvelope", ImVec2(ImGui::GetFrameHeight(), ImGui::GetFrameHeight()))) {
             bpbx_envelope_s new_env {};
             new_env.index = BPBX_ENV_INDEX_NONE;
             new_env.curve_preset = 0,
@@ -596,7 +716,7 @@ void PluginController::draw(platform::Window *window) {
         // instrument ui
         } else {
             if (ImGui::Begin("inst", NULL, winFlags)) {
-                uiRightCol = ImGui::GetFontSize() * 6.f;
+                uiRightCol = ImGui::GetFontSize() * 7.f;
                 
                 // volume
                 ImGui::AlignTextToFramePadding();
@@ -606,7 +726,7 @@ void PluginController::draw(platform::Window *window) {
                 sliderParameter(BPBX_PARAM_VOLUME, "##volume", -25.0, 25.0, "%.0f");
 
                 ImGui::AlignTextToFramePadding();
-                ImGui::Text("Fade");
+                ImGui::Text("Fade In/Out");
                 sameLineRightCol();
                 drawFadeWidget("fadectl", ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() * 1.75f));
         
@@ -627,6 +747,7 @@ void PluginController::draw(platform::Window *window) {
                 // specific instrument ui
                 drawFmGui();
 
+                drawEffects();
                 drawEnvelopes();
             } ImGui::End();
         }

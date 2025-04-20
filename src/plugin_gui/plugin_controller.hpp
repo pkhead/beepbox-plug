@@ -30,6 +30,7 @@ private:
 
     void drawFadeWidget(const char *id, ImVec2 size);
     void drawEnvelopes();
+    void drawEffects();
 
     void paramGestureBegin(uint32_t param_id);
     void paramChange(uint32_t param_id, double value);
