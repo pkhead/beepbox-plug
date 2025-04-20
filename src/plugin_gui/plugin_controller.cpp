@@ -366,7 +366,7 @@ void PluginController::drawEffects() {
         sameLineRightCol();
         ImGui::SetNextItemWidth(-FLT_MIN);
 
-        sliderParameter(BPBX_PARAM_DETUNE, "##Detune", -12.f, 12.f, "%.0f");
+        sliderParameter(BPBX_PARAM_DETUNE, "##Detune", -200.f, 200.f, "%.0f");
     }
 
     // vibrato
@@ -489,6 +489,15 @@ void PluginController::drawEnvelopes() {
                 for (int i = 0; i < size; i++) {
                     targets.push_back(instTargets[i]);
                 }
+
+                if (params[BPBX_PARAM_ENABLE_PITCH_SHIFT])
+                    targets.push_back(BPBX_ENV_INDEX_PITCH_SHIFT);
+
+                if (params[BPBX_PARAM_ENABLE_DETUNE])
+                    targets.push_back(BPBX_ENV_INDEX_DETUNE);
+
+                if (params[BPBX_PARAM_ENABLE_VIBRATO])
+                    targets.push_back(BPBX_ENV_INDEX_VIBRATO_DEPTH);
             }
 
             for (int i = 0; i < targets.size(); i++) {
