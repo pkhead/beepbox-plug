@@ -1,22 +1,20 @@
 # About
-This is a port of the [BeepBox](https://beepbox.co/) synthesizers. It also implements some additions from mods.
+This is a plugin interface for my [cbeepsynth](https://github.com/pkhead/cbeepsynth) project.
 
-The project itself comes with three modules, located in the src directory:
-- `synth/`: The library with the synthesizer implementation, written in C.
-- `plugin/`: CLAP audio plugin wrapper
+The project's source code is located within two subdirectories of the `src` folder.
+- `plugin/`: CLAP audio plugin, written in C.
 - `plugin_gui/`: CLAP audio plugin gui, written in C++. (Associated with `gui_libs`)
 
-### Implemented:
+**Implemented:**
 - CLAP plugin, with standalone and VST3 versions supported by [clap-wrapper](https://github.com/free-audio/clap-wrapper)
 - FM synthesizer
 - User interface
 - Envelopes
 
-### To be implemented:
+**To be implemented:**
 - Presets
 - Themes
 - Linux/Mac support
-- dynamic linking for synth lib
 - Instruments:
     - Chip wave
     - FM6 (from mods)
@@ -26,13 +24,13 @@ The project itself comes with three modules, located in the src directory:
     - Spectrum
     - Picked string
     - Supersaw
-- Modifiers:
+- Instrument effects:
     - Transition type
     - Chord type?
     - Pitch shift/detune
     - Vibrato
     - Note filter
-- Effects:
+- Audio effects:
     - Distortion
     - Bitcrusher
     - Panning
@@ -41,34 +39,17 @@ The project itself comes with three modules, located in the src directory:
     - Reverb
 
 # Building
-Checkout the repository with
-```bash
-git clone --recurse-submodules https://github.com/pkhead/beepbox-plug`
-```
-
-## Building the synth code
-Requirements:
-- C11-compliant compiler
-- CMake + build system (Ninja, Makefile, MSVC, e.t.c.)
-
-```bash
-cd synth
-mkdir build
-cd build
-
-# configure cmake
-cmake ..
-
-# compile into a static library
-cmake --build .
-```
-
-## Building the plugin code
 Requirements:
 - C11-compliant compiler (for synth/plugin code)
 - C++17-compliant compiler (for GUI)
 - CMake + build system (Ninja, Makefile, MSVC, e.t.c.)
 
+Checkout the repository with
+```bash
+git clone --recurse-submodules https://github.com/pkhead/beepbox-plug`
+```
+
+Then, build the plugin:
 ```bash
 mkdir build
 cd build

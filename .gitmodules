@@ -10,3 +10,6 @@
 [submodule "src/clap-wrapper"]
 	path = src/clap-wrapper
 	url = https://github.com/free-audio/clap-wrapper
+[submodule "src/cbeepsynth"]
+	path = src/cbeepsynth
+	url = https://github.com/pkhead/cbeepsynth

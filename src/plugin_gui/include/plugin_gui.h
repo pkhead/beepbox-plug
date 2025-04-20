@@ -1,7 +1,7 @@
 #ifndef _plugin_gui_public_h_
 #define _plugin_gui_public_h_
 
-#include <synth/include/beepbox_synth.h>
+#include <cbeepsynth/include/beepbox_synth.h>
 #include <clap/include/clap/ext/gui.h>
 #include <clap/include/clap/ext/track-info.h>
 

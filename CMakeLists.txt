@@ -41,8 +41,9 @@ set_target_properties(imgui PROPERTIES
 ## other libraries ##
 #####################
 
+set(BEEPBOX_SYNTH_BUILD_STATIC 1)
+add_subdirectory(src/cbeepsynth)
 add_subdirectory(src/clap)
-add_subdirectory(src/synth)
 add_subdirectory(src/plugin_gui ${CMAKE_BINARY_DIR}/src/plugin_gui)
 
 if(BUILD_STANDALONE OR BUILD_VST3)
@@ -53,7 +54,7 @@ endif()
 
 # plugin_gui is not added to LIBRARIES because i want a variation of the plugin_gui
 # library when building vst3 (it will add the vst3 trademark to the about page)
-set(LIBRARIES clap beepbox_synth)
+set(LIBRARIES clap beepbox_synth_static)
 
 #################
 ## clap target ##
