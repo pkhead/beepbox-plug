@@ -760,7 +760,7 @@ void PluginController::drawModulationPad() {
     drawList->AddCircleFilled(
         ImVec2(
             params[BPBX_PARAM_MOD_X] * padSize.x + padTL.x,
-            params[BPBX_PARAM_MOD_Y] * padSize.y + padTL.y
+            padBR.y - params[BPBX_PARAM_MOD_Y] * padSize.y
         ),
         4.f, ImGui::GetColorU32(ImGuiCol_ButtonHovered)
     );
@@ -774,7 +774,7 @@ void PluginController::drawModulationPad() {
     if (ImGui::IsItemActive()) {
         ImVec2 mousePos = ImGui::GetMousePos();
         float newX = clamp((mousePos.x - padTL.x) / padSize.x);
-        float newY = clamp((mousePos.y - padTL.y) / padSize.y);
+        float newY = clamp((padBR.y - mousePos.y) / padSize.y);
 
         paramChange(BPBX_PARAM_MOD_X, (double) newX);
         paramChange(BPBX_PARAM_MOD_Y, (double) newY);
