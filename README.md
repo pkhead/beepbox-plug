@@ -17,7 +17,8 @@ The project's source code is located within two subdirectories of the `src` fold
 - Linux/Mac support
 - Instruments:
     - Chip wave
-    - FM6 (from mods)
+    - Custom chip/sampler
+    - FM6
     - Noise
     - Pulse width
     - Harmonics
@@ -27,8 +28,6 @@ The project's source code is located within two subdirectories of the `src` fold
 - Instrument effects:
     - Transition type
     - Chord type?
-    - Pitch shift/detune
-    - Vibrato
     - Note filter
 - Audio effects:
     - Distortion
