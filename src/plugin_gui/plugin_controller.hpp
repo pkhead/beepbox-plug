@@ -24,6 +24,7 @@ private:
     void updateParams();
     void updateColors(); // update style based on custom colors
     void sliderParameter(uint32_t paramId, const char *id, float v_min, float v_max, const char *fmt = "%.3f", bool normalized = false);
+    void vertSliderParameter(uint32_t paramId, const char *id, ImVec2 size, float v_min, float v_max, const char *fmt = "%.3f", bool normalized = false);
 
     void drawAbout(ImGuiWindowFlags winFlags);
     void drawFmGui();
@@ -31,6 +32,7 @@ private:
     void drawFadeWidget(const char *id, ImVec2 size);
     void drawEnvelopes();
     void drawEffects();
+    void drawModulationPad();
 
     void paramGestureBegin(uint32_t param_id);
     void paramChange(uint32_t param_id, double value);

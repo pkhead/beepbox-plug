@@ -133,6 +133,32 @@ void PluginController::sliderParameter(uint32_t paramId, const char *id, float v
     }
 }
 
+void PluginController::vertSliderParameter(uint32_t paramId, const char *id, ImVec2 size, float v_min, float v_max, const char *fmt, bool normalized) {
+    double v = params[paramId];
+    float floatV = (float)v;
+    if (normalized) {
+        floatV = (v_max - v_min) * floatV + v_min;
+    }
+
+    bool changed = ImGui::VSliderFloat(id, size, &floatV, v_min, v_max, fmt);
+
+    if (ImGui::IsItemActivated()) {
+        paramGestureBegin(paramId);
+    }
+
+    if (changed) {
+        if (normalized) {
+            floatV = (floatV - v_min) / (v_max - v_min);
+        }
+
+        paramChange(paramId, (double)floatV);
+    }
+
+    if (ImGui::IsItemDeactivated()) {
+        paramGestureEnd(paramId);
+    }
+}
+
 void PluginController::paramGestureBegin(uint32_t param_id) {
     gui_event_queue_item_s item = {};
     item.type = GUI_EVENT_PARAM_GESTURE_BEGIN;
@@ -487,6 +513,7 @@ void PluginController::drawEnvelopes() {
         ImGui::SameLine();
         if (ImGui::BeginCombo("##curve", curveNames[env.curve_preset])) {
             for (int i = 0; i < BPBX_ENVELOPE_CURVE_PRESET_COUNT; i++) {
+                if (i == 1) continue; // skip note size...
                 bool isSelected = env.curve_preset == i;
                 if (ImGui::Selectable(curveNames[i], isSelected)) {
                     env.curve_preset = i;
@@ -670,6 +697,86 @@ void PluginController::drawFadeWidget(const char *id, ImVec2 size) {
     }
 }
 
+void PluginController::drawModulationPad() {
+    ImGui::AlignTextToFramePadding();
+    ImGui::SetCursorPosX((ImGui::GetWindowContentRegionMax().x - ImGui::CalcTextSize("Modulation").x) / 2.f);
+    ImGui::Text("Modulation");
+
+    ImDrawList *drawList = ImGui::GetWindowDrawList();
+
+    float sliderLabelY = ImGui::GetCursorScreenPos().y;
+
+    // make space for the X and Y labels of the vertical sliders
+    ImGui::NewLine();
+
+    ImGuiStyle &style = ImGui::GetStyle();
+
+    float padHeight = ImGui::GetTextLineHeight() * 10.f;
+    float sliderWidth = (ImGui::GetContentRegionAvail().x - padHeight) / 2.f - style.ItemSpacing.x;
+
+    // x and y sliders
+    drawList->AddText(
+        ImVec2(ImGui::GetCursorScreenPos().x + (sliderWidth - ImGui::CalcTextSize("X").x) / 2.f, sliderLabelY),
+        ImGui::GetColorU32(ImGuiCol_Text),
+        "X"
+    );
+    vertSliderParameter(BPBX_PARAM_MOD_X, "##X", ImVec2(sliderWidth, padHeight), 0.f, 1.f);
+    ImGui::SameLine();
+
+    drawList->AddText(
+        ImVec2(ImGui::GetCursorScreenPos().x + (sliderWidth - ImGui::CalcTextSize("Y").x) / 2.f, sliderLabelY),
+        ImGui::GetColorU32(ImGuiCol_Text),
+        "Y"
+    );
+    vertSliderParameter(BPBX_PARAM_MOD_Y, "##Y", ImVec2(sliderWidth, padHeight), 0.f, 1.f);
+
+    // the pad
+    ImGui::SameLine();
+    ImVec2 padSize = ImVec2(padHeight, padHeight);
+
+    //ImGui::SetCursorPosX((ImGui::GetContentRegionAvail().x - padWidth) / 2.f + ImGui::GetStyle().WindowPadding.x);
+    ImVec2 padTL = ImGui::GetCursorScreenPos();
+    ImVec2 padBR = ImVec2(padTL.x + padSize.x, padTL.y + padSize.y);
+    ImGui::InvisibleButton("modpad", padSize);
+
+    // draw pad label
+    drawList->AddText(
+        ImVec2(padTL.x + (padSize.x - ImGui::CalcTextSize("Pad").x) / 2.f, sliderLabelY),
+        ImGui::GetColorU32(ImGuiCol_Text),
+        "Pad"
+    );
+
+    // draw pad graphics
+    drawList->AddRectFilled(padTL, padBR, ImGui::GetColorU32(ImGuiCol_FrameBg));
+    drawList->AddCircleFilled(
+        ImVec2(
+            params[BPBX_PARAM_MOD_X] * padSize.x + padTL.x,
+            params[BPBX_PARAM_MOD_Y] * padSize.y + padTL.y
+        ),
+        4.f, ImGui::GetColorU32(ImGuiCol_ButtonHovered)
+    );
+
+    // pad controls
+    if (ImGui::IsItemActivated()) {
+        paramGestureBegin(BPBX_PARAM_MOD_X);
+        paramGestureBegin(BPBX_PARAM_MOD_Y);
+    }
+
+    if (ImGui::IsItemActive()) {
+        ImVec2 mousePos = ImGui::GetMousePos();
+        float newX = clamp((mousePos.x - padTL.x) / padSize.x);
+        float newY = clamp((mousePos.y - padTL.y) / padSize.y);
+
+        paramChange(BPBX_PARAM_MOD_X, (double) newX);
+        paramChange(BPBX_PARAM_MOD_Y, (double) newY);
+    }
+
+    if (ImGui::IsItemDeactivated()) {
+        paramGestureEnd(BPBX_PARAM_MOD_X);
+        paramGestureEnd(BPBX_PARAM_MOD_Y);
+    }
+}
+
 void PluginController::sameLineRightCol() {
     ImGui::SameLine();
     ImGui::SetCursorPosX(uiRightCol);
@@ -749,6 +856,7 @@ void PluginController::draw(platform::Window *window) {
 
                 drawEffects();
                 drawEnvelopes();
+                drawModulationPad();
             } ImGui::End();
         }
     }
