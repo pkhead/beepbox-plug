@@ -91,7 +91,13 @@ typedef struct {
    bool is_playing;
 } plugin_s;
 
-static bool plugin_set_param(plugin_s *plug, int id, double value) {
+typedef enum {
+   SEND_TO_GUI = 1,
+   SEND_TO_HOST = 2,
+   NO_RECURSION = 4,
+} event_send_flags_e;
+
+static bool plugin_set_param(plugin_s *plug, int id, double value, event_send_flags_e send_flags, const clap_output_events_t *out_events) {
    bpbx_inst_type_e type = bpbx_inst_type(plug->instrument);
    const bpbx_inst_param_info_s *info = bpbx_param_info(type, id);
    if (!info) return false;
@@ -106,6 +112,67 @@ static bool plugin_set_param(plugin_s *plug, int id, double value) {
          bpbx_inst_set_param_double(plug->instrument, id, value);
          break;
    }
+
+   if (out_events && (send_flags & SEND_TO_HOST)) {
+      clap_event_param_value_t out_ev = {
+         .header.space_id = CLAP_CORE_EVENT_SPACE_ID,
+         .header.size = sizeof(clap_event_param_value_t),
+         .header.type = CLAP_EVENT_PARAM_VALUE,
+         .header.time = 0,
+
+         .param_id = id,
+         .value = value,
+         .cookie = NULL,
+
+         .note_id = -1,
+         .port_index = -1,
+         .channel = -1,
+         .key = -1,
+      };
+
+      out_events->try_push(out_events, (clap_event_header_t*)&out_ev);
+   }
+
+   if (plug->gui && (send_flags & SEND_TO_GUI)) {
+      gui_event_queue_item_s item = {
+         .type = GUI_EVENT_PARAM_CHANGE,
+         .param_value.param_id = id,
+         .param_value.value = value
+      };
+
+      gui_event_enqueue(plug->gui, item);
+   }
+
+   // when changing vibrato preset, change vibrato paramaters as well.
+   // and when changing vibrato parameters, change preset to custom.
+   // Kind of has to be done plugin-side so that the host knows that those
+   // parameters changed...
+   if (!(send_flags & NO_RECURSION)) {
+      switch (id) {
+         case BPBX_PARAM_VIBRATO_PRESET:
+            if ((int)value != BPBX_VIBRATO_PRESET_CUSTOM) {
+               bpbx_vibrato_params_s params;
+               bpbx_vibrato_preset_params((int)value, &params);
+
+               event_send_flags_e flags = SEND_TO_GUI | SEND_TO_HOST | NO_RECURSION;
+               plugin_set_param(plug, BPBX_PARAM_VIBRATO_DEPTH, params.depth, flags, out_events);
+               plugin_set_param(plug, BPBX_PARAM_VIBRATO_SPEED, params.speed, flags, out_events);
+               plugin_set_param(plug, BPBX_PARAM_VIBRATO_DELAY, (double)params.delay, flags, out_events);
+               plugin_set_param(plug, BPBX_PARAM_VIBRATO_TYPE, (double)params.type, flags, out_events);
+            }
+            break;
+
+         case BPBX_PARAM_VIBRATO_DEPTH:
+         case BPBX_PARAM_VIBRATO_SPEED:
+         case BPBX_PARAM_VIBRATO_DELAY:
+         case BPBX_PARAM_VIBRATO_TYPE: {
+            int vibrato_preset;
+            if (!bpbx_inst_get_param_int(plug->instrument, BPBX_PARAM_VIBRATO_PRESET, &vibrato_preset) && vibrato_preset != BPBX_VIBRATO_PRESET_CUSTOM)
+               plugin_set_param(plug, BPBX_PARAM_VIBRATO_PRESET, (double)BPBX_VIBRATO_PRESET_CUSTOM, SEND_TO_GUI | SEND_TO_HOST | NO_RECURSION, out_events);
+            break;
+         }
+      }
+   }
    
    return true;
 }
@@ -117,25 +184,7 @@ static void process_gui_events(plugin_s *plug, const clap_output_events_t *out_e
    while (gui_event_dequeue(plug->gui, &item)) {
       switch (item.type) {
          case GUI_EVENT_PARAM_CHANGE: {
-            plugin_set_param(plug, item.param_value.param_id, item.param_value.value);
-
-            clap_event_param_value_t out_ev = {
-               .header.space_id = CLAP_CORE_EVENT_SPACE_ID,
-               .header.size = sizeof(clap_event_param_value_t),
-               .header.type = CLAP_EVENT_PARAM_VALUE,
-               .header.time = 0,
-
-               .param_id = item.gesture.param_id,
-               .value = item.param_value.value,
-               .cookie = NULL,
-
-               .note_id = -1,
-               .port_index = -1,
-               .channel = -1,
-               .key = -1,
-            };
-
-            out_events->try_push(out_events, (clap_event_header_t*)&out_ev);
+            plugin_set_param(plug, item.param_value.param_id, item.param_value.value, SEND_TO_HOST, out_events);
             break;
          }
          
@@ -202,12 +251,15 @@ static void plugin_process_transport(plugin_s *plug, const clap_event_transport_
          int64_t beats_frac = ev->song_pos_beats % CLAP_BEATTIME_FACTOR;
          plug->cur_beat = (double)beats_int + (double)beats_frac / CLAP_BEATTIME_FACTOR;
       }
+
+      if (is_playing)
+         bpbx_transport_begin_playback(plug->instrument, plug->cur_beat, plug->bpm);
    }
 
    plug->is_playing = is_playing;
 }
 
-static void plugin_process_event(plugin_s *plug, const clap_event_header_t *hdr) {
+static void plugin_process_event(plugin_s *plug, const clap_event_header_t *hdr, const clap_output_events_t *out_events) {
    if (hdr->space_id == CLAP_CORE_EVENT_SPACE_ID) {
       switch (hdr->type) {
       case CLAP_EVENT_NOTE_ON: {
@@ -241,16 +293,8 @@ static void plugin_process_event(plugin_s *plug, const clap_event_header_t *hdr)
       case CLAP_EVENT_PARAM_VALUE: {
          const clap_event_param_value_t *ev = (const clap_event_param_value_t *)hdr;
          
-         plugin_set_param(plug, ev->param_id, ev->value);
-
-         if (plug->gui) {
-            gui_event_queue_item_s item = {
-               .type = GUI_EVENT_PARAM_CHANGE,
-               .param_value.param_id = ev->param_id,
-               .param_value.value = ev->value
-            };
-            gui_event_enqueue(plug->gui, item);
-         }
+         plugin_set_param(plug, ev->param_id, ev->value, SEND_TO_GUI, out_events);
+         
          break;
       }
 
@@ -722,7 +766,7 @@ void plugin_params_flush(const clap_plugin_t *plugin, const clap_input_events_t 
 
    for (uint32_t i = 0; i < size; i++) {
       const clap_event_header_t *hdr = in->get(in, i);
-      plugin_process_event(plug, hdr);
+      plugin_process_event(plug, hdr, out);
    }
 }
 
@@ -962,7 +1006,7 @@ static clap_process_status plugin_process(const struct clap_plugin *plugin, cons
             break;
          }
 
-         plugin_process_event(plug, hdr);
+         plugin_process_event(plug, hdr, process->out_events);
          ++ev_index;
 
          if (ev_index == nev) {
