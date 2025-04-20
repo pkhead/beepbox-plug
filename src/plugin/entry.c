@@ -606,10 +606,15 @@ bool plugin_params_get_info(const clap_plugin_t *plugin, uint32_t param_index, c
    if (info == NULL)
       return false;
 
+   const char *module_name = "";
+   if (info->group) {
+      module_name = info->group;
+   }
+
    param_info->cookie = NULL;
    param_info->id = param_index;
    strcpy_s(param_info->name, 256, info->name);
-   strcpy_s(param_info->module, 1024, "FM");
+   strcpy_s(param_info->module, 1024, module_name);
    param_info->default_value = info->default_value;
    param_info->min_value = info->min_value;
    param_info->max_value = info->max_value;
