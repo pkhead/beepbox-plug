@@ -278,9 +278,17 @@ void PluginController::drawFmGui() {
 }
 
 void PluginController::drawEnvelopes() {
-    ImGui::SeparatorText("Envelopes");
+    ImGuiStyle &style = ImGui::GetStyle();
 
-    if (ImGui::Button("Add")) {
+    ImGui::AlignTextToFramePadding();
+    ImGui::SetCursorPosX((ImGui::GetWindowContentRegionMax().x - ImGui::CalcTextSize("Envelopes").x) / 2.f);
+    ImGui::Text("Envelopes");
+
+    ImGui::SameLine();
+    // why do i need to subtract one pixel
+    ImGui::SetCursorPosX(ImGui::GetWindowContentRegionMax().x - ImGui::GetFrameHeight() - 1);
+
+    if (ImGui::Button("+##AddEnvelope", ImVec2(ImGui::GetFrameHeight(), ImGui::GetFrameHeight()))) {
         if (envelopes.size() < BPBX_MAX_ENVELOPE_COUNT) {
             bpbx_envelope_s new_env {};
             new_env.index = BPBX_ENV_INDEX_NONE;
@@ -308,7 +316,6 @@ void PluginController::drawEnvelopes() {
         // there will be a square deletion button at the right side of each line.
         // then, i want to have each combobox take half of the available content width,
         // and also have X spacing inbetween all items be the same as inner spacing X
-        ImGuiStyle &style = ImGui::GetStyle();
         float itemWidth = (ImGui::GetContentRegionAvail().x - ImGui::GetFrameHeight() - style.ItemInnerSpacing.x * 2) / 2.f;
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(style.ItemInnerSpacing.x, style.ItemSpacing.y));
         
