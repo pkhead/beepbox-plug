@@ -165,10 +165,19 @@ void PluginController::event(platform::Event ev, platform::Window *window) {
 
 void PluginController::drawAbout(ImGuiWindowFlags winFlags) {
     ImGui::Begin("about", NULL, winFlags);
-    ImGui::Text("emulation of beepbox instruments");
-    ImGui::Text("author: pkhead");
-    ImGui::Text("original: john nesky (shaktool)");
-    ImGui::Text("libraries: sokol, Dear ImGui");
+    ImGui::TextWrapped("C port of and plugin for BeepBox instruments.");
+    ImGui::TextWrapped("ported by pkhead, designed/programmed by John Nesky.");
+
+    ImGui::NewLine();
+
+    ImGui::TextLinkOpenURL("BeepBox website", "https://beepbox.co");
+    ImGui::TextLinkOpenURL("Source code", "https://github.com/pkhead/beepbox-plug");
+
+    ImGui::Text("Libraries:");
+    ImGui::Bullet();
+    ImGui::TextLinkOpenURL("sokol", "https://github.com/floooh/sokol");
+    ImGui::Bullet();
+    ImGui::TextLinkOpenURL("Dear ImGui", "https://github.com/ocornut/imgui");
 
     // show vst3-compatible logo
     #ifdef PLUGIN_VST3

@@ -155,8 +155,20 @@ static platform::Key winKey(WPARAM k) {
     }
 }
 
+// opening a link with ImGui causes the program to crash i think?
+// but for some reason when i added this it fixed the issue. What.
+static bool debounce = false;
+class DebounceHandle {
+public:
+    DebounceHandle() { debounce = true; }
+    ~DebounceHandle() { debounce = false; }
+};
+
 LRESULT CALLBACK MyWinProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
+    if (debounce) return DefWindowProcA(hwnd, uMsg, wParam, lParam);
+    DebounceHandle h;
+
     // fprintf(stderr, "msg: %u wParam: %llu lParam: %lld\n", uMsg, wParam, lParam);
 
     // NOTE: Might be NULL during initialisation
