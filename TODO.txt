@@ -1,1 +1,1 @@
-- fade in/out ui
+- vibrato starts from wrong beat in fl studio. Could either clap-wrapper not providing playback information (not likely) or my code being faulty. need to check with bitwig studio.
