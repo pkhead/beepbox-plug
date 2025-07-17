@@ -68,18 +68,23 @@ void PluginController::sync() {
     memcpy(envelopes.data(), bpbx_inst_get_envelope(instrument, 0), sizeof(bpbx_envelope_s) * envelopes.size());
 }
 
-void PluginController::updateParams() {
+bool PluginController::updateParams() {
+    bool didWork = false;
     gui_event_queue_item_s item;
+
     while (plugin_to_gui.dequeue(item)) {
         switch (item.type) {
             case GUI_EVENT_PARAM_CHANGE:
                 params[item.param_value.param_id] = item.param_value.value;
+                didWork = true;
                 break;
 
             default:
                 break;
         }
     }
+
+    return didWork;
 }
 
 void PluginController::paramControls(uint32_t paramId) {
@@ -173,7 +178,8 @@ void PluginController::paramGestureEnd(uint32_t param_id) {
 }
 
 void PluginController::event(platform::Event ev, platform::Window *window) {
-    updateParams();
+    if (updateParams())
+        platform::requestRedraw(window);
 }
 
 void PluginController::drawAbout(ImGuiWindowFlags winFlags) {

@@ -143,6 +143,7 @@ namespace platform {
 
             Realize,
             Unrealize,
+            Idle,
         } type;
         
         union {
@@ -173,6 +174,7 @@ namespace platform {
 
     void setVisible(Window *window, bool visible);
     void setParent(Window *window, void *parentHandle);
+    void requestRedraw(Window *window);
 
     struct Window {
         PuglView *puglView;

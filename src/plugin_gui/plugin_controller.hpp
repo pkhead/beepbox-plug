@@ -22,7 +22,7 @@ private:
 
     std::vector<bpbx_envelope_s> envelopes;
 
-    void updateParams();
+    bool updateParams();
     void updateColors(); // update style based on custom colors
 
     void paramControls(uint32_t paramId);

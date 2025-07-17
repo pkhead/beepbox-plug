@@ -233,27 +233,33 @@ void eventHandler(platform::Event ev, platform::Window *window) {
     switch (ev.type) {
         case platform::Event::MouseMove:
             io.AddMousePosEvent((float)ev.x, (float)ev.y);
+            platform::requestRedraw(window);
             break;
 
         case platform::Event::MouseDown:
             io.AddMouseButtonEvent(ev.button, true);
+            platform::requestRedraw(window);
             break;
 
         case platform::Event::MouseUp:
             io.AddMouseButtonEvent(ev.button, false);
+            platform::requestRedraw(window);
             break;
         
         case platform::Event::MouseWheel:
             io.AddMouseWheelEvent((float)ev.x, (float)ev.y);
+            platform::requestRedraw(window);
             break;
 
         case platform::Event::KeyDown:
             io.AddKeyEvent(keyToImgui(ev.key), true);
+            platform::requestRedraw(window);
             break;
 
         case platform::Event::KeyUp:
             io.AddKeyEvent(keyToImgui(ev.key), false);
-            break;
+            platform::requestRedraw(window);
+            break;            
 
         case platform::Event::Realize:
             setUpGraphics(window);

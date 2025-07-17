@@ -180,7 +180,6 @@ static PuglStatus puglEventFunc(PuglView *view, const PuglEvent *rawEvent) {
             event.y = (int)rawEvent->motion.y;
 
             window->evCallback(event, window);
-            puglObscureView(view);
             break;
         
         case PUGL_BUTTON_PRESS:
@@ -190,7 +189,6 @@ static PuglStatus puglEventFunc(PuglView *view, const PuglEvent *rawEvent) {
             event.y = rawEvent->button.y;
 
             window->evCallback(event, window);
-            puglObscureView(view);
             break;
 
         case PUGL_BUTTON_RELEASE:
@@ -200,7 +198,6 @@ static PuglStatus puglEventFunc(PuglView *view, const PuglEvent *rawEvent) {
             event.y = rawEvent->button.y;
 
             window->evCallback(event, window);
-            puglObscureView(view);
             break;
 
         case PUGL_SCROLL:
@@ -209,7 +206,6 @@ static PuglStatus puglEventFunc(PuglView *view, const PuglEvent *rawEvent) {
             event.y = (int) rawEvent->scroll.dy;
 
             window->evCallback(event, window);
-            puglObscureView(view);
             break;
 
         case PUGL_KEY_PRESS:
@@ -219,7 +215,6 @@ static PuglStatus puglEventFunc(PuglView *view, const PuglEvent *rawEvent) {
             if (event.key != platform::Key::None)
             {
                 window->evCallback(event, window);
-                puglObscureView(view);
             }
             break;
 
@@ -230,7 +225,14 @@ static PuglStatus puglEventFunc(PuglView *view, const PuglEvent *rawEvent) {
             if (event.key != platform::Key::None)
             {
                 window->evCallback(event, window);
-                puglObscureView(view);
+            }
+            break;
+
+        case PUGL_TIMER:
+            if (rawEvent->timer.id == 0) {
+                platform::Event event;
+                event.type = platform::Event::Idle;
+                window->evCallback(event, window);
             }
             break;
         
@@ -305,6 +307,8 @@ void platform::setParent(platform::Window *window, void* newParent)
         return;
     }
     window->isRealized = true;
+
+    puglStartTimer(window->puglView, 0, 1.0 / 60.0);
 }
 
 void platform::setUserdata(platform::Window *window, void *ud) {
@@ -328,4 +332,8 @@ void platform::setVisible(Window *window, bool visible) {
         puglShow(window->puglView, PUGL_SHOW_RAISE);
     else
         puglHide(window->puglView);
+}
+
+void platform::requestRedraw(Window *window) {
+    puglObscureView(window->puglView);
 }
