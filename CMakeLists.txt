@@ -11,20 +11,38 @@ project(BeepBox VERSION 0.0.1)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 
+# graphics backend
+if (NOT GRAPHICS_BACKEND)
+    if (WIN32)
+        set(GRAPHICS_BACKEND d3d11)
+    else()
+        set(GRAPHICS_BACKEND gl)
+    endif()
+endif()
+
 include_directories(src)
 
 #################
 # imgui library #
 #################
 
-add_library(imgui STATIC
+set(IMGUI_SOURCES
     src/imgui/imgui_demo.cpp
     src/imgui/imgui_draw.cpp
     src/imgui/imgui_tables.cpp
     src/imgui/imgui_widgets.cpp
     src/imgui/imgui.cpp
-    src/imgui/backends/imgui_impl_opengl3.cpp
 )
+
+if (${GRAPHICS_BACKEND} STREQUAL "d3d11")
+    set(IMGUI_SOURCES ${IMGUI_SOURCES} src/imgui/backends/imgui_impl_dx11.cpp)
+elseif (${GRAPHICS_BACKEND} STREQUAL "gl")
+    set(IMGUI_SOURCES ${IMGUI_SOURCES} src/imgui/backends/imgui_impl_dx11.cpp)
+else()
+    message(FATAL_ERROR "Unknown graphics backend option " ${GRAPHICS_BACKEND})
+endif()
+
+add_library(imgui STATIC ${IMGUI_SOURCES})
 
 target_include_directories(imgui
     PUBLIC
@@ -105,13 +123,17 @@ endif()
 message(STATUS "Configuration: ")
 
 if (BUILD_VST3)
-    message(STATUS "\tBUILD_VST3:           On")
+    message(STATUS      "\tBUILD_VST3:           On")
 else()
-    message(STATUS "\tBUILD_VST3:           Off")
+    message(STATUS      "\tBUILD_VST3:           Off")
 endif()
 
 if (BUILD_STANDALONE)
-    message(STATUS "\tBUILD_STANDALONE:     On")
+    message(STATUS      "\tBUILD_STANDALONE:     On")
 else()
-    message(STATUS "\tBUILD_STANDALONE:     Off")
+    message(STATUS      "\tBUILD_STANDALONE:     Off")
 endif()
+
+message(STATUS          "\tGRAPHICS_BACKEND:     " ${GRAPHICS_BACKEND})
+
+unset(GRAPHICS_BACKEND CACHE)

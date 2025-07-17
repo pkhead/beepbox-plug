@@ -14,13 +14,6 @@ using namespace beepbox;
 
 #ifdef PLUGIN_VST3
 #include "resource/vst_logo.hpp"
-
-struct {
-    sg_image tex;
-    sg_sampler smp;
-    int width;
-    int height;
-} static vstLogo;
 #endif
 
 void PluginController::graphicsInit() {
@@ -28,30 +21,13 @@ void PluginController::graphicsInit() {
     int width, height, channels;
     uint8_t *imageData = stbi_load_from_memory(resources::vst_logo, resources::vst_logo_len, &width, &height, &channels, 4);
     if (imageData == nullptr) {
-        vstLogo.tex.id = SG_INVALID_ID;
-        vstLogo.smp.id = SG_INVALID_ID;
+        vstLogo.texture = nullptr;
         vstLogo.width = 0;
         vstLogo.height = 0;
         return;
     }
 
-    {
-        sg_image_desc desc = {};
-        desc.width = width;
-        desc.height = height;
-        desc.pixel_format = SG_PIXELFORMAT_RGBA8;
-        desc.data.subimage[0][0].ptr = imageData;
-        desc.data.subimage[0][0].size = width * height * sizeof(uint8_t) * channels;
-        vstLogo.tex = sg_make_image(&desc);
-    }
-
-    {
-        sg_sampler_desc desc = {};
-        desc.mag_filter = SG_FILTER_LINEAR;
-        desc.min_filter = SG_FILTER_LINEAR;
-        vstLogo.smp = sg_make_sampler(&desc);
-    }
-
+    vstLogo.texture = gfx::createTexture(imageData, width, height);
     vstLogo.width = width;
     vstLogo.height = height;
 
@@ -61,8 +37,7 @@ void PluginController::graphicsInit() {
 
 void PluginController::graphicsClose() {
     #ifdef PLUGIN_VST3
-    sg_destroy_image(vstLogo.tex);
-    sg_destroy_sampler(vstLogo.smp);
+    gfx::destroyTexture(vstLogo.texture);
     #endif
 }
 
@@ -220,7 +195,7 @@ void PluginController::drawAbout(ImGuiWindowFlags winFlags) {
     // show vst3-compatible logo
     #ifdef PLUGIN_VST3
     ImGui::SetCursorPosX((ImGui::GetWindowWidth() - (float)vstLogo.width) / 2.f);
-    ImGui::Image(simgui_imtextureid_with_sampler(vstLogo.tex, vstLogo.smp), ImVec2((float)vstLogo.width, (float)vstLogo.height));
+    ImGui::Image((ImTextureID) vstLogo.texture, ImVec2((float)vstLogo.width, (float)vstLogo.height));
     #endif
 
     ImGui::End();
@@ -804,16 +779,7 @@ void PluginController::sameLineRightCol() {
 
 void PluginController::draw(platform::Window *window) {
     updateParams();
-
-    // begin imgui frame
-    {
-        simgui_frame_desc_t desc = {};
-        desc.width = platform::getWidth(window);
-        desc.height = platform::getHeight(window);
-        desc.delta_time = 1.0f / 60.0f; // TODO
-        simgui_new_frame(&desc);
-        updateColors();
-    }
+    updateColors();
 
 
     // imgui
@@ -880,21 +846,6 @@ void PluginController::draw(platform::Window *window) {
             } ImGui::End();
         }
     }
-
-    // begin sokol pass
-    {
-        sg_pass pass = {};
-        pass.swapchain = platform::sokolSwapchain(window);
-        pass.action.colors[0].load_action = SG_LOADACTION_CLEAR;
-        pass.action.colors[0].clear_value = {0.0f, 0.0f, 0.0f, 1.0f};
-        sg_begin_pass(pass);
-    }
-
-    // render imgui
-    simgui_render();
-
-    // end pass
-    sg_end_pass();
 }
 
 // https://stackoverflow.com/questions/3018313/algorithm-to-convert-rgb-to-hsv-and-hsv-to-rgb-in-range-0-255-for-both

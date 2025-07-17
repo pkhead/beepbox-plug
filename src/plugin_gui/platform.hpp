@@ -1,5 +1,11 @@
 #pragma once
-#include <sokol/sokol_gfx.h>
+#include <pugl/pugl.h>
+#include <imgui/imgui.h>
+
+// forward declaration of gfx::WindowData
+namespace gfx {
+    struct WindowData;
+}
 
 namespace platform {
     enum class Key {
@@ -134,6 +140,9 @@ namespace platform {
             MouseWheel,
             KeyDown,
             KeyUp,
+
+            Realize,
+            Unrealize,
         } type;
         
         union {
@@ -150,10 +159,6 @@ namespace platform {
     typedef void (*EventHandler)(Event event, Window *platform);
     typedef void (*DrawHandler)(Window *platform);
 
-    extern sg_swapchain sokolSwapchain(Window *platform);
-    extern sg_environment sokolEnvironment();
-    extern void present(Window *data);
-
     void setup();
     void shutdown();
 
@@ -168,4 +173,19 @@ namespace platform {
 
     void setVisible(Window *window, bool visible);
     void setParent(Window *window, void *parentHandle);
+
+    struct Window {
+        PuglView *puglView;
+        bool isRealized;
+
+        int width;
+        int height;
+        platform::EventHandler evCallback;
+        platform::DrawHandler drawCallback;
+
+        ImGuiContext *imguiCtx;
+        gfx::WindowData *gfxData;
+
+        void *userdata;
+    };
 }

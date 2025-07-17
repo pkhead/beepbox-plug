@@ -5,6 +5,7 @@
 #include "include/plugin_gui.h"
 #include "platform.hpp"
 #include "util.hpp"
+#include "gfx.hpp"
 
 constexpr int GUI_EVENT_QUEUE_MASK = GUI_EVENT_QUEUE_SIZE-1;
 
@@ -42,14 +43,22 @@ private:
 
     int fadeDragMode;
     double fadeDragInit;
+
+#ifdef PLUGIN_VST3
+    struct {
+        gfx::Texture *texture;
+        int width;
+        int height;
+    } vstLogo;
+#endif
 public:
     show_context_menu_f popupContextMenu;
     void *pluginUserdata;
 
     PluginController(bpbx_inst_s *instrument);
 
-    static void graphicsInit();
-    static void graphicsClose();
+    void graphicsInit();
+    void graphicsClose();
 
     void sync();
     void event(platform::Event ev, platform::Window *window);

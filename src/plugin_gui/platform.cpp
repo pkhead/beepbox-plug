@@ -1,8 +1,12 @@
 #include "platform.hpp"
+
 #include <cstdio>
 #include <cassert>
+#include <imgui/imgui.h>
+#include <imgui/backends/imgui_impl_dx11.h>
 #include <pugl/pugl.h>
 #include <pugl/stub.h>
+#include "gfx.hpp"
 
 #ifdef GFX_D3D11
 #define WIN32_LEAN_AND_MEAN
@@ -15,28 +19,11 @@
 #pragma comment (lib, "d3d11.lib")
 #pragma comment (lib, "dxgi.lib")
 #pragma comment (lib, "dwmapi.lib")
+#elif defined(GFX_OPENGL)
+#include <pugl/gl.h>
 #else
 #error "no graphics backend chosen!"
 #endif
-
-namespace platform {
-    struct Window {
-        PuglView *puglView;
-        bool isRealized;
-
-        int width;
-        int height;
-        platform::EventHandler evCallback;
-        platform::DrawHandler drawCallback;
-
-#ifdef GFX_D3D11
-        IDXGISwapChain1 *swapchain;
-        ID3D11RenderTargetView *backbuffer;
-#endif
-
-        void *userdata;
-    };
-}
 
 static PuglWorld *puglWorld;
 static const char *worldClassName = "BeepBoxPluginWindow";
@@ -52,67 +39,14 @@ void platform::setup() {
     puglWorld = puglNewWorld(PUGL_MODULE, 0);
     puglSetWorldString(puglWorld, PUGL_CLASS_NAME, worldClassName);
 
-#ifdef GFX_D3D11
-    D3D_FEATURE_LEVEL featureLevel;
-    HRESULT s = D3D11CreateDevice(
-        NULL,
-        D3D_DRIVER_TYPE_HARDWARE,
-        NULL, NULL, NULL, NULL, D3D11_SDK_VERSION,
-        &s_device, &featureLevel, &s_devcon
-    );
-    assert(s == S_OK);
-
-    s = CreateDXGIFactory(__uuidof(IDXGIFactory2), (void**)&s_dxgiFactory);
-    assert(s == S_OK);
-#endif
+    gfx::setupWorld();
 }
 
 void platform::shutdown() {
+    gfx::shutdownWorld();
+
     puglFreeWorld(puglWorld);
     puglWorld = nullptr;
-
-#ifdef GFX_D3D11
-    s_device->Release();
-    s_devcon->Release();
-    s_dxgiFactory->Release();
-#endif
-}
-
-sg_environment platform::sokolEnvironment() {
-    sg_environment env = {};
-
-#ifdef GFX_D3D11
-    env.d3d11.device = s_device;
-    env.d3d11.device_context = s_devcon;
-#endif
-
-    env.defaults.color_format = SG_PIXELFORMAT_RGBA8UI;
-    env.defaults.depth_format = SG_PIXELFORMAT_NONE;
-    env.defaults.sample_count = 1;
-    return env;
-}
-
-sg_swapchain platform::sokolSwapchain(platform::Window *window) {
-    sg_swapchain sw = {};
-
-#ifdef GFX_D3D11
-    sw.d3d11.render_view = window->backbuffer;
-#endif
-
-    sw.width = window->width;
-    sw.height = window->height;
-    sw.color_format = SG_PIXELFORMAT_RGBA8UI;
-    sw.depth_format = SG_PIXELFORMAT_NONE;
-    sw.sample_count = 1;
-    return sw;
-}
-
-void platform::present(platform::Window *window) {
-#ifdef GFX_D3D11
-    window->swapchain->Present(0, 0);
-#else
-#error "not implemented for graphics backend: platform::present"
-#endif
 }
 
 static platform::Key puglKey(uint32_t k) {
@@ -184,38 +118,31 @@ static platform::Key puglKey(uint32_t k) {
 }
 
 static void setupGraphics(platform::Window *window) {
-#ifdef GFX_D3D11
-    // initialize swapchain/backbuffer
-    PuglView *view = window->puglView;
-    HWND hwnd = (HWND) puglGetNativeView(view);
+    // initialize imgui context
+    ImGuiContext *ctx = ImGui::CreateContext();
+    window->imguiCtx = ctx;
+    ImGui::SetCurrentContext(ctx);
 
-    DXGI_SWAP_CHAIN_DESC1 scd;
-    ZeroMemory(&scd, sizeof(scd));
+    ImGui::GetIO().IniFilename = nullptr;
 
-    scd.BufferCount = 1;
-    scd.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    scd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-    scd.SampleDesc.Count = 1;
-    
-    HRESULT hr = s_dxgiFactory->CreateSwapChainForHwnd(
-        s_device,
-        hwnd, &scd, NULL, NULL, &window->swapchain);
-    assert(hr == S_OK);
+    platform::Event ev;
+    ev.type = platform::Event::Realize;
+    window->evCallback(ev, window);
 
-    ID3D11Texture2D *pBackBuffer;
-    window->swapchain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&pBackBuffer);
-    s_device->CreateRenderTargetView(pBackBuffer, NULL, &window->backbuffer);
-    pBackBuffer->Release();
-#endif
+    gfx::setupWindow(window);
 }
 
 static void shutdownGraphics(platform::Window *window) {
-#ifdef GFX_D3D11
-    if (window->swapchain)
-        window->swapchain->Release();
-    if (window->backbuffer)
-        window->backbuffer->Release();
-#endif
+    platform::Event ev;
+    ev.type = platform::Event::Unrealize;
+    window->evCallback(ev, window);
+
+    gfx::shutdownWindow(window);
+
+    if (window->imguiCtx) {
+        ImGui::DestroyContext(window->imguiCtx);
+        window->imguiCtx = nullptr;
+    }
 }
 
 // opening a link with ImGui causes the program to crash i think?
@@ -233,6 +160,10 @@ static PuglStatus puglEventFunc(PuglView *view, const PuglEvent *rawEvent) {
 
     platform::Window *window = (platform::Window*) puglGetHandle(view);
     platform::Event event = {};
+
+    if (window->imguiCtx) {
+        ImGui::SetCurrentContext(window->imguiCtx);
+    }
 
     switch (rawEvent->type) {
         case PUGL_REALIZE:
@@ -303,9 +234,23 @@ static PuglStatus puglEventFunc(PuglView *view, const PuglEvent *rawEvent) {
             }
             break;
         
-        case PUGL_EXPOSE:
+        case PUGL_EXPOSE: {
+            // call ImGui new frame
+            gfx::beginFrame(window);
+
+            ImGuiIO &io = ImGui::GetIO();
+            io.DisplaySize.x = window->width;
+            io.DisplaySize.y = window->height;
+            ImGui::NewFrame();
+
+            // then, the window callback
             window->drawCallback(window);
+
+            // render the ImGui frame
+            ImGui::Render();
+            gfx::endFrame(window);
             break;
+        }
 
         default: break;
     }
@@ -329,9 +274,9 @@ platform::Window* platform::createWindow(int width, int height, const char *name
 
 #ifdef GFX_D3D11
     puglSetBackend(view, puglStubBackend());
+#elif defined(GFX_OPENGL)
+    puglSetBackend(view, puglGlBackend());
 #endif
-
-    puglUpdate(puglWorld, 0);
 
     return platform;
 }
