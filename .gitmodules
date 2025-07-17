@@ -13,3 +13,6 @@
 [submodule "src/cbeepsynth"]
 	path = src/cbeepsynth
 	url = https://github.com/pkhead/cbeepsynth
+[submodule "src/pugl"]
+	path = src/pugl
+	url = https://gitlab.com/lv2/pugl.git

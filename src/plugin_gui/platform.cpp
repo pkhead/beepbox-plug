@@ -1,8 +1,10 @@
 #include "platform.hpp"
 #include <cstdio>
 #include <cassert>
+#include <pugl/pugl.h>
+#include <pugl/stub.h>
 
-#ifdef _WIN32
+#ifdef GFX_D3D11
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
@@ -12,32 +14,45 @@
 
 #pragma comment (lib, "d3d11.lib")
 #pragma comment (lib, "dxgi.lib")
+#pragma comment (lib, "dwmapi.lib")
 #else
-#error "win32 support only!"
+#error "no graphics backend chosen!"
 #endif
 
 namespace platform {
     struct Window {
-        HWND hwnd;
-        char uniqueClassName[64];
+        PuglView *puglView;
+        bool isRealized;
 
         int width;
         int height;
         platform::EventHandler evCallback;
         platform::DrawHandler drawCallback;
 
+#ifdef GFX_D3D11
         IDXGISwapChain1 *swapchain;
         ID3D11RenderTargetView *backbuffer;
+#endif
 
         void *userdata;
     };
 }
 
-ID3D11Device *s_device;
-ID3D11DeviceContext *s_devcon;
-IDXGIFactory2 *s_dxgiFactory;
+static PuglWorld *puglWorld;
+static const char *worldClassName = "BeepBoxPluginWindow";
+
+#ifdef GFX_D3D11
+static ID3D11Device *s_device;
+static ID3D11DeviceContext *s_devcon;
+static IDXGIFactory2 *s_dxgiFactory;
+#endif
 
 void platform::setup() {
+    // initialize pugl
+    puglWorld = puglNewWorld(PUGL_MODULE, 0);
+    puglSetWorldString(puglWorld, PUGL_CLASS_NAME, worldClassName);
+
+#ifdef GFX_D3D11
     D3D_FEATURE_LEVEL featureLevel;
     HRESULT s = D3D11CreateDevice(
         NULL,
@@ -49,18 +64,28 @@ void platform::setup() {
 
     s = CreateDXGIFactory(__uuidof(IDXGIFactory2), (void**)&s_dxgiFactory);
     assert(s == S_OK);
+#endif
 }
 
 void platform::shutdown() {
+    puglFreeWorld(puglWorld);
+    puglWorld = nullptr;
+
+#ifdef GFX_D3D11
     s_device->Release();
     s_devcon->Release();
     s_dxgiFactory->Release();
+#endif
 }
 
 sg_environment platform::sokolEnvironment() {
     sg_environment env = {};
+
+#ifdef GFX_D3D11
     env.d3d11.device = s_device;
     env.d3d11.device_context = s_devcon;
+#endif
+
     env.defaults.color_format = SG_PIXELFORMAT_RGBA8UI;
     env.defaults.depth_format = SG_PIXELFORMAT_NONE;
     env.defaults.sample_count = 1;
@@ -69,7 +94,11 @@ sg_environment platform::sokolEnvironment() {
 
 sg_swapchain platform::sokolSwapchain(platform::Window *window) {
     sg_swapchain sw = {};
+
+#ifdef GFX_D3D11
     sw.d3d11.render_view = window->backbuffer;
+#endif
+
     sw.width = window->width;
     sw.height = window->height;
     sw.color_format = SG_PIXELFORMAT_RGBA8UI;
@@ -79,15 +108,14 @@ sg_swapchain platform::sokolSwapchain(platform::Window *window) {
 }
 
 void platform::present(platform::Window *window) {
+#ifdef GFX_D3D11
     window->swapchain->Present(0, 0);
+#else
+#error "not implemented for graphics backend: platform::present"
+#endif
 }
 
-static inline void getMousePos(platform::Event &event, LPARAM lParam) {
-    event.x = GET_X_LPARAM(lParam);
-    event.y = GET_Y_LPARAM(lParam);
-}
-
-static platform::Key winKey(WPARAM k) {
+static platform::Key puglKey(uint32_t k) {
     if (k >= 'A' && k <= 'Z') {
         return (platform::Key) ((int)(k - 'A') + (int)platform::Key::A);
     }
@@ -97,53 +125,53 @@ static platform::Key winKey(WPARAM k) {
     }
 
     switch (k) {
-        case VK_BACK:
+        case PUGL_KEY_BACKSPACE:
             return platform::Key::Backspace;
-        case VK_TAB:
+        case PUGL_KEY_TAB:
             return platform::Key::Tab;
-        case VK_RETURN:
+        case PUGL_KEY_ENTER:
             return platform::Key::Enter;
-        case VK_LSHIFT:
+        case PUGL_KEY_SHIFT_L:
             return platform::Key::LeftShift;
-        case VK_LCONTROL:
+        case PUGL_KEY_CTRL_L:
             return platform::Key::LeftControl;
-        case VK_LMENU:
+        case PUGL_KEY_ALT_L:
             return platform::Key::LeftAlt;
-        case VK_RSHIFT:
+        case PUGL_KEY_SHIFT_R:
             return platform::Key::RightShift;
-        case VK_RCONTROL:
+        case PUGL_KEY_CTRL_R:
             return platform::Key::RightControl;
-        case VK_RMENU:
+        case PUGL_KEY_ALT_R:
             return platform::Key::RightAlt;
-        case VK_CAPITAL:
+        case PUGL_KEY_CAPS_LOCK:
             return platform::Key::CapsLock;
-        case VK_ESCAPE:
+        case PUGL_KEY_ESCAPE:
             return platform::Key::Escape;
-        case VK_SPACE:
+        case PUGL_KEY_SPACE:
             return platform::Key::Space;
-        case VK_PRIOR:
+        case PUGL_KEY_PAGE_UP:
             return platform::Key::PageUp;
-        case VK_NEXT:
+        case PUGL_KEY_PAGE_DOWN:
             return platform::Key::PageDown;
-        case VK_END:
+        case PUGL_KEY_END:
             return platform::Key::End;
-        case VK_HOME:
+        case PUGL_KEY_HOME:
             return platform::Key::Home;
-        case VK_LEFT:
+        case PUGL_KEY_LEFT:
             return platform::Key::Left;
-        case VK_UP:
+        case PUGL_KEY_UP:
             return platform::Key::Up;
-        case VK_RIGHT:
+        case PUGL_KEY_RIGHT:
             return platform::Key::Right;
-        case VK_DOWN:
+        case PUGL_KEY_DOWN:
             return platform::Key::Down;
-        case VK_SNAPSHOT:
+        case PUGL_KEY_PRINT_SCREEN:
             return platform::Key::PrintScreen;
-        case VK_DELETE:
+        case PUGL_KEY_DELETE:
             return platform::Key::Delete;
-        case VK_LWIN:
+        case PUGL_KEY_SUPER_L:
             return platform::Key::LeftSuper;
-        case VK_RWIN:
+        case PUGL_KEY_SUPER_R:
             return platform::Key::RightSuper;
 
         default:
@@ -155,6 +183,41 @@ static platform::Key winKey(WPARAM k) {
     }
 }
 
+static void setupGraphics(platform::Window *window) {
+#ifdef GFX_D3D11
+    // initialize swapchain/backbuffer
+    PuglView *view = window->puglView;
+    HWND hwnd = (HWND) puglGetNativeView(view);
+
+    DXGI_SWAP_CHAIN_DESC1 scd;
+    ZeroMemory(&scd, sizeof(scd));
+
+    scd.BufferCount = 1;
+    scd.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    scd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+    scd.SampleDesc.Count = 1;
+    
+    HRESULT hr = s_dxgiFactory->CreateSwapChainForHwnd(
+        s_device,
+        hwnd, &scd, NULL, NULL, &window->swapchain);
+    assert(hr == S_OK);
+
+    ID3D11Texture2D *pBackBuffer;
+    window->swapchain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&pBackBuffer);
+    s_device->CreateRenderTargetView(pBackBuffer, NULL, &window->backbuffer);
+    pBackBuffer->Release();
+#endif
+}
+
+static void shutdownGraphics(platform::Window *window) {
+#ifdef GFX_D3D11
+    if (window->swapchain)
+        window->swapchain->Release();
+    if (window->backbuffer)
+        window->backbuffer->Release();
+#endif
+}
+
 // opening a link with ImGui causes the program to crash i think?
 // but for some reason when i added this it fixed the issue. What.
 static bool debounce = false;
@@ -164,95 +227,91 @@ public:
     ~DebounceHandle() { debounce = false; }
 };
 
-LRESULT CALLBACK MyWinProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
-{
-    if (debounce) return DefWindowProcA(hwnd, uMsg, wParam, lParam);
-    DebounceHandle h;
+static PuglStatus puglEventFunc(PuglView *view, const PuglEvent *rawEvent) {
+    if (debounce) return PUGL_SUCCESS;
+    DebounceHandle _;
 
-    // fprintf(stderr, "msg: %u wParam: %llu lParam: %lld\n", uMsg, wParam, lParam);
+    platform::Window *window = (platform::Window*) puglGetHandle(view);
+    platform::Event event = {};
 
-    // NOTE: Might be NULL during initialisation
-    platform::Window *window = (platform::Window*)GetWindowLongPtrA(hwnd, 0);
-    if (window == NULL) return DefWindowProcA(hwnd, uMsg, wParam, lParam);
-
-    platform::Event event;
-
-    switch (uMsg)
-    {
-    case WM_MOUSEMOVE:
-        event.type = platform::Event::MouseMove;
-        getMousePos(event, lParam);
-        window->evCallback(event, window);
-        break;
-    
-    case WM_LBUTTONDOWN:
-        SetCapture(hwnd);
-
-        event.type = platform::Event::MouseDown;
-        getMousePos(event, lParam);
-        event.button = 0;
-        window->evCallback(event, window);
-        break;
-
-    case WM_LBUTTONUP:
-        ReleaseCapture();
+    switch (rawEvent->type) {
+        case PUGL_REALIZE:
+            setupGraphics(window);
+            break;
         
-        event.type = platform::Event::MouseUp;
-        getMousePos(event, lParam);
-        event.button = 0;
-        window->evCallback(event, window);
-        break;
+        case PUGL_UNREALIZE:
+            shutdownGraphics(window);
+            break;
 
-    case WM_RBUTTONDOWN:
-        SetCapture(hwnd);
+        case PUGL_MOTION:
+            event.type = platform::Event::MouseMove;
+            event.x = (int)rawEvent->motion.x;
+            event.y = (int)rawEvent->motion.y;
 
-        event.type = platform::Event::MouseDown;
-        getMousePos(event, lParam);
-        event.button = 1;
-        window->evCallback(event, window);
-        break;
-
-    case WM_RBUTTONUP:
-        ReleaseCapture();
+            window->evCallback(event, window);
+            puglObscureView(view);
+            break;
         
-        event.type = platform::Event::MouseUp;
-        getMousePos(event, lParam);
-        event.button = 1;
-        window->evCallback(event, window);
-        break;
+        case PUGL_BUTTON_PRESS:
+            event.type = platform::Event::MouseDown;
+            event.button = rawEvent->button.button;
+            event.x = rawEvent->button.x;
+            event.y = rawEvent->button.y;
 
-    case WM_MOUSEWHEEL:
-        event.type = platform::Event::MouseWheel;
-        event.x = 0;
-        event.y = GET_WHEEL_DELTA_WPARAM(wParam) / WHEEL_DELTA;
-        window->evCallback(event, window);
-        break;
-    
-    case WM_KEYDOWN:
-        event.type = platform::Event::KeyDown;
-        event.key = winKey(wParam);
-        if (event.key != platform::Key::None) window->evCallback(event, window);
-        break;
+            window->evCallback(event, window);
+            puglObscureView(view);
+            break;
 
-    case WM_KEYUP:
-        event.type = platform::Event::KeyUp;
-        event.key = winKey(wParam);
-        if (event.key != platform::Key::None) window->evCallback(event, window);
-        break;
+        case PUGL_BUTTON_RELEASE:
+            event.type = platform::Event::MouseUp;
+            event.button = rawEvent->button.button;
+            event.x = rawEvent->button.x;
+            event.y = rawEvent->button.y;
 
-    
-    case WM_TIMER:
-        window->drawCallback(window);
-        RedrawWindow(hwnd, 0, 0, RDW_INVALIDATE);
-        break;
-    default:
-        break;
+            window->evCallback(event, window);
+            puglObscureView(view);
+            break;
+
+        case PUGL_SCROLL:
+            event.type = platform::Event::MouseWheel;
+            event.x = (int) rawEvent->scroll.dx;
+            event.y = (int) rawEvent->scroll.dy;
+
+            window->evCallback(event, window);
+            puglObscureView(view);
+            break;
+
+        case PUGL_KEY_PRESS:
+            event.type = platform::Event::KeyDown;
+            event.key = puglKey(rawEvent->key.key);
+            
+            if (event.key != platform::Key::None)
+            {
+                window->evCallback(event, window);
+                puglObscureView(view);
+            }
+            break;
+
+        case PUGL_KEY_RELEASE:
+            event.type = platform::Event::KeyUp;
+            event.key = puglKey(rawEvent->key.key);
+            
+            if (event.key != platform::Key::None)
+            {
+                window->evCallback(event, window);
+                puglObscureView(view);
+            }
+            break;
+        
+        case PUGL_EXPOSE:
+            window->drawCallback(window);
+            break;
+
+        default: break;
     }
 
-    return DefWindowProcA(hwnd, uMsg, wParam, lParam);
+    return PUGL_SUCCESS;
 }
-
-#define MY_TIMER_ID 1
 
 platform::Window* platform::createWindow(int width, int height, const char *name, platform::EventHandler evCallback, platform::DrawHandler drawCallback) {
     platform::Window *platform = new platform::Window {};
@@ -262,93 +321,45 @@ platform::Window* platform::createWindow(int width, int height, const char *name
     platform->evCallback = evCallback;
     platform->drawCallback = drawCallback;
 
-    LARGE_INTEGER timenow;
-    QueryPerformanceCounter(&timenow);
-    sprintf_s(platform->uniqueClassName, sizeof(platform->uniqueClassName), "%s-%llx", name, timenow.QuadPart);
+    PuglView *view = platform->puglView = puglNewView(puglWorld);
+    puglSetHandle(view, (PuglHandle*) platform);
+    puglSetSizeHint(view, PUGL_DEFAULT_SIZE, width, height);
+    puglSetViewHint(view, PUGL_RESIZABLE, false);
+    puglSetEventFunc(view, puglEventFunc);
 
-    WNDCLASSEXA wc;
-    memset(&wc, 0, sizeof(wc));
-    wc.cbSize        = sizeof(wc);
-    wc.style         = CS_OWNDC;
-    wc.lpfnWndProc   = MyWinProc;
-    wc.lpszClassName = platform->uniqueClassName;
-    wc.cbWndExtra    = 32; // leave space for our pointer we set
-    ATOM result      = RegisterClassExA(&wc);
-    assert(result != 0);
+#ifdef GFX_D3D11
+    puglSetBackend(view, puglStubBackend());
+#endif
 
-    platform->hwnd = CreateWindowExA(
-        0L,
-        platform->uniqueClassName,
-        name,
-        WS_CHILD | WS_CLIPSIBLINGS,
-        CW_USEDEFAULT,
-        CW_USEDEFAULT,
-        width,
-        height,
-        GetDesktopWindow(),
-        NULL,
-        NULL,
-        NULL);
-    DWORD err = GetLastError();
-    (void)err;
-    assert(platform->hwnd != NULL);
-
-    SetWindowLongPtrA((HWND)platform->hwnd, 0, (LONG_PTR)platform);
-
-    // initialize swapchain/backbuffer
-    {
-        DXGI_SWAP_CHAIN_DESC1 scd;
-        ZeroMemory(&scd, sizeof(scd));
-
-        scd.BufferCount = 1;
-        scd.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-        scd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-        scd.SampleDesc.Count = 1;
-        
-        HRESULT hr = s_dxgiFactory->CreateSwapChainForHwnd(
-            s_device,
-            platform->hwnd, &scd, NULL, NULL, &platform->swapchain);
-        assert(hr == S_OK);
-
-        ID3D11Texture2D *pBackBuffer;
-        platform->swapchain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&pBackBuffer);
-        s_device->CreateRenderTargetView(pBackBuffer, NULL, &platform->backbuffer);
-        pBackBuffer->Release();
-    }
+    puglUpdate(puglWorld, 0);
 
     return platform;
 }
 
 void platform::closeWindow(Window *platform) {
-    platform->swapchain->Release();
-    platform->backbuffer->Release();
+    if (platform->puglView)
+    {
+        if (platform->isRealized)
+            puglUnrealize(platform->puglView);
 
-    DestroyWindow(platform->hwnd);
-    UnregisterClassA(platform->uniqueClassName, NULL);
+        puglFreeView(platform->puglView);
+    }
+    
     delete platform;
 }
 
 void platform::setParent(platform::Window *window, void* newParent)
 {
-    HWND oldParent = GetParent(window->hwnd);
-    if (oldParent)
-    {
-        KillTimer(window->hwnd, MY_TIMER_ID);
+    if (window->isRealized) return;
 
-        SetParent(window->hwnd, NULL);
-        DefWindowProcA(window->hwnd, WM_UPDATEUISTATE, UIS_CLEAR, WS_CHILD);
-        DefWindowProcA(window->hwnd, WM_UPDATEUISTATE, UIS_SET, WS_POPUP);
+    puglSetParent(window->puglView, (PuglNativeView) newParent);
+    
+    PuglStatus status = puglRealize(window->puglView);
+    if (status) {
+        fprintf(stderr, "Error realizing view (%s\n)", puglStrerror(status));
+        return;
     }
-
-    if (newParent)
-    {
-        SetParent(window->hwnd, (HWND)newParent);
-        //memcpy(gui->plugin->paramValuesMain, gui->plugin->paramValuesAudio, sizeof(gui->plugin->paramValuesMain));
-        DefWindowProcA(window->hwnd, WM_UPDATEUISTATE, UIS_CLEAR, WS_POPUP);
-        DefWindowProcA(window->hwnd, WM_UPDATEUISTATE, UIS_SET, WS_CHILD);
-
-        SetTimer(window->hwnd, MY_TIMER_ID, 10, NULL);
-    }
+    window->isRealized = true;
 }
 
 void platform::setUserdata(platform::Window *window, void *ud) {
@@ -368,5 +379,8 @@ int platform::getHeight(Window *window) {
 }
 
 void platform::setVisible(Window *window, bool visible) {
-    ShowWindow(window->hwnd, visible ? SW_SHOW : SW_HIDE);
+    if (visible)
+        puglShow(window->puglView, PUGL_SHOW_RAISE);
+    else
+        puglHide(window->puglView);
 }
