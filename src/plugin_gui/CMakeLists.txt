@@ -9,17 +9,17 @@ project(${PROJECT_NAME})
 set(PUGL_SOURCES
     ../pugl/src/common.c
     ../pugl/src/internal.c
-
-    ../pugl/src/win.c
-    ../pugl/src/win_gl.c
-    ../pugl/src/win_stub.c
 )
+
+set(EXTRA_LIBS )
 
 if (WIN32)
     set(PUGL_SOURCES ${PUGL_SOURCES}
         ../pugl/src/win.c
         ../pugl/src/win_stub.c
     )
+
+    set(EXTRA_LIBS ${EXTRA_LIBS} dwmapi)
 
     if (${GRAPHICS_BACKEND} STREQUAL "gl")
         set(PUGL_SOURCES ${PUGL_SOURCES} ../pugl/src/win_gl.c)
@@ -62,6 +62,7 @@ if (${GRAPHICS_BACKEND} STREQUAL "d3d11")
 elseif (${GRAPHICS_BACKEND} STREQUAL "gl")
     target_compile_definitions(${PROJECT_NAME} PRIVATE GFX_OPENGL)
     target_sources(${PROJECT_NAME} PRIVATE gfx_gl.cpp)
+    set(EXTRA_LIBS ${EXTRA_LIBS} opengl32)
 endif()
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE PUGL_STATIC)
@@ -78,5 +79,5 @@ target_include_directories(${PROJECT_NAME}
     PUBLIC include
 )
 target_link_libraries(${PROJECT_NAME}
-    PRIVATE imgui
+    PRIVATE imgui ${EXTRA_LIBS}
 )

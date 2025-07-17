@@ -37,7 +37,7 @@ set(IMGUI_SOURCES
 if (${GRAPHICS_BACKEND} STREQUAL "d3d11")
     set(IMGUI_SOURCES ${IMGUI_SOURCES} src/imgui/backends/imgui_impl_dx11.cpp)
 elseif (${GRAPHICS_BACKEND} STREQUAL "gl")
-    set(IMGUI_SOURCES ${IMGUI_SOURCES} src/imgui/backends/imgui_impl_dx11.cpp)
+    set(IMGUI_SOURCES ${IMGUI_SOURCES} src/imgui/backends/imgui_impl_opengl3.cpp)
 else()
     message(FATAL_ERROR "Unknown graphics backend option " ${GRAPHICS_BACKEND})
 endif()
@@ -135,5 +135,3 @@ else()
 endif()
 
 message(STATUS          "\tGRAPHICS_BACKEND:     " ${GRAPHICS_BACKEND})
-
-unset(GRAPHICS_BACKEND CACHE)

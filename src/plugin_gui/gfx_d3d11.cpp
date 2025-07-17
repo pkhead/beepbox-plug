@@ -15,7 +15,6 @@
 
 #pragma comment (lib, "d3d11.lib")
 #pragma comment (lib, "dxgi.lib")
-#pragma comment (lib, "dwmapi.lib")
 
 struct gfx::WindowData {
     IDXGISwapChain1 *swapchain;
@@ -47,6 +46,10 @@ void gfx::shutdownWorld() {
 }
 
 void gfx::setupWindow(platform::Window *window) {
+    puglSetBackend(window->puglView, puglStubBackend());
+}
+
+void gfx::realizeWindow(platform::Window *window) {
     // initialize swapchain/backbuffer
     PuglView *view = window->puglView;
     gfx::WindowData *gfxData = window->gfxData = new gfx::WindowData {};
@@ -145,6 +148,6 @@ void gfx::destroyTexture(Texture *texture) {
         ((ID3D11ShaderResourceView*)texture)->Release();
 }
 
-const PuglBackend* gfx::getPuglBackend() {
-    return puglStubBackend();
+ImTextureID gfx::imguiTextureId(Texture *texture) {
+    return (ImTextureID) texture;
 }

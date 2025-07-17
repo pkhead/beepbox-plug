@@ -201,7 +201,7 @@ void PluginController::drawAbout(ImGuiWindowFlags winFlags) {
     // show vst3-compatible logo
     #ifdef PLUGIN_VST3
     ImGui::SetCursorPosX((ImGui::GetWindowWidth() - (float)vstLogo.width) / 2.f);
-    ImGui::Image((ImTextureID) vstLogo.texture, ImVec2((float)vstLogo.width, (float)vstLogo.height));
+    ImGui::Image(gfx::imguiTextureId(vstLogo.texture), ImVec2((float)vstLogo.width, (float)vstLogo.height));
     #endif
 
     ImGui::End();

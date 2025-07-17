@@ -129,7 +129,7 @@ static void setupGraphics(platform::Window *window) {
     ev.type = platform::Event::Realize;
     window->evCallback(ev, window);
 
-    gfx::setupWindow(window);
+    gfx::realizeWindow(window);
 }
 
 static void shutdownGraphics(platform::Window *window) {
@@ -274,11 +274,7 @@ platform::Window* platform::createWindow(int width, int height, const char *name
     puglSetViewHint(view, PUGL_RESIZABLE, false);
     puglSetEventFunc(view, puglEventFunc);
 
-#ifdef GFX_D3D11
-    puglSetBackend(view, puglStubBackend());
-#elif defined(GFX_OPENGL)
-    puglSetBackend(view, puglGlBackend());
-#endif
+    gfx::setupWindow(platform);
 
     return platform;
 }
