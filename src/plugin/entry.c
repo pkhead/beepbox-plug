@@ -18,7 +18,25 @@
 #define fp_env int
 static inline fp_env disable_denormals() {};
 static inline void enable_denormals(const fp_env *env) {};
-#elif defined(_WIN32)
+#else
+#if !defined(_WIN32)
+#include <fenv.h>
+#endif
+
+#ifdef FE_DFL_DISABLE_SSE_DENORMS_ENV
+#define fp_env fenv_t
+
+static inline fp_env disable_denormals() {
+   fenv_t env;
+   fegetenv(&env);
+   fesetenv(FE_DFL_DISABLE_SSE_DENORMS_ENV);
+   return env;
+}
+
+static inline void enable_denormals(const fp_env env) {
+   fesetenv(&env);
+}
+#else
 #include <immintrin.h>
 #define fp_env uint8_t
 
@@ -33,21 +51,7 @@ static inline void enable_denormals(const fp_env env) {
    const uint32_t mask = _MM_DENORMALS_ZERO_MASK | _MM_FLUSH_ZERO_MASK;
    _mm_setcsr((_mm_getcsr() & ~mask) | env);
 }
-
-#else
-#include <fenv.h>
-#define fp_env fenv_t;
-
-static inline fp_env disable_denormals() {
-   fenv_t env;
-   fegetenv(&env);
-   fesetenv(FE_DFL_DISABLE_SSE_DENORMS_ENV);
-   return env;
-}
-
-static inline void enable_denormals(const fp_env env) {
-   fesetenv(&env);
-}
+#endif
 #endif
 
 #include <beepbox_synth.h>
@@ -644,6 +648,15 @@ uint32_t plugin_params_count(const clap_plugin_t *plugin) {
    return (uint32_t) bpbx_param_count(bpbx_inst_type(plug->instrument));
 }
 
+#ifdef _MSC_VER
+#define impl_strcpy_s strcpy_s
+#else
+static void impl_strcpy_s(char *restrict dest, size_t destsz, const char *restrict src) {
+   strncpy(dest, src, destsz);
+   dest[destsz-1] = '\0';
+}
+#endif
+
 bool plugin_params_get_info(const clap_plugin_t *plugin, uint32_t param_index, clap_param_info_t *param_info) {
    plugin_s *plug = plugin->plugin_data;
 
@@ -658,8 +671,8 @@ bool plugin_params_get_info(const clap_plugin_t *plugin, uint32_t param_index, c
 
    param_info->cookie = NULL;
    param_info->id = param_index;
-   strcpy_s(param_info->name, 256, info->name);
-   strcpy_s(param_info->module, 1024, module_name);
+   impl_strcpy_s(param_info->name, 256, info->name);
+   impl_strcpy_s(param_info->module, 1024, module_name);
    param_info->default_value = info->default_value;
    param_info->min_value = info->min_value;
    param_info->max_value = info->max_value;

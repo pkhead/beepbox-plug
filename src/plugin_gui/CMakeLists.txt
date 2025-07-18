@@ -45,6 +45,12 @@ else()
         set(PUGL_SOURCES ${PUGL_SOURCES} ../pugl/src/x11_gl.c)
     endif()
 
+    find_package(X11 REQUIRED)
+    find_library(LIB_XCURSOR Xcursor)
+    find_library(LIB_XRANDR Xrandr)
+
+    set(EXTRA_LIBS ${EXTRA_LIBS} ${X11_LIBRARIES} ${LIB_XCURSOR} ${LIB_XRANDR})
+
 endif()
 
 add_library(${PROJECT_NAME} STATIC
@@ -62,7 +68,9 @@ if (${GRAPHICS_BACKEND} STREQUAL "d3d11")
 elseif (${GRAPHICS_BACKEND} STREQUAL "gl")
     target_compile_definitions(${PROJECT_NAME} PRIVATE GFX_OPENGL)
     target_sources(${PROJECT_NAME} PRIVATE gfx_gl.cpp)
-    set(EXTRA_LIBS ${EXTRA_LIBS} opengl32)
+
+    find_package(OpenGL REQUIRED)
+    set(EXTRA_LIBS ${EXTRA_LIBS} ${OPENGL_LIBRARIES})
 endif()
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE PUGL_STATIC)
