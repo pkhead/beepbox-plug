@@ -1,8 +1,4 @@
-#define SOKOL_IMGUI_NO_SOKOL_APP
 #include <imgui.h>
-#include <sokol_gfx.h>
-#include <sokol_log.h>
-#include <sokol_imgui.h>
 #include <stb_image.h>
 #include <cstring>
 
@@ -194,7 +190,7 @@ void PluginController::drawAbout(ImGuiWindowFlags winFlags) {
 
     ImGui::Text("Libraries:");
     ImGui::Bullet();
-    ImGui::TextLinkOpenURL("sokol", "https://github.com/floooh/sokol");
+    ImGui::TextLinkOpenURL("clap-wrapper", "https://github.com/free-audio/clap-wrapper/tree/main");
     ImGui::Bullet();
     ImGui::TextLinkOpenURL("Dear ImGui", "https://github.com/ocornut/imgui");
 

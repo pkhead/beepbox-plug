@@ -1,9 +1,6 @@
 [submodule "imgui"]
 	path = src/imgui
 	url = https://github.com/ocornut/imgui
-[submodule "sokol"]
-	path = src/sokol
-	url = https://github.com/floooh/sokol/
 [submodule "clap"]
 	path = src/clap
 	url = https://github.com/free-audio/clap

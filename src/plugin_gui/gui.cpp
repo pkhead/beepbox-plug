@@ -1,5 +1,4 @@
 #include "pugl/pugl.h"
-#define SOKOL_IMGUI_NO_SOKOL_APP
 #include <imgui.h>
 #include <stb_image.h>
 #include <cstring>

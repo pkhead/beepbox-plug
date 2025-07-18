@@ -83,7 +83,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
     LANGUAGE CXX
 )
 target_include_directories(${PROJECT_NAME}
-    PRIVATE ../sokol ../imgui ../gui_libs ../pugl/include
+    PRIVATE ../imgui ../gui_libs ../pugl/include
     PUBLIC include
 )
 target_link_libraries(${PROJECT_NAME}
