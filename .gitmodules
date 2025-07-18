@@ -12,7 +12,7 @@
 	url = https://github.com/free-audio/clap-wrapper
 [submodule "src/cbeepsynth"]
 	path = src/cbeepsynth
-	url = https://github.com/pkhead/cbeepsynth
+	url = ../cbeepsynth.git
 [submodule "src/pugl"]
 	path = src/pugl
 	url = https://gitlab.com/lv2/pugl.git
