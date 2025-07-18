@@ -1003,6 +1003,10 @@ static bool plugin_init(const struct clap_plugin *plugin) {
    if (plug->host_track_info) {
       plugin_track_info_changed(plugin);
    }
+   
+   if (plug->host_log) {
+      gui_set_log_func(plug->host_log->log, plug->host);
+   }
 
    return true;
 }

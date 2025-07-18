@@ -1,9 +1,11 @@
 #ifndef _plugin_gui_public_h_
 #define _plugin_gui_public_h_
 
-#include <cbeepsynth/include/beepbox_synth.h>
+#include <clap/include/clap/host.h>
 #include <clap/include/clap/ext/gui.h>
 #include <clap/include/clap/ext/track-info.h>
+#include <clap/include/clap/ext/log.h>
+#include <cbeepsynth/include/beepbox_synth.h>
 
 #ifdef __cplusplus
 #include <cstdint>
@@ -81,6 +83,8 @@ void gui_suggest_title(plugin_gui_s *iface, const char *title);
 
 bool gui_show(plugin_gui_s *iface);
 bool gui_hide(plugin_gui_s *iface);
+
+void gui_set_log_func(void (*log_func)(const clap_host_t *host, clap_log_severity severity, const char *msg), const clap_host_t *host);
 
 #ifdef __cplusplus
 }
