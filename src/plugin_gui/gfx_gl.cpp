@@ -1,4 +1,5 @@
 #include "gfx.hpp"
+#include "pugl/pugl.h"
 
 #include <cassert>
 #include <cstdio>
@@ -16,6 +17,7 @@ void gfx::setupWindow(platform::Window *window) {
     puglSetViewHint(view, PUGL_CONTEXT_VERSION_MAJOR, 3);
     puglSetViewHint(view, PUGL_CONTEXT_VERSION_MINOR, 3);
     puglSetViewHint(view, PUGL_CONTEXT_PROFILE, PUGL_OPENGL_CORE_PROFILE);
+    puglSetViewHint(view, PUGL_SWAP_INTERVAL, 0);
 }
 
 void gfx::realizeWindow(platform::Window *window) {

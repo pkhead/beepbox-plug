@@ -173,8 +173,8 @@ namespace platform {
     int getHeight(Window *window);
 
     void setVisible(Window *window, bool visible);
-    void setParent(Window *window, void *parentHandle);
-    void requestRedraw(Window *window);
+    bool setParent(Window *window, void *parentHandle);
+    void requestRedraw(Window *window, int extraFrames = 0);
 
     struct Window {
         PuglView *puglView;
@@ -188,6 +188,7 @@ namespace platform {
         ImGuiContext *imguiCtx;
         gfx::WindowData *gfxData;
 
+        int redrawCounter;
         void *userdata;
     };
 }

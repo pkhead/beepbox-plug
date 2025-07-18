@@ -25,13 +25,29 @@
 #error "no graphics backend chosen!"
 #endif
 
+// on win32, puglUpdate does not need to be called since
+// win32's event handler system works with plugin windows quite easily
+// as the philosophy is every element is a "Window" - the main window
+// is just a special type of window.
+// 
+// but on other platforms, a window is a window only, so i can't hook
+// into the main process' update loop just by having a window parented
+// to it. So in this case, puglUpdate does need to be called at a regular
+// interval. clap does have timer support, but I've decided to do this in
+// a event loop thread just in case the host supports guis but not timers,
+// or the timer precision is horrible (minimum precision is 30 Hz)
+#ifndef _WIN32
+#define PUGL_UPDATE_IN_THREAD
+#include <atomic>
+#include <thread>
+#endif
+
 static PuglWorld *puglWorld;
 static const char *worldClassName = "BeepBoxPluginWindow";
 
-#ifdef GFX_D3D11
-static ID3D11Device *s_device;
-static ID3D11DeviceContext *s_devcon;
-static IDXGIFactory2 *s_dxgiFactory;
+#ifdef PUGL_UPDATE_IN_THREAD
+static std::thread *uiUpdateThread = nullptr;
+static std::atomic_bool stopUpdateThread = false;
 #endif
 
 void platform::setup() {
@@ -43,6 +59,12 @@ void platform::setup() {
 }
 
 void platform::shutdown() {
+    if (uiUpdateThread) {
+        stopUpdateThread = true;
+        uiUpdateThread->join();
+        delete uiUpdateThread;
+    }
+
     gfx::shutdownWorld();
 
     puglFreeWorld(puglWorld);
@@ -237,20 +259,24 @@ static PuglStatus puglEventFunc(PuglView *view, const PuglEvent *rawEvent) {
             break;
         
         case PUGL_EXPOSE: {
-            // call ImGui new frame
-            gfx::beginFrame(window);
+            for (int i = 0; i <= window->redrawCounter; i++) {
+                // call ImGui new frame
+                gfx::beginFrame(window);
 
-            ImGuiIO &io = ImGui::GetIO();
-            io.DisplaySize.x = window->width;
-            io.DisplaySize.y = window->height;
-            ImGui::NewFrame();
+                ImGuiIO &io = ImGui::GetIO();
+                io.DisplaySize.x = window->width;
+                io.DisplaySize.y = window->height;
+                ImGui::NewFrame();
 
-            // then, the window callback
-            window->drawCallback(window);
+                // then, the window callback
+                window->drawCallback(window);
 
-            // render the ImGui frame
-            ImGui::Render();
-            gfx::endFrame(window);
+                // render the ImGui frame
+                ImGui::Render();
+                gfx::endFrame(window);
+            }
+            
+            window->redrawCounter = 0;
             break;
         }
 
@@ -291,20 +317,35 @@ void platform::closeWindow(Window *platform) {
     delete platform;
 }
 
-void platform::setParent(platform::Window *window, void* newParent)
+bool platform::setParent(platform::Window *window, void* newParent)
 {
-    if (window->isRealized) return;
+    if (window->isRealized) return false;
 
     puglSetParent(window->puglView, (PuglNativeView) newParent);
     
     PuglStatus status = puglRealize(window->puglView);
     if (status) {
         fprintf(stderr, "Error realizing view (%s\n)", puglStrerror(status));
-        return;
+        return false;
     }
     window->isRealized = true;
 
     puglStartTimer(window->puglView, 0, 1.0 / 60.0);
+
+    // set up ui update thread if needed
+#ifdef PUGL_UPDATE_IN_THREAD
+    if (!uiUpdateThread) {
+        uiUpdateThread = new std::thread([window] {
+            while (!stopUpdateThread) {
+                puglUpdate(puglWorld, 8.0 / 1000.0);
+                // puglObscureView(window->puglView);
+                // std::this_thread::sleep_for(std::chrono::milliseconds(2));
+            }
+        });
+    }
+#endif
+
+    return true;
 }
 
 void platform::setUserdata(platform::Window *window, void *ud) {
@@ -330,6 +371,7 @@ void platform::setVisible(Window *window, bool visible) {
         puglHide(window->puglView);
 }
 
-void platform::requestRedraw(Window *window) {
+void platform::requestRedraw(Window *window, int extraFrames) {
     puglObscureView(window->puglView);
+    window->redrawCounter = extraFrames;
 }

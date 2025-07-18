@@ -1,3 +1,4 @@
+#include "pugl/pugl.h"
 #define SOKOL_IMGUI_NO_SOKOL_APP
 #include <imgui.h>
 #include <stb_image.h>
@@ -243,7 +244,12 @@ void eventHandler(platform::Event ev, platform::Window *window) {
 
         case platform::Event::MouseUp:
             io.AddMouseButtonEvent(ev.button, false);
-            platform::requestRedraw(window);
+
+            // recalculate the frame two more times after releasing the button
+            // as imgui sometimes defers actions to the next frame.
+            // (and then wait an extra frame in case layout changed from this action,
+            // in which case it will fix the scroll position on the frame afterwards)
+            platform::requestRedraw(window, 2);
             break;
         
         case platform::Event::MouseWheel:
@@ -276,18 +282,27 @@ void eventHandler(platform::Event ev, platform::Window *window) {
 void drawHandler(platform::Window *window) {
     plugin_gui_s *gui = (plugin_gui_s*) platform::getUserdata(window);
     gui->control.draw(window);
-    // sg_commit();
-    // platform::present(window);
 }
 
 int openGuiCount = 0;
 
 bool gui_is_api_supported(const char *api, bool is_floating) {
+#ifdef _WIN32
     return !strcmp(api, CLAP_WINDOW_API_WIN32);
+#else
+    return !strcmp(api, CLAP_WINDOW_API_X11);
+#endif
 }
 
 bool gui_get_preferred_api(const char **api, bool *is_floating) {
+#ifdef _WIN32
     *api = CLAP_WINDOW_API_WIN32;
+#elif defined(__APPLE__)
+    *api = CLAP_WINDOW_API_COCOA;
+#else
+    *api = CLAP_WINDOW_API_X11;
+#endif
+
     *is_floating = false;
     return true;
 }
@@ -327,9 +342,13 @@ bool gui_get_size(const plugin_gui_s *iface, uint32_t *width, uint32_t *height) 
 }
 
 bool gui_set_parent(plugin_gui_s *iface, const clap_window_t *window) {
+#ifdef _WIN32
     assert(!strcmp(window->api, CLAP_WINDOW_API_WIN32));
-    platform::setParent(iface->window, window->win32);
-    return true;
+    return platform::setParent(iface->window, window->win32);
+#else
+    assert(!strcmp(window->api, CLAP_WINDOW_API_X11));
+    return platform::setParent(iface->window, (void*)window->x11);
+#endif
 }
 
 bool gui_set_transient(plugin_gui_s *iface, const clap_window_t *window) {

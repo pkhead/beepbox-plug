@@ -78,7 +78,11 @@ private:
 public:
     static_assert(SIZE != 0 && (SIZE & (SIZE - 1)) == 0, "EventQueue size is not a power of two!");
     
-    EventQueue() noexcept : data(new T[SIZE]) {}
+    EventQueue() noexcept : data(new T[SIZE]) {
+        write_ptr.store(0);
+        read_ptr.store(0);
+    }
+    
     EventQueue(EventQueue&) = delete;
     EventQueue operator=(EventQueue&) = delete;
     ~EventQueue() noexcept { delete[] data; }
