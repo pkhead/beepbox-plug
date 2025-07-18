@@ -47,7 +47,7 @@ static std::thread *uiUpdateThread = nullptr;
 static bool stopUpdateThread = false;
 static std::mutex threadMutex;
 
-#define MUTEX_GUARD std::lock_guard mutexGuard = std::lock_guard(threadMutex)
+#define MUTEX_GUARD std::lock_guard mutexGuard(threadMutex)
 #else
 #define MUTEX_GUARD
 #endif
@@ -321,12 +321,15 @@ platform::Window* platform::createWindow(int width, int height, const char *name
 }
 
 void platform::closeWindow(Window *platform) {
+    // timers don't automatically destory themselves
+    // when the view it's associated with gets freed?
+    // strange.
+    // (was causing a segfault)
+    puglStopTimer(platform->puglView, 0);
+
     if (platform->puglView)
     {
         MUTEX_GUARD;
-        if (platform->isRealized)
-            puglUnrealize(platform->puglView);
-
         puglFreeView(platform->puglView);
     }
     
