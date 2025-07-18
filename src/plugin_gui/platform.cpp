@@ -7,6 +7,7 @@
 #include <pugl/pugl.h>
 #include <pugl/stub.h>
 #include "gfx.hpp"
+#include "log.hpp"
 
 #ifdef GFX_D3D11
 #define WIN32_LEAN_AND_MEAN
@@ -38,17 +39,21 @@
 // or the timer precision is horrible (minimum precision is 30 Hz)
 #ifndef _WIN32
 #define PUGL_UPDATE_IN_THREAD
-#include <atomic>
+#include <mutex>
 #include <thread>
+#include <chrono>
+
+static std::thread *uiUpdateThread = nullptr;
+static bool stopUpdateThread = false;
+static std::mutex threadMutex;
+
+#define MUTEX_GUARD std::lock_guard mutexGuard = std::lock_guard(threadMutex)
+#else
+#define MUTEX_GUARD
 #endif
 
 static PuglWorld *puglWorld;
 static const char *worldClassName = "BeepBoxPluginWindow";
-
-#ifdef PUGL_UPDATE_IN_THREAD
-static std::thread *uiUpdateThread = nullptr;
-static std::atomic_bool stopUpdateThread = false;
-#endif
 
 void platform::setup() {
     // initialize pugl
@@ -59,11 +64,20 @@ void platform::setup() {
 }
 
 void platform::shutdown() {
+#ifdef PUGL_UPDATE_IN_THREAD
     if (uiUpdateThread) {
-        stopUpdateThread = true;
+        {
+            MUTEX_GUARD;
+            stopUpdateThread = true;
+        }
         uiUpdateThread->join();
+
         delete uiUpdateThread;
+
+        stopUpdateThread = false;
+        uiUpdateThread = nullptr;
     }
+#endif
 
     gfx::shutdownWorld();
 
@@ -294,6 +308,7 @@ platform::Window* platform::createWindow(int width, int height, const char *name
     platform->evCallback = evCallback;
     platform->drawCallback = drawCallback;
 
+    MUTEX_GUARD;
     PuglView *view = platform->puglView = puglNewView(puglWorld);
     puglSetHandle(view, (PuglHandle*) platform);
     puglSetSizeHint(view, PUGL_DEFAULT_SIZE, width, height);
@@ -308,6 +323,7 @@ platform::Window* platform::createWindow(int width, int height, const char *name
 void platform::closeWindow(Window *platform) {
     if (platform->puglView)
     {
+        MUTEX_GUARD;
         if (platform->isRealized)
             puglUnrealize(platform->puglView);
 
@@ -321,6 +337,7 @@ bool platform::setParent(platform::Window *window, void* newParent)
 {
     if (window->isRealized) return false;
 
+    MUTEX_GUARD;
     puglSetParent(window->puglView, (PuglNativeView) newParent);
     
     PuglStatus status = puglRealize(window->puglView);
@@ -335,11 +352,16 @@ bool platform::setParent(platform::Window *window, void* newParent)
     // set up ui update thread if needed
 #ifdef PUGL_UPDATE_IN_THREAD
     if (!uiUpdateThread) {
-        uiUpdateThread = new std::thread([window] {
-            while (!stopUpdateThread) {
-                puglUpdate(puglWorld, 8.0 / 1000.0);
-                // puglObscureView(window->puglView);
-                // std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        uiUpdateThread = new std::thread([] {
+            while (true) {
+                {
+                    MUTEX_GUARD;
+                    if (stopUpdateThread) break;
+
+                    puglUpdate(puglWorld, 0.0);
+                }
+
+                std::this_thread::sleep_for(std::chrono::microseconds(8333));
             }
         });
     }
@@ -365,6 +387,8 @@ int platform::getHeight(Window *window) {
 }
 
 void platform::setVisible(Window *window, bool visible) {
+    MUTEX_GUARD;
+
     if (visible)
         puglShow(window->puglView, PUGL_SHOW_RAISE);
     else
