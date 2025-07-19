@@ -418,6 +418,47 @@ void PluginController::drawEffects() {
             paramControls(BPBX_PARAM_VIBRATO_TYPE);
         }
     }
+
+    // note filter
+    if (params[BPBX_PARAM_ENABLE_NOTE_FILTER] != 0.0) {
+        ImGui::AlignTextToFramePadding();
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImGui::GetStyle().ItemInnerSpacing);
+        ImGui::Text("Note Filt");
+
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2.f, 0.f));
+        ImGui::SameLine();
+        ImGui::SmallButton("+");
+        ImGui::PopStyleVar(2);
+
+        sameLineRightCol();
+        ImGui::SetNextItemWidth(-FLT_MIN);
+
+        static const char *filterTypes[] = {"off", "low pass", "high pass", "peak"};
+
+        int curType = (int)params[BPBX_PARAM_NOTE_FILTER_TYPE0];
+        if (ImGui::Combo("##NoteFilterType", &curType, filterTypes, 4)) {
+            paramGestureBegin(BPBX_PARAM_NOTE_FILTER_TYPE0);
+            paramChange(BPBX_PARAM_NOTE_FILTER_TYPE0, (double)curType);
+            paramGestureEnd(BPBX_PARAM_NOTE_FILTER_TYPE0);
+        }
+        paramControls(BPBX_PARAM_NOTE_FILTER_TYPE0);
+
+        ImGui::AlignTextToFramePadding();
+        ImGui::Text("Filter Freq.");
+
+        sameLineRightCol();
+        ImGui::SetNextItemWidth(-FLT_MIN);
+        sliderParameter(BPBX_PARAM_NOTE_FILTER_FREQ0, "##FilterFreqSlider", 0.0, BPBX_FILTER_FREQ_MAX);
+        paramControls(BPBX_PARAM_NOTE_FILTER_FREQ0);
+
+        ImGui::AlignTextToFramePadding();
+        ImGui::Text("Filter Gain");
+
+        sameLineRightCol();
+        ImGui::SetNextItemWidth(-FLT_MIN);
+        sliderParameter(BPBX_PARAM_NOTE_FILTER_GAIN0, "##FilterGainSlider", 0.0, BPBX_FILTER_GAIN_MAX);
+        paramControls(BPBX_PARAM_NOTE_FILTER_GAIN0);
+    }
 }
 
 void PluginController::drawEnvelopes() {
@@ -486,6 +527,9 @@ void PluginController::drawEnvelopes() {
 
                 if (params[BPBX_PARAM_ENABLE_VIBRATO])
                     targets.push_back(BPBX_ENV_INDEX_VIBRATO_DEPTH);
+
+                if (params[BPBX_PARAM_ENABLE_NOTE_FILTER])
+                    targets.push_back(BPBX_ENV_INDEX_NOTE_FILTER_ALL_FREQS);
             }
 
             for (int i = 0; i < targets.size(); i++) {
