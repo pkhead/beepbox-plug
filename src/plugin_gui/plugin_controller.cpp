@@ -44,6 +44,7 @@ PluginController::PluginController(bpbx_inst_s *instrument) :
 {
     showAbout = false;
     useCustomColors = false;
+    currentPage = PAGE_MAIN;
 
     // initialize copy of plugin state
     sync();
@@ -427,37 +428,13 @@ void PluginController::drawEffects() {
 
         ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2.f, 0.f));
         ImGui::SameLine();
-        ImGui::SmallButton("+");
+        if (ImGui::SmallButton("+")) {
+            currentPage = PAGE_NOTE_FILTER;
+        }
         ImGui::PopStyleVar(2);
 
         sameLineRightCol();
-        ImGui::SetNextItemWidth(-FLT_MIN);
-
-        static const char *filterTypes[] = {"off", "low pass", "high pass", "peak"};
-
-        int curType = (int)params[BPBX_PARAM_NOTE_FILTER_TYPE0];
-        if (ImGui::Combo("##NoteFilterType", &curType, filterTypes, 4)) {
-            paramGestureBegin(BPBX_PARAM_NOTE_FILTER_TYPE0);
-            paramChange(BPBX_PARAM_NOTE_FILTER_TYPE0, (double)curType);
-            paramGestureEnd(BPBX_PARAM_NOTE_FILTER_TYPE0);
-        }
-        paramControls(BPBX_PARAM_NOTE_FILTER_TYPE0);
-
-        ImGui::AlignTextToFramePadding();
-        ImGui::Text("Filter Freq.");
-
-        sameLineRightCol();
-        ImGui::SetNextItemWidth(-FLT_MIN);
-        sliderParameter(BPBX_PARAM_NOTE_FILTER_FREQ0, "##FilterFreqSlider", 0.0, BPBX_FILTER_FREQ_MAX);
-        paramControls(BPBX_PARAM_NOTE_FILTER_FREQ0);
-
-        ImGui::AlignTextToFramePadding();
-        ImGui::Text("Filter Gain");
-
-        sameLineRightCol();
-        ImGui::SetNextItemWidth(-FLT_MIN);
-        sliderParameter(BPBX_PARAM_NOTE_FILTER_GAIN0, "##FilterGainSlider", 0.0, BPBX_FILTER_GAIN_MAX);
-        paramControls(BPBX_PARAM_NOTE_FILTER_GAIN0);
+        drawEqWidget(FILTER_NOTE, "eqctl", ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() * 1.75f));
     }
 }
 
@@ -592,6 +569,29 @@ void PluginController::drawEnvelopes() {
             queue_item.modify_envelope.envelope = env;
             gui_to_plugin.enqueue(queue_item);
         }
+    }
+}
+
+static void drawDashedHLine(
+    ImDrawList *drawList, float startX, float endX, float y,
+    float segmentWidth, float spacing,
+    ImU32 col
+) {
+    if (endX < startX) {
+        float temp = startX;
+        startX = endX;
+        endX = temp;
+    }
+
+    int segmentCount = (int)ceilf((endX - startX) / (segmentWidth + spacing));
+    float x = startX;
+    for (int i = 0; i < segmentCount; i++) {
+        float segmentEndX = x + segmentWidth;
+        if (segmentEndX > endX)
+            segmentWidth = endX;
+    
+        drawList->AddLine(ImVec2(x, y), ImVec2(segmentEndX, y), col);
+        x += segmentWidth + spacing;
     }
 }
 
@@ -738,6 +738,154 @@ void PluginController::drawFadeWidget(const char *id, ImVec2 size) {
     }
 }
 
+void PluginController::drawEqWidget(FilterType filter, const char *id, ImVec2 size) {
+    ImDrawList *drawList = ImGui::GetWindowDrawList();
+    ImVec2 ui_origin = ImGui::GetCursorScreenPos();
+    ImVec2 ui_end = ImVec2(ui_origin.x + size.x, ui_origin.y + size.y);
+    ImGui::InvisibleButton(id, size);
+
+    ImU32 graph_color = ImGui::GetColorU32(ImGuiCol_Header);
+
+    int baseEnum = 0;
+    switch (filter) {
+        case FILTER_EQ:
+            baseEnum = BPBX_PARAM_EQ_TYPE0;
+            break;
+
+        case FILTER_NOTE:
+            baseEnum = BPBX_PARAM_NOTE_FILTER_TYPE0;
+            break;
+    }
+
+    // draw frequency response graph
+    const double ref_sample_rate = 48000;
+    float last_y;
+    float last_x;
+    for (int i = 0; i < BPBX_FILTER_FREQ_RANGE; i++) {
+        double hz = bpbx_freq_setting_to_hz(i);
+
+        double linear_gain = 1.0;
+        for (int ctl = 0; ctl < BPBX_FILTER_GROUP_COUNT; ctl++) {
+            bpbx_freq_response_s resp;
+            bpbx_analyze_freq_response(
+                (bpbx_filter_type_e)params[baseEnum + ctl * 3], params[baseEnum + ctl * 3 + 1], params[baseEnum + ctl * 3 + 2],
+                hz, ref_sample_rate, &resp);
+            
+            linear_gain *= bpbx_freq_response_magnitude(&resp);
+        }
+
+        double gain_setting = bpbx_linear_gain_to_setting(linear_gain);
+        float gain_y_normalized = (gain_setting / BPBX_FILTER_GAIN_MAX);
+        if (gain_y_normalized < 0.0) gain_y_normalized = 0.0;
+        if (gain_y_normalized > 1.0) gain_y_normalized = 1.0;
+        
+        float y = (ui_origin.y - ui_end.y) * gain_y_normalized + ui_end.y;
+        float x = (ui_end.x - ui_origin.x) * ((float)i / BPBX_FILTER_FREQ_MAX) + ui_origin.x;
+
+        if (i > 0 && (fabs(y - ui_end.y) >= 2 || fabs(last_y - ui_end.y) >= 2)) {
+            drawList->AddQuadFilled(
+                ImVec2(x, y), ImVec2(x, ui_end.y),
+                ImVec2(last_x, ui_end.y), ImVec2(last_x, last_y),
+                graph_color);
+        }
+
+        last_x = x;
+        last_y = y;
+    }
+
+    // pole logic/drawing
+    // then i randomly switch to camelCase because i'm evi
+    // first, calculate pole screen positions
+    ImVec2 polePositions[BPBX_FILTER_GROUP_COUNT];
+
+    for (int i = 0; i < BPBX_FILTER_GROUP_COUNT; i++) {
+        int filtType = (int)params[baseEnum + i * 3];
+        if (filtType != BPBX_FILTER_TYPE_OFF) {
+            float freqN = params[baseEnum + i * 3 + 1] / BPBX_FILTER_FREQ_MAX;
+            float gainN = params[baseEnum + i * 3 + 2] / BPBX_FILTER_GAIN_MAX;
+
+            float drawX = floor((ui_end.x - ui_origin.x) * freqN + ui_origin.x);
+            float drawY = floor((ui_origin.y - ui_end.y) * gainN + ui_end.y);
+
+            polePositions[i] = ImVec2(drawX, drawY);
+        }
+    }
+
+    // find the currently hovered pole
+    int hoveredPoleIndex = -1;
+    constexpr float maxDist = 16.0;
+    float hoveredPoleDistSq = maxDist * maxDist;
+
+    if (ImGui::IsItemHovered()) {
+        ImVec2 mpos = ImGui::GetMousePos();
+        for (int i = 0; i < BPBX_FILTER_GROUP_COUNT; i++) {
+            int filtType = (int)params[baseEnum + i * 3];
+            if (filtType != BPBX_FILTER_TYPE_OFF) {
+                ImVec2 drawPos = polePositions[i];
+                float dx = drawPos.x - mpos.x;
+                float dy = drawPos.y - mpos.y;
+                float distSq = dx*dx + dy*dy;
+
+                if (distSq < hoveredPoleDistSq) {
+                    hoveredPoleIndex = i;
+                    hoveredPoleDistSq = distSq;
+                }
+            }
+        }
+    }
+    
+    // draw the poles
+    ImU32 poleColor = ImGui::GetColorU32(ImGuiCol_HeaderActive);
+    ImU32 poleActiveColor = ImGui::GetColorU32(ImGuiCol_Text);
+    for (int i = 0; i < BPBX_FILTER_GROUP_COUNT; i++) {
+        int filtType = (int)params[baseEnum + i * 3];
+        if (filtType != BPBX_FILTER_TYPE_OFF) {
+            ImU32 color = i == hoveredPoleIndex ? poleActiveColor : poleColor;
+
+            ImVec2 drawPos = polePositions[i];
+            float drawX = drawPos.x;
+            float drawY = drawPos.y;
+
+            drawList->AddCircleFilled(ImVec2(drawX, drawY), 2.5, color);
+
+            // draw lp/hp dashed lines
+            switch (filtType) {
+                case BPBX_FILTER_TYPE_LP:
+                    drawDashedHLine(drawList, drawX, ui_end.x, drawY, 3.0, 2.0, color);
+                    break;
+
+                case BPBX_FILTER_TYPE_HP:
+                    drawDashedHLine(drawList, ui_origin.x, drawX, drawY, 3.0, 2.0, color);
+                    break;
+
+                default: break;
+            }
+        }
+    }
+
+    // draw hovered/active pole info
+    if (hoveredPoleIndex != -1) {
+        char textBuf[64];
+        const char *poleTypeStr;
+        switch ((int)params[baseEnum + hoveredPoleIndex * 3]) {
+            case BPBX_FILTER_TYPE_HP:
+                poleTypeStr = "high-pass";
+                break;
+
+            case BPBX_FILTER_TYPE_LP:
+                poleTypeStr = "low-pass";
+                break;
+
+            case BPBX_FILTER_TYPE_NOTCH:
+                poleTypeStr = "peak";
+                break;
+        }
+
+        snprintf(textBuf, 64, "%i: %s", hoveredPoleIndex + 1, poleTypeStr);
+        drawList->AddText(ImVec2(ui_origin.x, ui_end.y - ImGui::GetFontSize()), poleColor, textBuf);
+    }
+}
+
 void PluginController::drawModulationPad() {
     ImGui::AlignTextToFramePadding();
     ImGui::SetCursorPosX((ImGui::GetWindowContentRegionMax().x - ImGui::CalcTextSize("Modulation").x) / 2.f);
@@ -818,6 +966,69 @@ void PluginController::drawModulationPad() {
     }
 }
 
+void PluginController::drawEqPage(FilterType targetFilter) {
+    drawEqWidget(targetFilter, "eqWidget", ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() * 3.0));
+
+    static const char *filterTypes[] = {"off", "low pass", "high pass", "peak"};
+
+    const char *filterName = "???";
+    int baseEnum;
+    if (targetFilter == FILTER_EQ) {
+        filterName = "EQ";
+        baseEnum = BPBX_PARAM_EQ_TYPE0;
+    } else if (targetFilter == FILTER_NOTE) {
+        filterName = "N. Filt.";
+        baseEnum = BPBX_PARAM_NOTE_FILTER_TYPE0;
+    }
+
+    for (int i = 0; i < BPBX_FILTER_GROUP_COUNT; i++) {
+        ImGui::PushID(i);
+
+        int typeParam = baseEnum + i * 3;
+        int freqParam = typeParam + 1;
+        int gainParam = typeParam + 2;
+
+        ImGui::AlignTextToFramePadding();
+        ImGui::Text("%s %i", filterName, i+1);
+
+        sameLineRightCol();
+        ImGui::SetNextItemWidth(-FLT_MIN);
+
+        int curType = (int)params[typeParam];
+        if (ImGui::Combo("##NoteFilterType", &curType, filterTypes, 4)) {
+            paramGestureBegin(typeParam);
+            paramChange(typeParam, (double)curType);
+            paramGestureEnd(typeParam);
+        }
+        paramControls(typeParam);
+
+        if (curType != BPBX_FILTER_TYPE_OFF) {
+            ImGui::PushStyleVarY(ImGuiStyleVar_FramePadding, 0.f);
+
+            ImGui::AlignTextToFramePadding();
+            ImGui::BulletText("Freq.");
+
+            sameLineRightCol();
+            ImGui::SetNextItemWidth(-FLT_MIN);
+            sliderParameter(freqParam, "##Freq", 0.0, BPBX_FILTER_FREQ_MAX);
+
+            ImGui::AlignTextToFramePadding();
+            ImGui::BulletText("Gain");
+
+            sameLineRightCol();
+            ImGui::SetNextItemWidth(-FLT_MIN);
+            sliderParameter(gainParam, "##Gain", 0.0, BPBX_FILTER_GAIN_MAX);
+
+            ImGui::PopStyleVar();
+        }
+
+        ImGui::PopID();
+
+        ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 4.0);
+    }
+
+}
+
 void PluginController::sameLineRightCol() {
     ImGui::SameLine();
     ImGui::SetCursorPosX(uiRightCol);
@@ -839,6 +1050,21 @@ void PluginController::draw(platform::Window *window) {
             if (ImGui::MenuItem("About")) {
                 showAbout = !showAbout;
             }
+
+            if (currentPage != PAGE_MAIN || showAbout) {
+                const char *label = "×";
+                ImGui::SetCursorPosX(ImGui::GetWindowWidth() - ImGui::GetFrameHeightWithSpacing());
+
+                float paddingY = ImGui::GetStyle().FramePadding.y;
+                ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(paddingY, paddingY));
+
+                if (ImGui::MenuItem(label)) {
+                    if (showAbout)  showAbout = false;
+                    else            currentPage = PAGE_MAIN;
+                }
+
+                ImGui::PopStyleVar();
+            }
     
             ImGui::EndMainMenuBar();
         }
@@ -854,42 +1080,48 @@ void PluginController::draw(platform::Window *window) {
 
         // instrument ui
         } else {
-            if (ImGui::Begin("inst", NULL, winFlags)) {
-                uiRightCol = ImGui::GetFontSize() * 7.f;
+            uiRightCol = ImGui::GetFontSize() * 7.f;
+            
+            switch (currentPage) {
+                case PAGE_MAIN:
+                    if (ImGui::Begin("inst", NULL, winFlags)) {
+                        // volume
+                        ImGui::AlignTextToFramePadding();
+                        ImGui::Text("Volume");
+                        sameLineRightCol();
+                        ImGui::SetNextItemWidth(-FLT_MIN);
+                        sliderParameter(BPBX_PARAM_VOLUME, "##volume", -25.0, 25.0, "%.0f");
+        
+                        ImGui::AlignTextToFramePadding();
+                        ImGui::Text("Fade In/Out");
+                        sameLineRightCol();
+                        drawFadeWidget("fadectl", ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() * 1.75f));
+        
+                        // specific instrument ui
+                        drawFmGui();
+        
+                        drawEffects();
+                        drawEnvelopes();
+                        drawModulationPad();
+                    }
+                    ImGui::End();
+
+                    break;
+
+                case PAGE_NOTE_FILTER:
+                    if (ImGui::Begin("eq", NULL, winFlags)) {
+                        drawEqPage(FILTER_NOTE);
+                    }
+                    ImGui::End();
+                    break;
                 
-                // volume
-                ImGui::AlignTextToFramePadding();
-                ImGui::Text("Volume");
-                sameLineRightCol();
-                ImGui::SetNextItemWidth(-FLT_MIN);
-                sliderParameter(BPBX_PARAM_VOLUME, "##volume", -25.0, 25.0, "%.0f");
-
-                ImGui::AlignTextToFramePadding();
-                ImGui::Text("Fade In/Out");
-                sameLineRightCol();
-                drawFadeWidget("fadectl", ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() * 1.75f));
-        
-                // fade in
-                // ImGui::AlignTextToFramePadding();
-                // ImGui::Text("Fadein");
-                // sameLineRightCol();
-                // ImGui::SetNextItemWidth(-FLT_MIN);
-                // sliderParameter(BPBX_PARAM_FADE_IN, "##fadein", 0.0, 9.0, "%.0f");
-        
-                // // fade out
-                // ImGui::AlignTextToFramePadding();
-                // ImGui::Text("Fadeout");
-                // sameLineRightCol();
-                // ImGui::SetNextItemWidth(-FLT_MIN);
-                // sliderParameter(BPBX_PARAM_FADE_OUT, "##fadeout", -4.0, 6.0, "%.0f");
-
-                // specific instrument ui
-                drawFmGui();
-
-                drawEffects();
-                drawEnvelopes();
-                drawModulationPad();
-            } ImGui::End();
+                case PAGE_EQ:
+                    if (ImGui::Begin("eq", NULL, winFlags)) {
+                        drawEqPage(FILTER_EQ);
+                    }
+                    ImGui::End();
+                    break;
+            }
         }
     }
 }

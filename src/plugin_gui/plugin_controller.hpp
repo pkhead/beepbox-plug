@@ -12,7 +12,19 @@ constexpr int GUI_EVENT_QUEUE_MASK = GUI_EVENT_QUEUE_SIZE-1;
 // ImGui gui for plugin controller
 class PluginController {
 private:
+    enum Page {
+        PAGE_MAIN,
+        PAGE_EQ,
+        PAGE_NOTE_FILTER
+    };
+
+    enum FilterType {
+        FILTER_NOTE,
+        FILTER_EQ,
+    };
+
     bpbx_inst_s *const instrument;
+    Page currentPage;
 
     bool showAbout;
     double params[BPBX_BASE_PARAM_COUNT + BPBX_FM_PARAM_COUNT];
@@ -33,9 +45,11 @@ private:
     void drawFmGui();
 
     void drawFadeWidget(const char *id, ImVec2 size);
+    void drawEqWidget(FilterType filter, const char *id, ImVec2 size);
     void drawEnvelopes();
     void drawEffects();
     void drawModulationPad();
+    void drawEqPage(FilterType targetFilter);
 
     void paramGestureBegin(uint32_t param_id);
     void paramChange(uint32_t param_id, double value);
