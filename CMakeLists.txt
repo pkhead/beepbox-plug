@@ -91,12 +91,12 @@ set_target_properties(${CLAP_TARGET} PROPERTIES
 #######################
 
 if(BUILD_STANDALONE)
-    set(STANDALONE_TARGET ${PROJECT_NAME}_standalone)
-    add_executable(${STANDALONE_TARGET})
-    target_sources(${STANDALONE_TARGET} PRIVATE src/plugin/entry.c)
-    target_link_libraries(${STANDALONE_TARGET} PRIVATE ${LIBRARIES} plugin_gui)
-    target_add_standalone_wrapper(TARGET ${STANDALONE_TARGET}
-        OUTPUT_NAME "BeepBox"
+    set(STANDALONE_FM ${PROJECT_NAME}_standalone_fm)
+    add_executable(${STANDALONE_FM})
+    target_sources(${STANDALONE_FM} PRIVATE src/plugin/entry.c)
+    target_link_libraries(${STANDALONE_FM} PRIVATE ${LIBRARIES} plugin_gui)
+    target_add_standalone_wrapper(TARGET ${STANDALONE_FM}
+        OUTPUT_NAME "BeepBox_fm"
         STATICALLY_LINKED_CLAP_ENTRY True
         PLUGIN_ID "us.pkhead.beepbox.fm"
     )
