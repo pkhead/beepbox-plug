@@ -268,6 +268,10 @@ void eventHandler(platform::Event ev, platform::Window *window) {
 
         case platform::Event::Realize:
             setUpGraphics(window);
+
+            // request extra frame, since the ImGui menu bar does not appear
+            // on the first ever frame
+            platform::requestRedraw(window, 1);
             break;
 
         case platform::Event::Unrealize:
