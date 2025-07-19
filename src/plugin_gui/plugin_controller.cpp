@@ -3,8 +3,11 @@
 #include <cstring>
 
 #include <cbeepsynth/include/beepbox_synth.h>
+#include <vector>
+#include <algorithm>
 #include "plugin_controller.hpp"
 #include "util.hpp"
+#include "log.hpp"
 
 using namespace beepbox;
 
@@ -153,6 +156,10 @@ void PluginController::paramGestureBegin(uint32_t param_id) {
     item.gesture.param_id = param_id;
 
     gui_to_plugin.enqueue(item);
+
+#ifndef _NDEBUG
+    log_debug("paramGestureBegin %i", param_id);
+#endif
 }
 
 void PluginController::paramChange(uint32_t param_id, double value) {
@@ -172,6 +179,10 @@ void PluginController::paramGestureEnd(uint32_t param_id) {
     item.gesture.param_id = param_id;
 
     gui_to_plugin.enqueue(item);
+
+#ifndef _NDEBUG
+    log_debug("paramGestureEnd %i", param_id);
+#endif
 }
 
 void PluginController::event(platform::Event ev, platform::Window *window) {
@@ -583,15 +594,16 @@ static void drawDashedHLine(
         endX = temp;
     }
 
-    int segmentCount = (int)ceilf((endX - startX) / (segmentWidth + spacing));
-    float x = startX;
-    for (int i = 0; i < segmentCount; i++) {
+    // int segmentCount = (int)ceilf((endX - startX) / (segmentWidth + spacing));
+    // float x = startX;
+    // for (int i = 0; i < segmentCount; i++) {
+    for (float x = startX; x <= endX; x += segmentWidth + spacing) {
         float segmentEndX = x + segmentWidth;
         if (segmentEndX > endX)
-            segmentWidth = endX;
+            segmentEndX = endX;
     
         drawList->AddLine(ImVec2(x, y), ImVec2(segmentEndX, y), col);
-        x += segmentWidth + spacing;
+        // x += segmentWidth + spacing;
     }
 }
 
@@ -738,11 +750,66 @@ void PluginController::drawFadeWidget(const char *id, ImVec2 size) {
     }
 }
 
+void PluginController::filterRemovePole(FilterType filter, int control_idx) {
+    assert(control_idx >= 0 && control_idx < BPBX_FILTER_GROUP_COUNT);
+
+    int baseEnum = 0;
+    switch (filter) {
+        case FILTER_EQ:
+            baseEnum = BPBX_PARAM_EQ_TYPE0;
+            break;
+
+        case FILTER_NOTE:
+            baseEnum = BPBX_PARAM_NOTE_FILTER_TYPE0;
+            break;
+    }
+
+    constexpr int lastIdx = BPBX_FILTER_GROUP_COUNT - 1;
+    for (int i = control_idx; i < lastIdx; i++) {
+        paramChange(baseEnum + i * 3, params[baseEnum + (i+1) * 3]);
+        paramChange(baseEnum + i * 3 + 1, params[baseEnum + (i+1) * 3 + 1]);
+        paramChange(baseEnum + i * 3 + 2, params[baseEnum + (i+1) * 3 + 2]);
+    }
+
+    paramChange(baseEnum + lastIdx * 3, (double)BPBX_FILTER_TYPE_OFF);
+    paramChange(baseEnum + lastIdx * 3 + 1, 0.0);
+    paramChange(baseEnum + lastIdx * 3 + 2, BPBX_FILTER_GAIN_CENTER);
+}
+
+void PluginController::filterInsertPole(FilterType filter, int control_idx, bpbx_filter_type_e type, double freq, double gain) {
+    assert(control_idx >= 0 && control_idx < BPBX_FILTER_GROUP_COUNT);
+
+    int baseEnum = 0;
+    switch (filter) {
+        case FILTER_EQ:
+            baseEnum = BPBX_PARAM_EQ_TYPE0;
+            break;
+
+        case FILTER_NOTE:
+            baseEnum = BPBX_PARAM_NOTE_FILTER_TYPE0;
+            break;
+    }
+
+    for (int i = BPBX_FILTER_GROUP_COUNT - 1; i >= control_idx; i--) {
+        paramChange(baseEnum + (i+1) * 3, params[baseEnum + i * 3]);
+        paramChange(baseEnum + (i+1) * 3 + 1, params[baseEnum + i * 3 + 1]);
+        paramChange(baseEnum + (i+1) * 3 + 2, params[baseEnum + i * 3 + 2]);
+    }
+
+    paramChange(baseEnum + control_idx * 3, type);
+    paramChange(baseEnum + control_idx * 3 + 1, freq);
+    paramChange(baseEnum + control_idx * 3 + 2, gain);
+}
+
+#define FILTER_PARAM_TYPE(controlIndex) ((controlIndex) * 3)
+#define FILTER_PARAM_FREQ(controlIndex) ((controlIndex) * 3 + 1)
+#define FILTER_PARAM_GAIN(controlIndex) ((controlIndex) * 3 + 2)
+
 void PluginController::drawEqWidget(FilterType filter, const char *id, ImVec2 size) {
     ImDrawList *drawList = ImGui::GetWindowDrawList();
     ImVec2 ui_origin = ImGui::GetCursorScreenPos();
     ImVec2 ui_end = ImVec2(ui_origin.x + size.x, ui_origin.y + size.y);
-    ImGui::InvisibleButton(id, size);
+    ImGui::InvisibleButton(id, size, ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
 
     ImU32 graph_color = ImGui::GetColorU32(ImGuiCol_Header);
 
@@ -757,52 +824,14 @@ void PluginController::drawEqWidget(FilterType filter, const char *id, ImVec2 si
             break;
     }
 
-    // draw frequency response graph
-    const double ref_sample_rate = 48000;
-    float last_y;
-    float last_x;
-    for (int i = 0; i < BPBX_FILTER_FREQ_RANGE; i++) {
-        double hz = bpbx_freq_setting_to_hz(i);
-
-        double linear_gain = 1.0;
-        for (int ctl = 0; ctl < BPBX_FILTER_GROUP_COUNT; ctl++) {
-            bpbx_freq_response_s resp;
-            bpbx_analyze_freq_response(
-                (bpbx_filter_type_e)params[baseEnum + ctl * 3], params[baseEnum + ctl * 3 + 1], params[baseEnum + ctl * 3 + 2],
-                hz, ref_sample_rate, &resp);
-            
-            linear_gain *= bpbx_freq_response_magnitude(&resp);
-        }
-
-        double gain_setting = bpbx_linear_gain_to_setting(linear_gain);
-        float gain_y_normalized = (gain_setting / BPBX_FILTER_GAIN_MAX);
-        if (gain_y_normalized < 0.0) gain_y_normalized = 0.0;
-        if (gain_y_normalized > 1.0) gain_y_normalized = 1.0;
-        
-        float y = (ui_origin.y - ui_end.y) * gain_y_normalized + ui_end.y;
-        float x = (ui_end.x - ui_origin.x) * ((float)i / BPBX_FILTER_FREQ_MAX) + ui_origin.x;
-
-        if (i > 0 && (fabs(y - ui_end.y) >= 2 || fabs(last_y - ui_end.y) >= 2)) {
-            drawList->AddQuadFilled(
-                ImVec2(x, y), ImVec2(x, ui_end.y),
-                ImVec2(last_x, ui_end.y), ImVec2(last_x, last_y),
-                graph_color);
-        }
-
-        last_x = x;
-        last_y = y;
-    }
-
-    // pole logic/drawing
-    // then i randomly switch to camelCase because i'm evi
-    // first, calculate pole screen positions
+    // calculate pole screen positions
     ImVec2 polePositions[BPBX_FILTER_GROUP_COUNT];
 
     for (int i = 0; i < BPBX_FILTER_GROUP_COUNT; i++) {
-        int filtType = (int)params[baseEnum + i * 3];
+        int filtType = (int)params[baseEnum + FILTER_PARAM_TYPE(i)];
         if (filtType != BPBX_FILTER_TYPE_OFF) {
-            float freqN = params[baseEnum + i * 3 + 1] / BPBX_FILTER_FREQ_MAX;
-            float gainN = params[baseEnum + i * 3 + 2] / BPBX_FILTER_GAIN_MAX;
+            float freqN = params[baseEnum + FILTER_PARAM_FREQ(i)] / BPBX_FILTER_FREQ_MAX;
+            float gainN = params[baseEnum + FILTER_PARAM_GAIN(i)] / BPBX_FILTER_GAIN_MAX;
 
             float drawX = floor((ui_end.x - ui_origin.x) * freqN + ui_origin.x);
             float drawY = floor((ui_origin.y - ui_end.y) * gainN + ui_end.y);
@@ -811,15 +840,50 @@ void PluginController::drawEqWidget(FilterType filter, const char *id, ImVec2 si
         }
     }
 
-    // find the currently hovered pole
+    // drag state
+    static int activePoleIndex = -1;
+    static bool wasDragging = false;
+    static ImVec2 initialDragPos;
+    static std::vector<int> activeGestures;
+
+    auto tryBeginGesture = [this](uint32_t param_idx) {
+        auto it = std::find(activeGestures.begin(), activeGestures.end(), param_idx);
+        if (it == activeGestures.end()) {
+            activeGestures.push_back(param_idx);
+            paramGestureBegin(param_idx);
+        }
+    };
+    auto tryEndGesture = [this](uint32_t param_idx) {
+        auto it = std::find(activeGestures.begin(), activeGestures.end(), param_idx);
+        if (it != activeGestures.end()) {
+            activeGestures.erase(it);
+            paramGestureEnd(param_idx);
+        }
+    };
+
+    // more drag state: when the pole is dragged OOB,
+    // it will be removed. but when the user drags it back inside of OOB,
+    // it should be reinserted.
+    static bpbx_filter_type_e draggingPoleType;
+    static bool draggingPoleExists;
+    static bool hasPoleBeenRemoved = false; // if the pole was ever removed during the drag
+    static bool poleIsNewlyAdded = false;
+    static bool forceDragBegin = false;
+
+    // hover/insertion state
     int hoveredPoleIndex = -1;
-    constexpr float maxDist = 16.0;
-    float hoveredPoleDistSq = maxDist * maxDist;
+    bpbx_filter_type_e poleInsertionType = BPBX_FILTER_TYPE_OFF;
+    int poleInsertionFreq = 0;
+    int poleInsertionGain = 0;
 
     if (ImGui::IsItemHovered()) {
         ImVec2 mpos = ImGui::GetMousePos();
+
+        // find the pole that is currently being hovered over
+        constexpr float maxDist = 16.0;
+        float hoveredPoleDistSq = maxDist * maxDist;
         for (int i = 0; i < BPBX_FILTER_GROUP_COUNT; i++) {
-            int filtType = (int)params[baseEnum + i * 3];
+            int filtType = (int)params[baseEnum + FILTER_PARAM_TYPE(i)];
             if (filtType != BPBX_FILTER_TYPE_OFF) {
                 ImVec2 drawPos = polePositions[i];
                 float dx = drawPos.x - mpos.x;
@@ -832,8 +896,234 @@ void PluginController::drawEqWidget(FilterType filter, const char *id, ImVec2 si
                 }
             }
         }
+
+        // if there is no currently hovered-over pole,
+        // show the insertion ui
+        if (hoveredPoleIndex == -1) {
+            float ratioX = (mpos.x - ui_origin.x) / (ui_end.x - ui_origin.x);
+            float newFreq = ratioX * BPBX_FILTER_FREQ_MAX;
+            float newGain = (mpos.y - ui_end.y) / (ui_origin.y - ui_end.y) * BPBX_FILTER_GAIN_MAX;
+
+            if (ratioX < 0.2f) {
+                poleInsertionType = BPBX_FILTER_TYPE_HP;
+            } else if (ratioX < 0.8f) {
+                poleInsertionType = BPBX_FILTER_TYPE_NOTCH;
+            } else {
+                poleInsertionType = BPBX_FILTER_TYPE_LP;
+            }
+
+            poleInsertionFreq = newFreq;
+            poleInsertionGain = newGain;
+        }
     }
-    
+
+
+    // begin dragging
+    if (ImGui::IsItemActivated()) {
+        forceDragBegin = false;
+
+        if (hoveredPoleIndex != -1) {
+            activePoleIndex = hoveredPoleIndex;
+            wasDragging = false;
+            poleIsNewlyAdded = false;
+        } else {
+            // left-click to insert pole, and then begin drag of this new pole
+            if (poleInsertionType != BPBX_FILTER_TYPE_OFF && ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+                for (int newIndex = 0; newIndex < BPBX_FILTER_GROUP_COUNT; newIndex++) {
+                    if (params[baseEnum + FILTER_PARAM_TYPE(newIndex)] == BPBX_FILTER_TYPE_OFF) {
+                        tryBeginGesture(baseEnum + FILTER_PARAM_TYPE(newIndex));
+                        tryBeginGesture(baseEnum + FILTER_PARAM_FREQ(newIndex));
+                        tryBeginGesture(baseEnum + FILTER_PARAM_GAIN(newIndex));
+
+                        paramChange(baseEnum + FILTER_PARAM_TYPE(newIndex), (double)poleInsertionType);
+                        paramChange(baseEnum + FILTER_PARAM_FREQ(newIndex), poleInsertionFreq);
+                        paramChange(baseEnum + FILTER_PARAM_GAIN(newIndex), poleInsertionGain);
+
+                        activePoleIndex = newIndex;
+                        forceDragBegin = true;
+                        poleIsNewlyAdded = true;
+
+                        float freqN = params[baseEnum + FILTER_PARAM_FREQ(newIndex)] / BPBX_FILTER_FREQ_MAX;
+                        float gainN = params[baseEnum + FILTER_PARAM_GAIN(newIndex)] / BPBX_FILTER_GAIN_MAX;
+
+                        float drawX = floor((ui_end.x - ui_origin.x) * freqN + ui_origin.x);
+                        float drawY = floor((ui_origin.y - ui_end.y) * gainN + ui_end.y);
+
+                        polePositions[newIndex] = ImVec2(drawX, drawY);
+                        break;
+                    }
+                }
+                
+            }
+        }
+
+        if (activePoleIndex != -1) {
+            initialDragPos = polePositions[activePoleIndex];
+            draggingPoleExists = true;
+            hasPoleBeenRemoved = false;
+        }
+    }
+
+    {
+        int typeParamIdx = baseEnum + FILTER_PARAM_TYPE(activePoleIndex);
+        int freqParamIdx = baseEnum + FILTER_PARAM_FREQ(activePoleIndex);
+        int gainParamIdx = baseEnum + FILTER_PARAM_GAIN(activePoleIndex);
+
+        if (ImGui::IsItemDeactivated() && activePoleIndex != -1) {
+            if (wasDragging) {
+                if (draggingPoleExists) {
+                    tryEndGesture(freqParamIdx);
+                    tryEndGesture(gainParamIdx);
+                }
+
+                // if the pole was ever removed while dragging, end
+                // the consequent gestures
+                if (hasPoleBeenRemoved) {
+                    tryEndGesture(typeParamIdx);
+                    for (int i = activePoleIndex + 1; i < BPBX_FILTER_GROUP_COUNT; i++) {
+                        tryEndGesture(baseEnum + FILTER_PARAM_TYPE(i));
+                        tryEndGesture(baseEnum + FILTER_PARAM_FREQ(i));
+                        tryEndGesture(baseEnum + FILTER_PARAM_GAIN(i));
+                    }
+                } else if (poleIsNewlyAdded) {
+                    tryEndGesture(typeParamIdx);
+                }
+            } else {
+                // a left click will remove the pole
+                if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
+                    for (int i = activePoleIndex; i < BPBX_FILTER_GROUP_COUNT; i++) {
+                        tryBeginGesture(baseEnum + FILTER_PARAM_TYPE(i));
+                        tryBeginGesture(baseEnum + FILTER_PARAM_FREQ(i));
+                        tryBeginGesture(baseEnum + FILTER_PARAM_GAIN(i));
+                    }
+
+                    filterRemovePole(filter, activePoleIndex);
+                }
+
+                // a right click will remove the pole without shifting the list
+                else if (ImGui::IsMouseReleased(ImGuiMouseButton_Right)) {
+                    tryBeginGesture(typeParamIdx);
+                    tryBeginGesture(freqParamIdx);
+                    tryBeginGesture(gainParamIdx);
+
+                    paramChange(typeParamIdx, (double)BPBX_FILTER_TYPE_OFF);
+                    paramChange(freqParamIdx, 0.0);
+                    paramChange(gainParamIdx, BPBX_FILTER_GAIN_CENTER);
+
+                    tryEndGesture(typeParamIdx);
+                    tryEndGesture(freqParamIdx);
+                    tryEndGesture(gainParamIdx);
+                }
+            }
+
+            for (uint32_t param_idx : activeGestures) {
+                paramGestureEnd(param_idx);
+            }
+            activeGestures.clear();
+
+            activePoleIndex = -1;
+        }
+
+        if (ImGui::IsItemActive() && activePoleIndex != -1) {
+            hoveredPoleIndex = activePoleIndex;
+
+            if (ImGui::IsMouseDragging(ImGuiMouseButton_Left) || forceDragBegin) {
+                if (!wasDragging) {
+                    tryBeginGesture(freqParamIdx);
+                    tryBeginGesture(gainParamIdx);
+
+                    draggingPoleType = (bpbx_filter_type_e)params[typeParamIdx];
+                }
+
+                wasDragging = true;
+                ImVec2 delta = ImGui::GetMouseDragDelta();
+                ImVec2 newPos;
+                newPos.x = initialDragPos.x + delta.x;
+                newPos.y = initialDragPos.y + delta.y;
+
+                float newFreq = (newPos.x - ui_origin.x) / (ui_end.x - ui_origin.x) * BPBX_FILTER_FREQ_MAX;
+                float newGain = (newPos.y - ui_end.y) / (ui_origin.y - ui_end.y) * BPBX_FILTER_GAIN_MAX;
+
+                newFreq = floorf(newFreq + 0.5);
+                newGain = floorf(clamp(newGain, 0.f, (float)BPBX_FILTER_GAIN_MAX) + 0.5);
+
+                // pole disappears when out of freq bounds
+                bool poleExists = newFreq >= 0.0 && newFreq <= BPBX_FILTER_FREQ_MAX;
+                if (draggingPoleExists != poleExists) {
+                    draggingPoleExists = poleExists;
+
+                    if (!poleExists) {
+                        if (!hasPoleBeenRemoved) {
+                            tryBeginGesture(typeParamIdx);
+                            for (int i = activePoleIndex + 1; i < BPBX_FILTER_GROUP_COUNT; i++) {
+                                tryBeginGesture(baseEnum + FILTER_PARAM_TYPE(i));
+                                tryBeginGesture(baseEnum + FILTER_PARAM_FREQ(i));
+                                tryBeginGesture(baseEnum + FILTER_PARAM_GAIN(i));
+                            }
+                        }
+                        hasPoleBeenRemoved = true;
+
+                        filterRemovePole(filter, activePoleIndex);
+                    }
+                    else {
+                        filterInsertPole(filter, activePoleIndex, draggingPoleType, newFreq, newGain);
+                    }
+                }
+
+                newPos.x = floor((ui_end.x - ui_origin.x) * (newFreq / BPBX_FILTER_FREQ_MAX) + ui_origin.x);
+                newPos.y = floor((ui_origin.y - ui_end.y) * (newGain / BPBX_FILTER_GAIN_MAX) + ui_end.y);
+
+                if (poleExists) {
+                    paramChange(freqParamIdx, newFreq);
+                    paramChange(gainParamIdx, newGain);
+                    polePositions[activePoleIndex] = newPos;
+                } else {
+                    hoveredPoleIndex = -1;
+                }
+            }
+        }
+    }
+
+    // now, do the drawing
+    // draw frequency response graph
+    const double ref_sample_rate = 48000;
+    float last_y;
+    float last_x;
+    for (int i = 0; i < BPBX_FILTER_FREQ_RANGE * 2; i++) {
+        double freqIndex = (double)i / 2.0;
+        double hz = bpbx_freq_setting_to_hz(freqIndex);
+
+        double linear_gain = 1.0;
+        for (int ctl = 0; ctl < BPBX_FILTER_GROUP_COUNT; ctl++) {
+            bpbx_freq_response_s resp;
+            bpbx_analyze_freq_response(
+                (bpbx_filter_type_e)params[baseEnum + FILTER_PARAM_TYPE(ctl)],
+                params[baseEnum + FILTER_PARAM_FREQ(ctl)],
+                params[baseEnum + FILTER_PARAM_GAIN(ctl)],
+                hz, ref_sample_rate, &resp);
+            
+            linear_gain *= bpbx_freq_response_magnitude(&resp);
+        }
+
+        double gain_setting = bpbx_linear_gain_to_setting(linear_gain);
+        float gain_y_normalized = (gain_setting / BPBX_FILTER_GAIN_MAX);
+        if (gain_y_normalized < 0.0) gain_y_normalized = 0.0;
+        if (gain_y_normalized > 1.0) gain_y_normalized = 1.0;
+        
+        float y = (ui_origin.y - ui_end.y) * gain_y_normalized + ui_end.y;
+        float x = floor((ui_end.x - ui_origin.x) * ((float)freqIndex / BPBX_FILTER_FREQ_MAX) + ui_origin.x);
+
+        if (i > 0 && (fabs(y - ui_end.y) >= 2 || fabs(last_y - ui_end.y) >= 2)) {
+            drawList->AddQuadFilled(
+                ImVec2(x, y), ImVec2(x, ui_end.y),
+                ImVec2(last_x, ui_end.y), ImVec2(last_x, last_y),
+                graph_color);
+        }
+
+        last_x = x;
+        last_y = y;
+    }
+     
     // draw the poles
     ImU32 poleColor = ImGui::GetColorU32(ImGuiCol_HeaderActive);
     ImU32 poleActiveColor = ImGui::GetColorU32(ImGuiCol_Text);
@@ -846,28 +1136,30 @@ void PluginController::drawEqWidget(FilterType filter, const char *id, ImVec2 si
             float drawX = drawPos.x;
             float drawY = drawPos.y;
 
-            drawList->AddCircleFilled(ImVec2(drawX, drawY), 2.5, color);
-
             // draw lp/hp dashed lines
             switch (filtType) {
                 case BPBX_FILTER_TYPE_LP:
-                    drawDashedHLine(drawList, drawX, ui_end.x, drawY, 3.0, 2.0, color);
+                    drawDashedHLine(drawList, drawX, ui_end.x, drawY, 3.0, 2.0, poleColor);
                     break;
 
                 case BPBX_FILTER_TYPE_HP:
-                    drawDashedHLine(drawList, ui_origin.x, drawX, drawY, 3.0, 2.0, color);
+                    drawDashedHLine(drawList, ui_origin.x, drawX, drawY, 3.0, 2.0, poleColor);
                     break;
 
                 default: break;
             }
+
+            // draw circle
+            drawList->AddCircleFilled(ImVec2(drawX, drawY), activePoleIndex == i ? 3.5 : 2.5, color);
         }
     }
 
     // draw hovered/active pole info
-    if (hoveredPoleIndex != -1) {
+    if (ImGui::IsItemHovered() || ImGui::IsItemActive()) {
         char textBuf[64];
         const char *poleTypeStr;
-        switch ((int)params[baseEnum + hoveredPoleIndex * 3]) {
+        bool insertion = poleInsertionType != BPBX_FILTER_TYPE_OFF;
+        switch (insertion ? poleInsertionType : (bpbx_filter_type_e)params[baseEnum + FILTER_PARAM_TYPE(hoveredPoleIndex)]) {
             case BPBX_FILTER_TYPE_HP:
                 poleTypeStr = "high-pass";
                 break;
@@ -879,10 +1171,21 @@ void PluginController::drawEqWidget(FilterType filter, const char *id, ImVec2 si
             case BPBX_FILTER_TYPE_NOTCH:
                 poleTypeStr = "peak";
                 break;
+
+            default:
+                poleTypeStr = nullptr;
+                break;
         }
 
-        snprintf(textBuf, 64, "%i: %s", hoveredPoleIndex + 1, poleTypeStr);
-        drawList->AddText(ImVec2(ui_origin.x, ui_end.y - ImGui::GetFontSize()), poleColor, textBuf);
+        if (poleTypeStr) {
+            if (insertion) {
+                snprintf(textBuf, 64, "+ %s", poleTypeStr);
+            } else {
+                snprintf(textBuf, 64, "%i: %s", hoveredPoleIndex + 1, poleTypeStr);
+            }
+
+            drawList->AddText(ImVec2(ui_origin.x, ui_end.y - ImGui::GetFontSize()), poleColor, textBuf);
+        }
     }
 }
 

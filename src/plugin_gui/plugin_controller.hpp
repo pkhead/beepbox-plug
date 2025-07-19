@@ -55,6 +55,9 @@ private:
     void paramChange(uint32_t param_id, double value);
     void paramGestureEnd(uint32_t param_id);
 
+    void filterRemovePole(FilterType filter, int control_idx);
+    void filterInsertPole(FilterType filter, int control_idx, bpbx_filter_type_e type, double freq, double gain);
+
     int fadeDragMode;
     double fadeDragInit;
 
