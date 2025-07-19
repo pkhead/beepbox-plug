@@ -98,7 +98,7 @@ if(BUILD_STANDALONE)
     target_add_standalone_wrapper(TARGET ${STANDALONE_TARGET}
         OUTPUT_NAME "BeepBox"
         STATICALLY_LINKED_CLAP_ENTRY True
-        PLUGIN_ID "us.pkhead.beepbox"
+        PLUGIN_ID "us.pkhead.beepbox.fm"
     )
 endif()
 

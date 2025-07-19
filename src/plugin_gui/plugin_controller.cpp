@@ -8,12 +8,17 @@
 #include "plugin_controller.hpp"
 #include "util.hpp"
 #include "log.hpp"
+#include <plugin/conf.h>
 
 using namespace beepbox;
 
 #ifdef PLUGIN_VST3
 #include "resource/vst_logo.hpp"
 #endif
+
+#define FILTER_PARAM_TYPE(controlIndex) ((controlIndex) * 3)
+#define FILTER_PARAM_FREQ(controlIndex) ((controlIndex) * 3 + 1)
+#define FILTER_PARAM_GAIN(controlIndex) ((controlIndex) * 3 + 2)
 
 void PluginController::graphicsInit() {
     #ifdef PLUGIN_VST3
@@ -192,10 +197,10 @@ void PluginController::event(platform::Event ev, platform::Window *window) {
 
 void PluginController::drawAbout(ImGuiWindowFlags winFlags) {
     ImGui::Begin("about", NULL, winFlags);
-    ImGui::TextWrapped("C port of and plugin for BeepBox instruments.");
-    ImGui::TextWrapped("ported by pkhead, designed/programmed by John Nesky.");
+    ImGui::TextWrapped("Version: " PLUGIN_VERSION);
 
-    ImGui::NewLine();
+    ImGui::TextWrapped("Port of BeepBox instruments.");
+    ImGui::TextWrapped("Ported by pkhead, designed/programmed by John Nesky and various BeepBox community members.");
 
     ImGui::TextLinkOpenURL("BeepBox website", "https://beepbox.co");
     ImGui::TextLinkOpenURL("Source code", "https://github.com/pkhead/beepbox-plug");
@@ -208,6 +213,7 @@ void PluginController::drawAbout(ImGuiWindowFlags winFlags) {
 
     // show vst3-compatible logo
     #ifdef PLUGIN_VST3
+    ImGui::NewLine();
     ImGui::SetCursorPosX((ImGui::GetWindowWidth() - (float)vstLogo.width) / 2.f);
     ImGui::Image(gfx::imguiTextureId(vstLogo.texture), ImVec2((float)vstLogo.width, (float)vstLogo.height));
     #endif
@@ -516,8 +522,17 @@ void PluginController::drawEnvelopes() {
                 if (params[BPBX_PARAM_ENABLE_VIBRATO])
                     targets.push_back(BPBX_ENV_INDEX_VIBRATO_DEPTH);
 
-                if (params[BPBX_PARAM_ENABLE_NOTE_FILTER])
+                if (params[BPBX_PARAM_ENABLE_NOTE_FILTER]) {
                     targets.push_back(BPBX_ENV_INDEX_NOTE_FILTER_ALL_FREQS);
+
+                    for (int i = 0; i < BPBX_FILTER_GROUP_COUNT; i++) {
+                        int filtType = (int)params[BPBX_PARAM_NOTE_FILTER_TYPE0 + FILTER_PARAM_TYPE(i)]; 
+                        if (filtType != BPBX_FILTER_TYPE_OFF) {
+                            targets.push_back(
+                                (bpbx_envelope_compute_index_e)(BPBX_ENV_INDEX_NOTE_FILTER_FREQ0 + i));
+                        }
+                    }
+                }
             }
 
             for (int i = 0; i < targets.size(); i++) {
@@ -800,10 +815,6 @@ void PluginController::filterInsertPole(FilterType filter, int control_idx, bpbx
     paramChange(baseEnum + control_idx * 3 + 1, freq);
     paramChange(baseEnum + control_idx * 3 + 2, gain);
 }
-
-#define FILTER_PARAM_TYPE(controlIndex) ((controlIndex) * 3)
-#define FILTER_PARAM_FREQ(controlIndex) ((controlIndex) * 3 + 1)
-#define FILTER_PARAM_GAIN(controlIndex) ((controlIndex) * 3 + 2)
 
 void PluginController::drawEqWidget(FilterType filter, const char *id, ImVec2 size) {
     ImDrawList *drawList = ImGui::GetWindowDrawList();

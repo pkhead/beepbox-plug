@@ -172,8 +172,10 @@ namespace platform {
     int getWidth(Window *window);
     int getHeight(Window *window);
 
-    void setVisible(Window *window, bool visible);
+    bool setVisible(Window *window, bool visible);
+    bool setTitle(Window *window, const char *title);
     bool setParent(Window *window, void *parentHandle);
+    bool setTransientParent(Window *window, void *parentHandle);
     void requestRedraw(Window *window, int extraFrames = 0);
 
     struct Window {

@@ -336,16 +336,12 @@ void platform::closeWindow(Window *platform) {
     delete platform;
 }
 
-bool platform::setParent(platform::Window *window, void* newParent)
-{
-    if (window->isRealized) return false;
+static bool realizeWindow(platform::Window *window) {
+    if (window->isRealized) return true;
 
-    MUTEX_GUARD;
-    puglSetParent(window->puglView, (PuglNativeView) newParent);
-    
     PuglStatus status = puglRealize(window->puglView);
     if (status) {
-        fprintf(stderr, "Error realizing view (%s\n)", puglStrerror(status));
+        log_error("Error realizing view (%s\n)", puglStrerror(status));
         return false;
     }
     window->isRealized = true;
@@ -373,6 +369,21 @@ bool platform::setParent(platform::Window *window, void* newParent)
     return true;
 }
 
+bool platform::setParent(platform::Window *window, void* newParent)
+{
+    if (window->isRealized) return false;
+
+    MUTEX_GUARD;
+    return puglSetParent(window->puglView, (PuglNativeView) newParent) == PUGL_SUCCESS;
+}
+
+bool platform::setTransientParent(Window *window, void *parentHandle) {
+    if (window->isRealized) return false;
+
+    MUTEX_GUARD;
+    return puglSetTransientParent(window->puglView, (PuglNativeView) parentHandle) == PUGL_SUCCESS;
+}
+
 void platform::setUserdata(platform::Window *window, void *ud) {
     window->userdata = ud;
 }
@@ -389,13 +400,26 @@ int platform::getHeight(Window *window) {
     return window->height;
 }
 
-void platform::setVisible(Window *window, bool visible) {
+bool platform::setVisible(Window *window, bool visible) {
     MUTEX_GUARD;
 
-    if (visible)
-        puglShow(window->puglView, PUGL_SHOW_RAISE);
-    else
-        puglHide(window->puglView);
+    if (visible) {
+        if (!realizeWindow(window)) {
+            return false;
+        }
+
+        return puglShow(window->puglView, PUGL_SHOW_RAISE) == PUGL_SUCCESS;
+    } else {
+        return puglHide(window->puglView) == PUGL_SUCCESS;
+    }
+}
+
+bool platform::setTitle(Window *window, const char *title) {
+    MUTEX_GUARD;
+    assert(window->puglView);
+    if (!window->puglView) return false;
+
+    return puglSetViewString(window->puglView, PUGL_WINDOW_TITLE, title) == PUGL_SUCCESS;
 }
 
 void platform::requestRedraw(Window *window, int extraFrames) {

@@ -58,17 +58,18 @@ static inline void enable_denormals(const fp_env env) {
 #include <clap/clap.h>
 #include <plugin_gui.h>
 #include "endianness.h"
+#include "conf.h"
 
 static const clap_plugin_descriptor_t s_my_plug_desc = {
    .clap_version = CLAP_VERSION_INIT,
-   .id = "us.pkhead.beepbox",
-   .name = "BeepBox",
+   .id = "us.pkhead.beepbox.fm",
+   .name = "BeepBox FM",
    .vendor = "pkhead",
    .url = "https://github.com/pkhead/beepbox-plug",
    .manual_url = "",
    .support_url = "",
-   .version = "0.0.1",
-   .description = "Port of the BeepBox synthesizers.",
+   .version = PLUGIN_VERSION,
+   .description = "BeepBox FM synthesizer",
    .features = (const char *[]){CLAP_PLUGIN_FEATURE_INSTRUMENT, CLAP_PLUGIN_FEATURE_STEREO, NULL},
 };
 
@@ -848,7 +849,7 @@ void plugin_gui_destroy(const clap_plugin_t *plugin) {
 }
 
 bool plugin_gui_set_scale(const clap_plugin_t *plugin, double scale) {
-   return true;
+   return false;
 }
 
 bool plugin_gui_get_size(const clap_plugin_t *plugin, uint32_t *width, uint32_t *height) {
@@ -875,7 +876,7 @@ bool plugin_gui_adjust_size(const clap_plugin_t *plugin, uint32_t *width, uint32
 }
 
 bool plugin_gui_set_size(const clap_plugin_t *plugin, uint32_t width, uint32_t height) {
-   return true; // yep i definitely resized
+   return false;
 }
 
 bool plugin_gui_set_parent(const clap_plugin_t *plugin, const clap_window_t *window) {

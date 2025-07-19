@@ -351,11 +351,17 @@ bool gui_set_parent(plugin_gui_s *iface, const clap_window_t *window) {
 }
 
 bool gui_set_transient(plugin_gui_s *iface, const clap_window_t *window) {
-    return false;
+#ifdef _WIN32
+    assert(!strcmp(window->api, CLAP_WINDOW_API_WIN32));
+    return platform::setTransientParent(iface->window, window->win32);
+#else
+    assert(!strcmp(window->api, CLAP_WINDOW_API_X11));
+    return platform::setTransientParent(iface->window, (void*)window->x11);
+#endif
 }
 
 void gui_suggest_title(plugin_gui_s *iface, const char *title) {
-
+    platform::setTitle(iface->window, title);
 }
 
 bool gui_show(plugin_gui_s *iface) {
