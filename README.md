@@ -14,7 +14,7 @@ The project's source code is located within two subdirectories of the `src` fold
 **To be implemented:**
 - Presets
 - Themes
-- Linux/Mac support
+- Mac support (?)
 - Instruments:
     - Chip wave
     - Custom chip/sampler
@@ -27,8 +27,7 @@ The project's source code is located within two subdirectories of the `src` fold
     - Supersaw
 - Instrument effects:
     - Transition type
-    - Chord type?
-    - Note filter
+    - Chord type
 - Audio effects:
     - Distortion
     - Bitcrusher
