@@ -319,15 +319,14 @@ void PluginController::drawFmGui() {
     sliderParameter(BPBX_FM_PARAM_FEEDBACK_VOLUME, "##vol", 0.0f, 15.0f, "%.0f");
 }
 
-void PluginController::drawChipGui() {
-    int p_wave = params[BPBX_CHIP_PARAM_WAVEFORM];
+void PluginController::drawChipGui1() {
     ImGui::AlignTextToFramePadding();
     ImGui::Text("Wave");
 
     sameLineRightCol();
     ImGui::SetNextItemWidth(-FLT_MIN);
-
     {
+        int p_wave = params[BPBX_CHIP_PARAM_WAVEFORM];
         const bpbx_inst_param_info_s *p_info = bpbx_param_info(bpbx_inst_type(instrument), BPBX_CHIP_PARAM_WAVEFORM);
         assert(p_info);
         const char **waveNames = p_info->enum_values;
@@ -338,6 +337,27 @@ void PluginController::drawChipGui() {
         }
 
         paramControls(BPBX_CHIP_PARAM_WAVEFORM);
+    }
+}
+
+void PluginController::drawChipGui2() {
+    ImGui::AlignTextToFramePadding();
+    ImGui::Text("Unison");
+
+    sameLineRightCol();
+    ImGui::SetNextItemWidth(-FLT_MIN);
+    {
+        int p_unison = params[BPBX_CHIP_PARAM_UNISON];
+        const bpbx_inst_param_info_s *p_info = bpbx_param_info(bpbx_inst_type(instrument), BPBX_CHIP_PARAM_UNISON);
+        assert(p_info);
+        const char **unisonNames = p_info->enum_values;
+        if (ImGui::Combo("##unison", &p_unison, unisonNames, BPBX_UNISON_COUNT)) {
+            paramGestureBegin(BPBX_CHIP_PARAM_UNISON);
+            paramChange(BPBX_CHIP_PARAM_UNISON, (double)p_unison);
+            paramGestureEnd(BPBX_CHIP_PARAM_UNISON);
+        }
+
+        paramControls(BPBX_CHIP_PARAM_UNISON);
     }
 }
 
@@ -1429,20 +1449,29 @@ void PluginController::draw(platform::Window *window) {
                         sameLineRightCol();
                         ImGui::SetNextItemWidth(-FLT_MIN);
                         sliderParameter(BPBX_PARAM_VOLUME, "##volume", -25.0, 25.0, "%.0f");
+
+                        // why are some uis separated like this
+                        switch (inst_type) {
+                            case BPBX_INSTRUMENT_CHIP:
+                                drawChipGui1();
+                                break;
+
+                            default: break;
+                        }
         
                         ImGui::AlignTextToFramePadding();
                         ImGui::Text("Fade In/Out");
                         sameLineRightCol();
                         drawFadeWidget("fadectl", ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() * 1.75f));
         
-                        // specific instrument 
+                        // specific instrument
                         switch (inst_type) {
                             case BPBX_INSTRUMENT_FM:
                                 drawFmGui();
                                 break;
 
                             case BPBX_INSTRUMENT_CHIP:
-                                drawChipGui();
+                                drawChipGui2();
                                 break;
 
                             default: break;

@@ -44,7 +44,8 @@ private:
 
     void drawAbout(ImGuiWindowFlags winFlags);
     void drawFmGui();
-    void drawChipGui();
+    void drawChipGui1();
+    void drawChipGui2();
 
     void drawFadeWidget(const char *id, ImVec2 size);
     void drawEqWidget(FilterType filter, const char *id, ImVec2 size);
