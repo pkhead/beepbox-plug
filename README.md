@@ -62,7 +62,7 @@ Requirements:
 
 Checkout the repository with
 ```bash
-git clone --recurse-submodules https://github.com/pkhead/beepbox-plug`
+git clone --recurse-submodules https://github.com/pkhead/beepbox-plug
 ```
 
 Then, build the plugin:
