@@ -1111,11 +1111,8 @@ static clap_process_status plugin_process(const struct clap_plugin *plugin, cons
       uint32_t buffer_idx = 0;
       for (; i < next_ev_frame; ++i) {
          // store output samples
-         // for some reason, the using the base expressions in SynthConfig.ts,
-         // the synthesizers are way more quiet than they should be.
-         // I'm not sure why, so i'm just going to apply a gain to them here.
-         process->audio_outputs[0].data32[0][i] = plug->process_block[buffer_idx++] * 100.0;
-         process->audio_outputs[0].data32[1][i] = plug->process_block[buffer_idx++] * 100.0;
+         process->audio_outputs[0].data32[0][i] = plug->process_block[buffer_idx++];
+         process->audio_outputs[0].data32[1][i] = plug->process_block[buffer_idx++];
       }
       
       plug->cur_beat += beats_per_sec * sample_len * frame_count;
