@@ -27,7 +27,8 @@ private:
     Page currentPage;
 
     bool showAbout;
-    double params[BPBX_BASE_PARAM_COUNT + BPBX_FM_PARAM_COUNT];
+    bpbx_inst_type_e inst_type;
+    std::vector<double> params;
     
     float uiRightCol;
     void sameLineRightCol();
@@ -43,6 +44,7 @@ private:
 
     void drawAbout(ImGuiWindowFlags winFlags);
     void drawFmGui();
+    void drawChipGui();
 
     void drawFadeWidget(const char *id, ImVec2 size);
     void drawEqWidget(FilterType filter, const char *id, ImVec2 size);

@@ -53,6 +53,7 @@ PluginController::PluginController(bpbx_inst_s *instrument) :
     showAbout = false;
     useCustomColors = false;
     currentPage = PAGE_MAIN;
+    inst_type = bpbx_inst_type(instrument);
 
     // initialize copy of plugin state
     sync();
@@ -60,11 +61,12 @@ PluginController::PluginController(bpbx_inst_s *instrument) :
 
 void PluginController::sync() {
     bpbx_inst_type_e type = bpbx_inst_type(instrument);
-    constexpr uint32_t param_count = sizeof(params)/sizeof(*params);
-    assert(bpbx_param_count(type) == param_count);
+
+    const uint32_t param_count = bpbx_param_count(type);
+    params.resize(param_count);
 
     for (int i = 0; i < param_count; i++) {
-        bpbx_inst_get_param_double(instrument, i, params+i);
+        bpbx_inst_get_param_double(instrument, i, &params[i]);
     }
 
     envelopes.clear();
@@ -315,6 +317,10 @@ void PluginController::drawFmGui() {
     ImGui::SetCursorPosX(feedbackEndX);
     ImGui::SetNextItemWidth(-FLT_MIN);
     sliderParameter(BPBX_FM_PARAM_FEEDBACK_VOLUME, "##vol", 0.0f, 15.0f, "%.0f");
+}
+
+void PluginController::drawChipGui() {
+
 }
 
 void PluginController::drawEffects() {
@@ -1411,8 +1417,18 @@ void PluginController::draw(platform::Window *window) {
                         sameLineRightCol();
                         drawFadeWidget("fadectl", ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() * 1.75f));
         
-                        // specific instrument ui
-                        drawFmGui();
+                        // specific instrument 
+                        switch (inst_type) {
+                            case BPBX_INSTRUMENT_FM:
+                                drawFmGui();
+                                break;
+
+                            case BPBX_INSTRUMENT_CHIP:
+                                drawChipGui();
+                                break;
+
+                            default: break;
+                        }
         
                         drawEffects();
                         drawEnvelopes();

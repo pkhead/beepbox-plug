@@ -60,7 +60,7 @@ static inline void enable_denormals(const fp_env env) {
 #include "endianness.h"
 #include "conf.h"
 
-static const clap_plugin_descriptor_t s_my_plug_desc = {
+static const clap_plugin_descriptor_t s_fm_plug_desc = {
    .clap_version = CLAP_VERSION_INIT,
    .id = "us.pkhead.beepbox.fm",
    .name = "BeepBox FM",
@@ -70,6 +70,19 @@ static const clap_plugin_descriptor_t s_my_plug_desc = {
    .support_url = "",
    .version = PLUGIN_VERSION,
    .description = "BeepBox FM synthesizer",
+   .features = (const char *[]){CLAP_PLUGIN_FEATURE_INSTRUMENT, CLAP_PLUGIN_FEATURE_STEREO, NULL},
+};
+
+static const clap_plugin_descriptor_t s_chip_plug_desc = {
+   .clap_version = CLAP_VERSION_INIT,
+   .id = "us.pkhead.beepbox.chip",
+   .name = "BeepBox Chip",
+   .vendor = "pkhead",
+   .url = "https://github.com/pkhead/beepbox-plug",
+   .manual_url = "",
+   .support_url = "",
+   .version = PLUGIN_VERSION,
+   .description = "BeepBox chip wave synthesizer",
    .features = (const char *[]){CLAP_PLUGIN_FEATURE_INSTRUMENT, CLAP_PLUGIN_FEATURE_STEREO, NULL},
 };
 
@@ -88,6 +101,7 @@ typedef struct {
    const clap_host_track_info_t *host_track_info;
    const clap_host_context_menu_t *host_context_menu;
    
+   bpbx_inst_type_e inst_type;
    bpbx_inst_s *instrument;
    float *process_block;
 
@@ -999,7 +1013,7 @@ static bool plugin_init(const struct clap_plugin *plugin) {
    plug->host_track_info = (const clap_host_track_info_t*) plug->host->get_extension(plug->host, CLAP_EXT_TRACK_INFO);
    plug->host_context_menu = (const clap_host_context_menu_t*) plug->host->get_extension(plug->host, CLAP_EXT_CONTEXT_MENU);
 
-   plug->instrument = bpbx_inst_new(BPBX_INSTRUMENT_FM);
+   plug->instrument = bpbx_inst_new(plug->inst_type);
 
    if (plug->host_track_info) {
       plugin_track_info_changed(plugin);
@@ -1139,11 +1153,11 @@ static const void *plugin_get_extension(const struct clap_plugin *plugin, const 
 
 static void plugin_on_main_thread(const struct clap_plugin *plugin) {}
 
-clap_plugin_t *plugin_create(const clap_host_t *host) {
+clap_plugin_t *plugin_create(const clap_host_t *host, const clap_plugin_descriptor_t *desc, bpbx_inst_type_e inst_type) {
    plugin_s *p = malloc(sizeof(plugin_s));
    *p = (plugin_s) {
       .host = host,
-      .plugin.desc = &s_my_plug_desc,
+      .plugin.desc = desc,
       .plugin.plugin_data = p,
       .plugin.init = plugin_init,
       .plugin.destroy = plugin_destroy,
@@ -1156,14 +1170,22 @@ clap_plugin_t *plugin_create(const clap_host_t *host) {
       .plugin.get_extension = plugin_get_extension,
       .plugin.on_main_thread = plugin_on_main_thread,
 
+      .inst_type = inst_type,
       .has_track_color = false,
-
       .bpm = 150.0
    };
 
    // Don't call into the host here
 
    return &p->plugin;
+}
+
+clap_plugin_t *plugin_create_fm(const clap_host_t *host) {
+   return plugin_create(host, &s_fm_plug_desc, BPBX_INSTRUMENT_FM);
+}
+
+clap_plugin_t *plugin_create_chip(const clap_host_t *host) {
+   return plugin_create(host, &s_chip_plug_desc, BPBX_INSTRUMENT_CHIP);
 }
 
 /////////////////////////
@@ -1175,8 +1197,12 @@ static struct {
    clap_plugin_t *(CLAP_ABI *create)(const clap_host_t *host);
 } s_plugins[] = {
    {
-      .desc = &s_my_plug_desc,
-      .create = plugin_create,
+      .desc = &s_fm_plug_desc,
+      .create = plugin_create_fm,
+   },
+   {
+      .desc = &s_chip_plug_desc,
+      .create = plugin_create_chip,
    },
 };
 
