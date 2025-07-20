@@ -320,7 +320,25 @@ void PluginController::drawFmGui() {
 }
 
 void PluginController::drawChipGui() {
+    int p_wave = params[BPBX_CHIP_PARAM_WAVEFORM];
+    ImGui::AlignTextToFramePadding();
+    ImGui::Text("Wave");
 
+    sameLineRightCol();
+    ImGui::SetNextItemWidth(-FLT_MIN);
+
+    {
+        const bpbx_inst_param_info_s *p_info = bpbx_param_info(bpbx_inst_type(instrument), BPBX_CHIP_PARAM_WAVEFORM);
+        assert(p_info);
+        const char **waveNames = p_info->enum_values;
+        if (ImGui::Combo("##wave", &p_wave, waveNames, BPBX_CHIP_WAVE_COUNT)) {
+            paramGestureBegin(BPBX_CHIP_PARAM_WAVEFORM);
+            paramChange(BPBX_CHIP_PARAM_WAVEFORM, (double)p_wave);
+            paramGestureEnd(BPBX_CHIP_PARAM_WAVEFORM);
+        }
+
+        paramControls(BPBX_CHIP_PARAM_WAVEFORM);
+    }
 }
 
 void PluginController::drawEffects() {
