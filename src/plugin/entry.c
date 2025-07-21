@@ -60,31 +60,27 @@ static inline void enable_denormals(const fp_env env) {
 #include "endianness.h"
 #include "conf.h"
 
-static const clap_plugin_descriptor_t s_fm_plug_desc = {
-   .clap_version = CLAP_VERSION_INIT,
-   .id = "us.pkhead.beepbox.fm",
-   .name = "BeepBox FM",
-   .vendor = "pkhead",
-   .url = "https://github.com/pkhead/beepbox-plug",
-   .manual_url = "",
-   .support_url = "",
-   .version = PLUGIN_VERSION,
-   .description = "BeepBox FM synthesizer",
-   .features = (const char *[]){CLAP_PLUGIN_FEATURE_INSTRUMENT, CLAP_PLUGIN_FEATURE_STEREO, NULL},
-};
+#define CREATE_INSTRUMENT_PLUGIN(inst_id, inst_name, inst_desc) { \
+   .clap_version = CLAP_VERSION_INIT, \
+   .id = "us.pkhead.beepbox." inst_id, \
+   .name = "BeepBox " inst_name, \
+   .vendor = "pkhead", \
+   .url = "https://github.com/pkhead/beepbox-plug", \
+   .manual_url = "", \
+   .support_url = "", \
+   .version = PLUGIN_VERSION, \
+   .description = inst_desc, \
+   .features = (const char *[]){CLAP_PLUGIN_FEATURE_INSTRUMENT, CLAP_PLUGIN_FEATURE_STEREO, NULL}, \
+}
 
-static const clap_plugin_descriptor_t s_chip_plug_desc = {
-   .clap_version = CLAP_VERSION_INIT,
-   .id = "us.pkhead.beepbox.chip",
-   .name = "BeepBox Chip",
-   .vendor = "pkhead",
-   .url = "https://github.com/pkhead/beepbox-plug",
-   .manual_url = "",
-   .support_url = "",
-   .version = PLUGIN_VERSION,
-   .description = "BeepBox chip wave synthesizer",
-   .features = (const char *[]){CLAP_PLUGIN_FEATURE_INSTRUMENT, CLAP_PLUGIN_FEATURE_STEREO, NULL},
-};
+static const clap_plugin_descriptor_t s_fm_plug_desc =
+   CREATE_INSTRUMENT_PLUGIN("fm", "FM", "BeepBox FM synthesizer");
+
+static const clap_plugin_descriptor_t s_chip_plug_desc =
+   CREATE_INSTRUMENT_PLUGIN("chip", "Chip", "BeepBox chip wave synthesizer");
+
+static const clap_plugin_descriptor_t s_harmonics_plug_desc =
+   CREATE_INSTRUMENT_PLUGIN("harmonics", "Harmonics", "BeepBox additive synthesizer");
 
 typedef struct {
    clap_plugin_t plugin;
@@ -1188,6 +1184,10 @@ clap_plugin_t *plugin_create_chip(const clap_host_t *host) {
    return plugin_create(host, &s_chip_plug_desc, BPBX_INSTRUMENT_CHIP);
 }
 
+clap_plugin_t *plugin_create_harmonics(const clap_host_t *host) {
+   return plugin_create(host, &s_harmonics_plug_desc, BPBX_INSTRUMENT_HARMONICS);
+}
+
 /////////////////////////
 // clap_plugin_factory //
 /////////////////////////
@@ -1204,6 +1204,10 @@ static struct {
       .desc = &s_chip_plug_desc,
       .create = plugin_create_chip,
    },
+   {
+      .desc = &s_harmonics_plug_desc,
+      .create = plugin_create_harmonics
+   }
 };
 
 static uint32_t plugin_factory_get_plugin_count(const struct clap_plugin_factory *factory) {
