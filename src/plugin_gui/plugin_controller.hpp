@@ -66,6 +66,23 @@ private:
     int fadeDragMode;
     double fadeDragInit;
 
+    struct {
+        int activePoleIndex = -1;
+        bool wasDragging = false;
+        ImVec2 initialDragPos;
+        std::vector<int> activeGestures;
+
+        bpbx_filter_type_e draggingPoleType;
+        bool draggingPoleExists;
+        bool hasPoleBeenRemoved = false; // if the pole was ever removed during the drag
+        bool poleIsNewlyAdded = false;
+        bool forceDragBegin = false;
+    } eqWidgetDragState;
+
+    struct {
+        bool activeGestures[BPBX_HARMONICS_CONTROL_COUNT] = {0};
+    } harmonicsEditorState;
+
 #ifdef PLUGIN_VST3
     struct {
         gfx::Texture *texture;

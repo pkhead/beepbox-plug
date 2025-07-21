@@ -923,12 +923,13 @@ void PluginController::drawEqWidget(FilterType filter, const char *id, ImVec2 si
     }
 
     // drag state
-    static int activePoleIndex = -1;
-    static bool wasDragging = false;
-    static ImVec2 initialDragPos;
-    static std::vector<int> activeGestures;
+    int &activePoleIndex = this->eqWidgetDragState.activePoleIndex;
+    bool &wasDragging = this->eqWidgetDragState.wasDragging;
+    ImVec2 &initialDragPos = this->eqWidgetDragState.initialDragPos;
+    std::vector<int> &activeGestures = this->eqWidgetDragState.activeGestures;
 
     auto tryBeginGesture = [this](uint32_t param_idx) {
+        std::vector<int> &activeGestures = this->eqWidgetDragState.activeGestures;
         auto it = std::find(activeGestures.begin(), activeGestures.end(), param_idx);
         if (it == activeGestures.end()) {
             activeGestures.push_back(param_idx);
@@ -936,6 +937,7 @@ void PluginController::drawEqWidget(FilterType filter, const char *id, ImVec2 si
         }
     };
     auto tryEndGesture = [this](uint32_t param_idx) {
+        std::vector<int> &activeGestures = this->eqWidgetDragState.activeGestures;
         auto it = std::find(activeGestures.begin(), activeGestures.end(), param_idx);
         if (it != activeGestures.end()) {
             activeGestures.erase(it);
@@ -946,11 +948,11 @@ void PluginController::drawEqWidget(FilterType filter, const char *id, ImVec2 si
     // more drag state: when the pole is dragged OOB,
     // it will be removed. but when the user drags it back inside of OOB,
     // it should be reinserted.
-    static bpbx_filter_type_e draggingPoleType;
-    static bool draggingPoleExists;
-    static bool hasPoleBeenRemoved = false; // if the pole was ever removed during the drag
-    static bool poleIsNewlyAdded = false;
-    static bool forceDragBegin = false;
+    bpbx_filter_type_e &draggingPoleType = this->eqWidgetDragState.draggingPoleType;
+    bool &draggingPoleExists = this->eqWidgetDragState.draggingPoleExists;
+    bool &hasPoleBeenRemoved = this->eqWidgetDragState.hasPoleBeenRemoved; // if the pole was ever removed during the drag
+    bool &poleIsNewlyAdded = this->eqWidgetDragState.poleIsNewlyAdded;
+    bool &forceDragBegin = this->eqWidgetDragState.forceDragBegin;
 
     // hover/insertion state
     int hoveredPoleIndex = -1;
@@ -1281,14 +1283,14 @@ void PluginController::drawHarmonicsEditor(const char *id, uint32_t paramId, ImV
 
     ImGui::InvisibleButton(id, size, ImGuiButtonFlags_MouseButtonLeft);
 
-    static bool active_gestures[BPBX_HARMONICS_CONTROL_COUNT] = {0};
+    auto &state = this->harmonicsEditorState;
 
     // this display only looks right at one width...
     float lastColumnWidth = 6;
     float columnWidth = roundf( (ui_end.x - ui_origin.x - lastColumnWidth) / (BPBX_HARMONICS_CONTROL_COUNT) );
 
     if (ImGui::IsItemActivated()) {
-        memset(active_gestures, 0, sizeof(active_gestures));
+        memset(state.activeGestures, 0, sizeof(state.activeGestures));
     }
 
     if (ImGui::IsItemActive()) {
@@ -1303,8 +1305,8 @@ void PluginController::drawHarmonicsEditor(const char *id, uint32_t paramId, ImV
         }
 
         if (i >= 0 && i < BPBX_HARMONICS_CONTROL_COUNT) {
-            if (!active_gestures[i]) {
-                active_gestures[i] = true;
+            if (!state.activeGestures[i]) {
+                state.activeGestures[i] = true;
                 paramGestureBegin(paramId + i);
             }
 
@@ -1315,10 +1317,10 @@ void PluginController::drawHarmonicsEditor(const char *id, uint32_t paramId, ImV
 
     if (ImGui::IsItemDeactivated()) {
         for (int i = 0; i < BPBX_HARMONICS_CONTROL_COUNT; i++) {
-            if (active_gestures[i])
+            if (state.activeGestures[i])
                 paramGestureEnd(paramId + i);
 
-            active_gestures[i] = false;
+            state.activeGestures[i] = false;
         }
     }
 
@@ -1338,8 +1340,8 @@ void PluginController::drawHarmonicsEditor(const char *id, uint32_t paramId, ImV
     ImU32 fifthGuideColor = ImGui::GetColorU32(ImGuiCol_FrameBg);  
 
     // draw the guides
-    static int octaves[] = {1, 2, 4, 8, 16};
-    static int fifths[] = {3, 6, 12, 24};
+    static const int octaves[] = {1, 2, 4, 8, 16};
+    static const int fifths[] = {3, 6, 12, 24};
 
     // octaves
     for (int i = 0; i < sizeof(octaves)/sizeof(*octaves); i++) {
