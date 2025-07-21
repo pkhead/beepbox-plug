@@ -361,6 +361,33 @@ void PluginController::drawChipGui2() {
     }
 }
 
+void PluginController::drawHarmonicsGui() {
+    ImGui::AlignTextToFramePadding();
+    ImGui::Text("Harmonics");
+
+    sameLineRightCol();
+    drawHarmonicsEditor("harmonicsctl", BPBX_HARMONICS_PARAM_CONTROL_FIRST, ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() * 1.75f));
+
+    ImGui::AlignTextToFramePadding();
+    ImGui::Text("Unison");
+
+    sameLineRightCol();
+    ImGui::SetNextItemWidth(-FLT_MIN);
+    {
+        int p_unison = params[BPBX_HARMONICS_PARAM_UNISON];
+        const bpbx_inst_param_info_s *p_info = bpbx_param_info(bpbx_inst_type(instrument), BPBX_HARMONICS_PARAM_UNISON);
+        assert(p_info);
+        const char **unisonNames = p_info->enum_values;
+        if (ImGui::Combo("##unison", &p_unison, unisonNames, BPBX_UNISON_COUNT)) {
+            paramGestureBegin(BPBX_HARMONICS_PARAM_UNISON);
+            paramChange(BPBX_HARMONICS_PARAM_UNISON, (double)p_unison);
+            paramGestureEnd(BPBX_HARMONICS_PARAM_UNISON);
+        }
+
+        paramControls(BPBX_HARMONICS_PARAM_UNISON);
+    }
+}
+
 void PluginController::drawEffects() {
     ImGui::AlignTextToFramePadding();
     ImGui::SetCursorPosX((ImGui::GetWindowContentRegionMax().x - ImGui::CalcTextSize("Effects").x) / 2.f);
@@ -1244,6 +1271,121 @@ void PluginController::drawEqWidget(FilterType filter, const char *id, ImVec2 si
     }
 }
 
+void PluginController::drawHarmonicsEditor(const char *id, uint32_t paramId, ImVec2 size) {
+    ImDrawList *drawList = ImGui::GetWindowDrawList();
+    ImVec2 ui_origin = ImGui::GetCursorScreenPos();
+    ui_origin = ImVec2(floorf(ui_origin.x), floorf(ui_origin.y));
+
+    ImVec2 ui_end = ImVec2(ui_origin.x + size.x, ui_origin.y + size.y);
+    ui_end = ImVec2(floorf(ui_end.x), floorf(ui_end.y));
+
+    ImGui::InvisibleButton(id, size, ImGuiButtonFlags_MouseButtonLeft);
+
+    static bool active_gestures[BPBX_HARMONICS_CONTROL_COUNT] = {0};
+
+    // this display only looks right at one width...
+    float lastColumnWidth = 6;
+    float columnWidth = roundf( (ui_end.x - ui_origin.x - lastColumnWidth) / (BPBX_HARMONICS_CONTROL_COUNT) );
+
+    if (ImGui::IsItemActivated()) {
+        memset(active_gestures, 0, sizeof(active_gestures));
+    }
+
+    if (ImGui::IsItemActive()) {
+        ImVec2 mpos = ImGui::GetMousePos();
+        float relX = mpos.x - ui_origin.x;
+
+        int i;
+        if (relX < ui_end.x && relX >= ui_end.x - lastColumnWidth) {
+            i = BPBX_HARMONICS_CONTROL_COUNT - 1;
+        } else {
+            i = floorf(relX / columnWidth);
+        }
+
+        if (i >= 0 && i < BPBX_HARMONICS_CONTROL_COUNT) {
+            if (!active_gestures[i]) {
+                active_gestures[i] = true;
+                paramGestureBegin(paramId + i);
+            }
+
+            float value = 1.f - (mpos.y - ui_origin.y) / (ui_end.y - ui_origin.y);
+            paramChange(paramId + i, roundf(clamp(value, 0.f, 1.f) * BPBX_HARMONICS_CONTROL_MAX));
+        }
+    }
+
+    if (ImGui::IsItemDeactivated()) {
+        for (int i = 0; i < BPBX_HARMONICS_CONTROL_COUNT; i++) {
+            if (active_gestures[i])
+                paramGestureEnd(paramId + i);
+
+            active_gestures[i] = false;
+        }
+    }
+
+    ImU32 controlColor = ImGui::GetColorU32(ImGuiCol_ButtonActive);
+    ImU32 octaveGuideColor = ImGui::GetColorU32(ImGuiCol_Button);
+    // {
+    //     ImVec4 buttonColor = ImGui::GetStyleColorVec4(ImGuiCol_Button);
+    //     float h, s, v;
+    //     ImGui::ColorConvertRGBtoHSV(buttonColor.x, buttonColor.y, buttonColor.z, h, s, v);
+    //     h = fmodf(h + 0.14, 1.0);
+    //     ImGui::ColorConvertHSVtoRGB(h, s, v, buttonColor.x, buttonColor.y, buttonColor.z);
+
+    //     // buttonColor.w = clamp(buttonColor.w + 0.3f, 0.f, 1.f);
+    //     octaveGuideColor = ImGui::ColorConvertFloat4ToU32(buttonColor);
+    // }
+
+    ImU32 fifthGuideColor = ImGui::GetColorU32(ImGuiCol_FrameBg);  
+
+    // draw the guides
+    static int octaves[] = {1, 2, 4, 8, 16};
+    static int fifths[] = {3, 6, 12, 24};
+
+    // octaves
+    for (int i = 0; i < sizeof(octaves)/sizeof(*octaves); i++) {
+        float x = ui_origin.x + columnWidth * (octaves[i] - 1);
+        drawList->AddRectFilled(
+            ImVec2(x, ui_origin.y),
+            ImVec2(x + 3, ui_end.y),
+            octaveGuideColor);
+    }
+
+    // fifths
+    for (int i = 0; i < sizeof(fifths)/sizeof(*fifths); i++) {
+        float x = ui_origin.x + columnWidth * (fifths[i] - 1);
+        drawList->AddRectFilled(
+            ImVec2(x, ui_origin.y),
+            ImVec2(x + 3, ui_end.y),
+            fifthGuideColor);
+    }
+
+    for (int i = 0; i < BPBX_HARMONICS_CONTROL_COUNT - 1; i++) {
+        float x = ui_origin.x + columnWidth * i;
+        float size = (float)params[paramId + i] / BPBX_HARMONICS_CONTROL_MAX;
+
+        if (size > 0.f) {
+            drawList->AddRectFilled(
+                ImVec2(x, floorf((ui_origin.y - ui_end.y) * size + ui_end.y)),
+                ImVec2(x + 3, ui_end.y),
+                controlColor);
+        }
+    }
+
+    // last control looks special
+    {
+        int i = BPBX_HARMONICS_CONTROL_COUNT - 1;
+        float x0 = ui_origin.x + columnWidth * i;
+        float size = (float)params[paramId + i] / BPBX_HARMONICS_CONTROL_MAX;
+
+        for (float x = x0; x < ui_end.x; x += 2) {
+            drawList->AddRectFilled(
+                ImVec2(x, floorf((ui_origin.y - ui_end.y) * size + ui_end.y)),
+                ImVec2(x + 1, floorf(ui_end.y)),
+                controlColor);
+        }
+    }
+}
+
 void PluginController::drawModulationPad() {
     ImGui::AlignTextToFramePadding();
     ImGui::SetCursorPosX((ImGui::GetWindowContentRegionMax().x - ImGui::CalcTextSize("Modulation").x) / 2.f);
@@ -1472,6 +1614,10 @@ void PluginController::draw(platform::Window *window) {
 
                             case BPBX_INSTRUMENT_CHIP:
                                 drawChipGui2();
+                                break;
+                            
+                            case BPBX_INSTRUMENT_HARMONICS:
+                                drawHarmonicsGui();
                                 break;
 
                             default: break;

@@ -46,12 +46,14 @@ private:
     void drawFmGui();
     void drawChipGui1();
     void drawChipGui2();
+    void drawHarmonicsGui();
 
     void drawFadeWidget(const char *id, ImVec2 size);
     void drawEqWidget(FilterType filter, const char *id, ImVec2 size);
     void drawEnvelopes();
     void drawEffects();
     void drawModulationPad();
+    void drawHarmonicsEditor(const char *id, uint32_t paramId, ImVec2 size);
     void drawEqPage(FilterType targetFilter);
 
     void paramGestureBegin(uint32_t param_id);
