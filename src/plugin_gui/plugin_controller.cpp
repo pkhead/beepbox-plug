@@ -10,8 +10,6 @@
 #include "log.hpp"
 #include <plugin/conf.h>
 
-using namespace beepbox;
-
 #ifdef PLUGIN_VST3
 #include "resource/vst_logo.hpp"
 #endif
@@ -1179,14 +1177,14 @@ void PluginController::drawEqWidget(FilterType filter, const char *id, ImVec2 si
 
         double linear_gain = 1.0;
         for (int ctl = 0; ctl < BPBX_FILTER_GROUP_COUNT; ctl++) {
-            bpbx_freq_response_s resp;
+            bpbx_complex_s cmp;
             bpbx_analyze_freq_response(
                 (bpbx_filter_type_e)params[baseEnum + FILTER_PARAM_TYPE(ctl)],
                 params[baseEnum + FILTER_PARAM_FREQ(ctl)],
                 params[baseEnum + FILTER_PARAM_GAIN(ctl)],
-                hz, ref_sample_rate, &resp);
+                hz, ref_sample_rate, &cmp);
             
-            linear_gain *= bpbx_freq_response_magnitude(&resp);
+            linear_gain *= sqrt(cmp.real * cmp.real + cmp.imag * cmp.imag);
         }
 
         double gain_setting = bpbx_linear_gain_to_setting(linear_gain);

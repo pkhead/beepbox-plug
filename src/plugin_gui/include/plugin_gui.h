@@ -10,7 +10,6 @@
 #ifdef __cplusplus
 #include <cstdint>
 
-using namespace beepbox;
 extern "C" {
 #else
 #include <stdint.h>

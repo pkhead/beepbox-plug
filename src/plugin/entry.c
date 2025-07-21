@@ -99,6 +99,7 @@ typedef struct {
    
    bpbx_inst_type_e inst_type;
    bpbx_inst_s *instrument;
+   uint32_t frames_until_next_tick;
    float *process_block;
 
    double sample_rate;
@@ -269,7 +270,7 @@ static void plugin_process_transport(plugin_s *plug, const clap_event_transport_
       }
 
       if (is_playing)
-         bpbx_transport_begin_playback(plug->instrument, plug->cur_beat, plug->bpm);
+         bpbx_inst_begin_transport(plug->instrument, plug->cur_beat, plug->bpm);
    }
 
    plug->is_playing = is_playing;
@@ -281,7 +282,7 @@ static void plugin_process_event(plugin_s *plug, const clap_event_header_t *hdr,
       case CLAP_EVENT_NOTE_ON: {
          const clap_event_note_t *ev = (const clap_event_note_t *)hdr;
 
-         bpbx_inst_midi_on(plug->instrument, ev->key, (int)(ev->velocity * 127.0));
+         bpbx_inst_begin_note(plug->instrument, ev->key, (int)(ev->velocity * 127.0));
          
          break;
       }
@@ -289,7 +290,7 @@ static void plugin_process_event(plugin_s *plug, const clap_event_header_t *hdr,
       case CLAP_EVENT_NOTE_OFF: {
          const clap_event_note_t *ev = (const clap_event_note_t *)hdr;
 
-         bpbx_inst_midi_off(plug->instrument, ev->key, 0);
+         bpbx_inst_end_note(plug->instrument, ev->key, 0);
          
          break;
       }
@@ -332,12 +333,12 @@ static void plugin_process_event(plugin_s *plug, const clap_event_header_t *hdr,
 
          // off
          if ((status == 0x80) || ((status == 0x90) && ev->data[2] == 0)) {
-            bpbx_inst_midi_off(plug->instrument, ev->data[1], ev->data[2]);
+            bpbx_inst_end_note(plug->instrument, ev->data[1], ev->data[2]);
          }
          
          // on
          else if (status == 0x90) {
-            bpbx_inst_midi_on(plug->instrument, ev->data[1], ev->data[2]);
+            bpbx_inst_begin_note(plug->instrument, ev->data[1], ev->data[2]);
          }
 
          break;
@@ -514,7 +515,7 @@ bool plugin_state_save(const clap_plugin_t *plugin, const clap_ostream_t *stream
    uint8_t param_count = (uint8_t) bpbx_param_count(type);
    ERRCHK(stream_write_prim(stream, &param_count, sizeof(param_count)));
 
-   for (unsigned int i = 0; i < param_count; i++) {
+   for (unsigned int i = 0; i < param_count; ++i) {
       const bpbx_inst_param_info_s *info = bpbx_param_info(type, i);
       if (info == NULL) return false;
 
@@ -552,7 +553,7 @@ bool plugin_state_save(const clap_plugin_t *plugin, const clap_ostream_t *stream
    uint8_t envelope_count = bpbx_inst_envelope_count(plug->instrument);
    ERRCHK(stream_write_prim(stream, &envelope_count, sizeof(envelope_count)));
 
-   for (uint8_t i = 0; i < envelope_count; i++) {
+   for (uint8_t i = 0; i < envelope_count; ++i) {
       const bpbx_envelope_s *env = bpbx_inst_get_envelope(plug->instrument, i);
       if (env == NULL) return false;
 
@@ -593,7 +594,7 @@ bool plugin_state_load(const clap_plugin_t *plugin, const clap_istream_t *stream
 
    if (param_count != (uint8_t)bpbx_param_count(type)) return false;
 
-   for (unsigned int i = 0; i < param_count; i++) {
+   for (unsigned int i = 0; i < param_count; ++i) {
       const bpbx_inst_param_info_s *info = bpbx_param_info(type, i);
       if (info == NULL) return false;
 
@@ -630,7 +631,7 @@ bool plugin_state_load(const clap_plugin_t *plugin, const clap_istream_t *stream
    ERRCHK(stream_read_prim(stream, &envelope_count, sizeof(envelope_count)));
 
    bpbx_inst_clear_envelopes(plug->instrument);
-   for (uint8_t i = 0; i < envelope_count; i++) {
+   for (uint8_t i = 0; i < envelope_count; ++i) {
       bpbx_envelope_s *env = bpbx_inst_add_envelope(plug->instrument);
       ERRCHK(stream_read_prim(stream, &env->index, sizeof(env->index)));
       ERRCHK(stream_read_prim(stream, &env->curve_preset, sizeof(env->curve_preset)));
@@ -755,7 +756,7 @@ bool plugin_params_text_to_value(const clap_plugin_t *plugin, clap_id param_id, 
       case BPBX_PARAM_INT:
          if (info->enum_values) {
             int end_value = (int)info->max_value;
-            for (int i = (int)info->min_value; i <= end_value; i++) {
+            for (int i = (int)info->min_value; i <= end_value; ++i) {
                if (!strcmp(param_value_text, info->enum_values[i])) {
                   *out_value = (double)i;
                   return true;
@@ -789,7 +790,7 @@ void plugin_params_flush(const clap_plugin_t *plugin, const clap_input_events_t 
    if (plug->gui)
       process_gui_events(plug, out);
 
-   for (uint32_t i = 0; i < size; i++) {
+   for (uint32_t i = 0; i < size; ++i) {
       const clap_event_header_t *hdr = in->get(in, i);
       plugin_process_event(plug, hdr, out);
    }
@@ -1038,7 +1039,7 @@ static bool plugin_activate(const struct clap_plugin *plugin, double sample_rate
    bpbx_inst_set_sample_rate(plug->instrument, plug->sample_rate);
 
    free(plug->process_block);
-   plug->process_block = malloc(max_frames_count * sizeof(float) * 2);
+   plug->process_block = malloc(max_frames_count * sizeof(float));
 
    return true;
 }
@@ -1096,19 +1097,34 @@ static clap_process_status plugin_process(const struct clap_plugin *plugin, cons
 
       /* process every samples until the next event */
       uint32_t frame_count = next_ev_frame - i;
-      bpbx_inst_run(plug->instrument, &(bpbx_run_ctx_s){
-         .bpm = plug->bpm,
-         .beat = plug->cur_beat,
-         
-         .frame_count = (size_t)frame_count,
-         .out_samples = plug->process_block
-      });
+      for (uint32_t j = 0; j < frame_count;) {
+         // instrument needs a tick
+         if (plug->frames_until_next_tick == 0) {
+            bpbx_inst_tick(plug->instrument, &(bpbx_tick_ctx_s) {
+               .bpm = plug->bpm,
+               .beat = plug->cur_beat,
+            });
+
+            plug->frames_until_next_tick =
+               (uint32_t)ceil(bpbx_calc_samples_per_tick(plug->bpm, plug->sample_rate));
+         }
+
+         // render the audio
+         uint32_t frames_to_process = frame_count - j;
+         if (plug->frames_until_next_tick < frames_to_process)
+            frames_to_process = plug->frames_until_next_tick;
+
+         bpbx_inst_run(plug->instrument, plug->process_block + j, frames_to_process);
+         j += frames_to_process;
+         plug->frames_until_next_tick -= frames_to_process;
+      }
 
       uint32_t buffer_idx = 0;
       for (; i < next_ev_frame; ++i) {
          // store output samples
-         process->audio_outputs[0].data32[0][i] = plug->process_block[buffer_idx++];
-         process->audio_outputs[0].data32[1][i] = plug->process_block[buffer_idx++];
+         process->audio_outputs[0].data32[0][i] = plug->process_block[buffer_idx];
+         process->audio_outputs[0].data32[1][i] = plug->process_block[buffer_idx];
+         ++buffer_idx;
       }
       
       plug->cur_beat += beats_per_sec * sample_len * frame_count;
