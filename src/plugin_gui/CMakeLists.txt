@@ -4,7 +4,7 @@ else()
     set(PROJECT_NAME plugin_gui)
 endif()
 
-project(${PROJECT_NAME})
+project(${PROJECT_NAME} VERSION ${CMAKE_PROJECT_VERSION})
 
 set(PUGL_SOURCES
     ../pugl/src/common.c
@@ -13,6 +13,8 @@ set(PUGL_SOURCES
 
 set(EXTRA_LIBS )
 
+# include pugl backend implementations depending on
+# graphics backend and platform
 if (WIN32)
     set(PUGL_SOURCES ${PUGL_SOURCES}
         ../pugl/src/win.c
@@ -35,7 +37,7 @@ elseif(APPLE)
         set(PUGL_SOURCES ${PUGL_SOURCES} ../pugl/src/mac_gl.m)
     endif()
 
-else()
+else() # not Win32 or Cocoa, so assume X11
     set(PUGL_SOURCES ${PUGL_SOURCES}
         ../pugl/src/x11.c
         ../pugl/src/x11_stub.c
@@ -53,6 +55,7 @@ else()
 
 endif()
 
+# create the library target
 add_library(${PROJECT_NAME} STATIC
     log.cpp
     gui.cpp
@@ -62,7 +65,7 @@ add_library(${PROJECT_NAME} STATIC
     ${PUGL_SOURCES}
 )
 
-# graphics backend implementations
+# choose correct gfx_*.cpp graphics backend
 if (${GRAPHICS_BACKEND} STREQUAL "d3d11")
     target_compile_definitions(${PROJECT_NAME} PRIVATE GFX_D3D11)
     target_sources(${PROJECT_NAME} PRIVATE gfx_d3d11.cpp)
@@ -74,11 +77,12 @@ elseif (${GRAPHICS_BACKEND} STREQUAL "gl")
     set(EXTRA_LIBS ${EXTRA_LIBS} ${OPENGL_LIBRARIES})
 endif()
 
-target_compile_definitions(${PROJECT_NAME} PRIVATE PUGL_STATIC)
-
 if(PLUGIN_VST3)
     target_compile_definitions(${PROJECT_NAME} PUBLIC PLUGIN_VST3)
 endif()
+
+target_compile_definitions(${PROJECT_NAME}
+    PRIVATE PUGL_STATIC PLUGIN_VERSION="${PROJECT_VERSION}")
 
 set_target_properties(${PROJECT_NAME} PROPERTIES
     LANGUAGE CXX

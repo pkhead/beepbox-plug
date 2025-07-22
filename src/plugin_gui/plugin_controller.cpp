@@ -8,7 +8,6 @@
 #include "plugin_controller.hpp"
 #include "util.hpp"
 #include "log.hpp"
-#include <plugin/conf.h>
 
 #ifdef PLUGIN_VST3
 #include "resource/vst_logo.hpp"

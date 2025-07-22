@@ -58,7 +58,6 @@ static inline void enable_denormals(const fp_env env) {
 #include <clap/clap.h>
 #include <plugin_gui.h>
 #include "endianness.h"
-#include "conf.h"
 
 #define CREATE_INSTRUMENT_PLUGIN(inst_id, inst_name, inst_desc) { \
    .clap_version = CLAP_VERSION_INIT, \

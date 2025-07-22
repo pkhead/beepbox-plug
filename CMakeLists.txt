@@ -6,7 +6,7 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 set(CMAKE_OSX_DEPLOYMENT_TARGET 10.14 CACHE STRING "Build for 10.14")
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-project(BeepBox VERSION 0.0.1)
+project(BeepBox VERSION 0.3.0)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
@@ -80,10 +80,12 @@ set(LIBRARIES clap beepbox_synth_static)
 
 set(CLAP_TARGET ${PROJECT_NAME}_clap)
 add_library(${CLAP_TARGET} MODULE src/plugin/entry.c)
+target_compile_definitions(${CLAP_TARGET} PRIVATE PLUGIN_VERSION="${PROJECT_VERSION}")
 target_link_libraries(${CLAP_TARGET} PRIVATE ${LIBRARIES} plugin_gui)
 set_target_properties(${CLAP_TARGET} PROPERTIES
     SUFFIX ".clap"
     PREFIX ""
+    VERSION ${PROJECT_VERSION}
 )
 
 #######################
@@ -95,6 +97,7 @@ if(BUILD_STANDALONE)
         set(STANDALONE_INST ${PROJECT_NAME}_standalone_${INST})
         add_executable(${STANDALONE_INST})
         target_sources(${STANDALONE_INST} PRIVATE src/plugin/entry.c)
+        target_compile_definitions(${STANDALONE_INST} PRIVATE PLUGIN_VERSION="${PROJECT_VERSION}")
         target_link_libraries(${STANDALONE_INST} PRIVATE ${LIBRARIES} plugin_gui)
         target_add_standalone_wrapper(TARGET ${STANDALONE_INST}
             OUTPUT_NAME "BeepBox_${INST}"
@@ -119,6 +122,7 @@ if(BUILD_VST3)
     set(VST3_TARGET ${PROJECT_NAME}_vst3)
     add_library(${VST3_TARGET} MODULE)
     target_sources(${VST3_TARGET} PRIVATE src/plugin/entry.c)
+    target_compile_definitions(${VST3_TARGET} PRIVATE PLUGIN_VERSION="${PROJECT_VERSION}")
     target_link_libraries(${VST3_TARGET} PRIVATE ${LIBRARIES} plugin_gui_vst3)
     target_add_vst3_wrapper(TARGET ${VST3_TARGET}
         OUTPUT_NAME "BeepBox"
