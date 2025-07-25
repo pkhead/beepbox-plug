@@ -59,6 +59,7 @@ typedef struct {
     bool is_floating;
 
     const clap_plugin_t *plugin;
+    const clap_host_t *host;
     bpbx_inst_s *instrument;
 
     show_context_menu_f show_context_menu;

@@ -25,6 +25,7 @@ private:
     };
 
     const clap_plugin_t *const plugin;
+    const clap_host_t *const host;
     bpbx_inst_s *const instrument;
     Page currentPage;
 
@@ -40,6 +41,7 @@ private:
     bool updateParams();
     void updateColors(); // update style based on custom colors
 
+    void queueCheck();
     void paramControls(uint32_t paramId);
     void sliderParameter(uint32_t paramId, const char *id, float v_min, float v_max, const char *fmt = "%.3f", bool normalized = false);
     void vertSliderParameter(uint32_t paramId, const char *id, ImVec2 size, float v_min, float v_max, const char *fmt = "%.3f", bool normalized = false);
@@ -96,7 +98,7 @@ public:
     show_context_menu_f popupContextMenu;
     void *pluginUserdata;
 
-    PluginController(const clap_plugin_t *plugin, bpbx_inst_s *instrument);
+    PluginController(const clap_plugin_t *plugin, const clap_host_t *host, bpbx_inst_s *instrument);
 
     void graphicsInit();
     void graphicsClose();

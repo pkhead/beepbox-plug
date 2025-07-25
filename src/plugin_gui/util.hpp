@@ -105,4 +105,15 @@ public:
 
         return true;
     }
+
+    size_t items_queued() const {
+        size_t read = read_ptr.load();
+        size_t write = write_ptr.load();
+
+        if (write >= read) {
+            return write - read;
+        } else {
+            return SIZE - read + write;
+        }
+    }
 }; // struct EventQueue

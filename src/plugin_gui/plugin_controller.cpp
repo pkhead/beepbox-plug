@@ -44,8 +44,9 @@ void PluginController::graphicsClose() {
     #endif
 }
 
-PluginController::PluginController(const clap_plugin_t *plugin, bpbx_inst_s *instrument) :
+PluginController::PluginController(const clap_plugin_t *plugin, const clap_host_t *host, bpbx_inst_s *instrument) :
     plugin(plugin),
+    host(host),
     instrument(instrument),
     plugin_to_gui(),
     gui_to_plugin()
@@ -169,12 +170,19 @@ void PluginController::vertSliderParameter(uint32_t paramId, const char *id, ImV
     paramControls(paramId);
 }
 
+void PluginController::queueCheck() {
+    // request process in case plugin is sleeping
+    if (host->request_process)
+        host->request_process(host);
+}
+
 void PluginController::paramGestureBegin(uint32_t param_id) {
     gui_event_queue_item_s item = {};
     item.type = GUI_EVENT_PARAM_GESTURE_BEGIN;
     item.gesture.param_id = param_id;
 
     gui_to_plugin.enqueue(item);
+    queueCheck();
 
 #ifndef _NDEBUG
     log_debug("paramGestureBegin %i", param_id);
@@ -188,6 +196,7 @@ void PluginController::paramChange(uint32_t param_id, double value) {
     item.param_value.value = value;
 
     gui_to_plugin.enqueue(item);
+    queueCheck();
 
     params[param_id] = value;
 }
@@ -198,6 +207,7 @@ void PluginController::paramGestureEnd(uint32_t param_id) {
     item.gesture.param_id = param_id;
 
     gui_to_plugin.enqueue(item);
+    queueCheck();
 
 #ifndef _NDEBUG
     log_debug("paramGestureEnd %i", param_id);

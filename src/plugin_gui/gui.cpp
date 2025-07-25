@@ -17,7 +17,7 @@ typedef struct plugin_gui_s {
     platform::Window *window;
     PluginController control;
 
-    plugin_gui_s(const clap_plugin_t *plugin, bpbx_inst_s *inst) : control(plugin, inst) {} 
+    plugin_gui_s(const clap_plugin_t *plugin, const clap_host_t *host, bpbx_inst_s *inst) : control(plugin, host, inst) {} 
 } plugin_gui_s;
 
 void gui_event_enqueue(plugin_gui_s *iface, gui_event_queue_item_s item) {
@@ -311,7 +311,7 @@ bool gui_get_preferred_api(const char **api, bool *is_floating) {
 }
 
 plugin_gui_s* gui_create(const gui_creation_params_s *params) {
-    plugin_gui_s *gui = new plugin_gui_s(params->plugin, params->instrument);
+    plugin_gui_s *gui = new plugin_gui_s(params->plugin, params->host, params->instrument);
     gui->control.popupContextMenu = params->show_context_menu;
     gui->control.pluginUserdata = params->userdata;
 

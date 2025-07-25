@@ -185,6 +185,7 @@ bool plugin_gui_create(const clap_plugin_t *plugin, const char *api, bool is_flo
    plug->gui = gui_create(&(gui_creation_params_s) {
       .api = api,
       .plugin = plugin,
+      .host = plug->host,
       .is_floating = is_floating,
       .instrument = plug->instrument,
       .show_context_menu = gui_show_context_menu,

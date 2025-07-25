@@ -22,6 +22,7 @@ static void bpbx_voice_end_cb(bpbx_inst_s *inst, bpbx_voice_id id) {
 
    plugin_voice_s *voice = &ud->plugin->voices[id];
    voice->active = false;
+   ud->plugin->active_voice_count--;
 
    clap_event_note_t ev = {
       .header = {
@@ -68,13 +69,14 @@ static inline void plugin_begin_note(
    int32_t note_id, int16_t port_index, int16_t channel
 ) {
    bpbx_voice_id bpbx_id = bpbx_inst_begin_note(plug->instrument, key, velocity);
-      plug->voices[bpbx_id] = (plugin_voice_s) {
-         .active = true,
-         .note_id = note_id,
-         .port_index = port_index,
-         .channel = channel,
-         .key = key
-      };
+   plug->voices[bpbx_id] = (plugin_voice_s) {
+      .active = true,
+      .note_id = note_id,
+      .port_index = port_index,
+      .channel = channel,
+      .key = key
+   };
+   plug->active_voice_count++;
 }
 
 static inline void plugin_end_notes(
@@ -358,7 +360,15 @@ clap_process_status plugin_process(const struct clap_plugin *plugin, const clap_
    bpbx_inst_set_userdata(plug->instrument, NULL);
 
    enable_denormals(env);
-   return CLAP_PROCESS_CONTINUE;
+
+   if (plug->active_voice_count > 0)
+      return CLAP_PROCESS_CONTINUE;
+   else {
+      // if (plug->host_log)
+      //    plug->host_log->log(plug->host, CLAP_LOG_DEBUG, "Zzz...");
+
+      return CLAP_PROCESS_SLEEP;
+   }
 }
 
 

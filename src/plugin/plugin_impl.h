@@ -50,6 +50,7 @@ typedef struct {
 
    // tracked voices
    plugin_voice_s voices[BPBX_INST_MAX_VOICES];
+   int8_t active_voice_count;
 } plugin_s;
 
 typedef struct {
