@@ -82,7 +82,7 @@ static const clap_plugin_descriptor_t s_harmonics_plug_desc =
    CREATE_INSTRUMENT_PLUGIN("harmonics", "Harmonics", "BeepBox additive synthesizer");
 
 typedef struct {
-   bpbx_voice_id bpbx;
+   bool active;
 
    int32_t note_id;
    int16_t port_index;
@@ -115,8 +115,15 @@ typedef struct {
    double cur_beat;
    bool is_playing;
 
-   plugin_voice_s active_voices[BPBX_INST_MAX_VOICES];
+   // tracked voices
+   plugin_voice_s voices[BPBX_INST_MAX_VOICES];
 } plugin_s;
+
+typedef struct {
+   plugin_s *plugin;
+   uint32_t cur_sample;
+   const clap_output_events_t *out_events;
+} inst_process_userdata_s;
 
 typedef enum {
    SEND_TO_GUI = 1,
@@ -300,8 +307,8 @@ static inline void plugin_begin_note(
    int32_t note_id, int16_t port_index, int16_t channel
 ) {
    bpbx_voice_id bpbx_id = bpbx_inst_begin_note(plug->instrument, key, velocity);
-      plug->active_voices[bpbx_id] = (plugin_voice_s) {
-         .bpbx = bpbx_id,
+      plug->voices[bpbx_id] = (plugin_voice_s) {
+         .active = true,
          .note_id = note_id,
          .port_index = port_index,
          .channel = channel,
@@ -314,12 +321,37 @@ static inline void plugin_end_notes(
    int32_t note_id, int16_t port_index, int16_t channel
 ) {
    for (int i = 0; i < BPBX_INST_MAX_VOICES; i++) {
-      plugin_voice_s *voice = &plug->active_voices[i];
-      if (voice->bpbx != -1 && voice_match(voice, note_id, channel, port_index, key)) {
-         bpbx_inst_end_note(plug->instrument, voice->bpbx);
-         voice->bpbx = -1;
+      plugin_voice_s *voice = &plug->voices[i];
+      if (voice->active && voice_match(voice, note_id, channel, port_index, key)) {
+         bpbx_inst_end_note(plug->instrument, i);
       }
    }
+}
+
+void bpbx_voice_end_cb(bpbx_inst_s *inst, bpbx_voice_id id) {
+   inst_process_userdata_s *ud = bpbx_inst_get_userdata(inst);
+   assert(ud);
+
+   plugin_voice_s *voice = &ud->plugin->voices[id];
+   voice->active = false;
+
+   clap_event_note_t ev = {
+      .header = {
+         .size = sizeof(ev),
+         .time = ud->cur_sample,
+         .type = CLAP_EVENT_NOTE_END,
+      },
+      .note_id = voice->note_id,
+      .port_index = voice->port_index,
+      .channel = voice->channel,
+      .key = voice->key
+   };
+
+   ud->out_events->try_push(ud->out_events, (clap_event_header_t*) &ev);
+
+   char str[128];
+   snprintf(str, 128, "sample: %i", ud->cur_sample);
+   ud->plugin->host_log->log(ud->plugin->host, CLAP_LOG_DEBUG, str);
 }
 
 static void plugin_process_event(plugin_s *plug, const clap_event_header_t *hdr, const clap_output_events_t *out_events) {
@@ -1093,6 +1125,9 @@ static bool plugin_init(const struct clap_plugin *plugin) {
 
    plug->instrument = bpbx_inst_new(plug->inst_type);
 
+   bpbx_inst_callbacks_s *inst_cbs = bpbx_inst_get_callback_table(plug->instrument);
+   inst_cbs->voice_end = bpbx_voice_end_cb;
+
    if (plug->host_track_info) {
       plugin_track_info_changed(plugin);
    }
@@ -1158,6 +1193,12 @@ static clap_process_status plugin_process(const struct clap_plugin *plugin, cons
    uint32_t ev_index = 0;
    uint32_t next_ev_frame = nev > 0 ? 0 : nframes;
 
+   inst_process_userdata_s inst_proc = {
+      .plugin = plug,
+      .out_events = process->out_events
+   };
+   bpbx_inst_set_userdata(plug->instrument, &inst_proc);
+
    for (uint32_t i = 0; i < nframes;) {
       /* handle every events that happrens at the frame "i" */
       while (ev_index < nev && next_ev_frame == i) {
@@ -1181,6 +1222,7 @@ static clap_process_status plugin_process(const struct clap_plugin *plugin, cons
       uint32_t frame_count = next_ev_frame - i;
       for (uint32_t j = 0; j < frame_count;) {
          // instrument needs a tick
+         inst_proc.cur_sample = i + j;
          if (plug->frames_until_next_tick == 0) {
             bpbx_inst_tick(plug->instrument, &(bpbx_tick_ctx_s) {
                .bpm = plug->bpm,
@@ -1212,8 +1254,9 @@ static clap_process_status plugin_process(const struct clap_plugin *plugin, cons
       plug->cur_beat += beats_per_sec * sample_len * frame_count;
    }
 
-   enable_denormals(env);
+   bpbx_inst_set_userdata(plug->instrument, NULL);
 
+   enable_denormals(env);
    return CLAP_PROCESS_CONTINUE;
 }
 
@@ -1268,10 +1311,6 @@ clap_plugin_t *plugin_create(const clap_host_t *host, const clap_plugin_descript
       .has_track_color = false,
       .bpm = 150.0
    };
-
-   for (int i = 0; i < BPBX_INST_MAX_VOICES; i++) {
-      p->active_voices[i].bpbx = -1;
-   }
 
    // Don't call into the host here
 
