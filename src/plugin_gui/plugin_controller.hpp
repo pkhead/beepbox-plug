@@ -2,6 +2,7 @@
 
 #include <imgui.h>
 #include <vector>
+#include <unordered_map>
 #include "include/plugin_gui.h"
 #include "platform.hpp"
 #include "util.hpp"
@@ -23,12 +24,13 @@ private:
         FILTER_EQ,
     };
 
+    const clap_plugin_t *const plugin;
     bpbx_inst_s *const instrument;
     Page currentPage;
 
     bool showAbout;
     bpbx_inst_type_e inst_type;
-    std::vector<double> params;
+    std::unordered_map<clap_id, double> params;
     
     float uiRightCol;
     void sameLineRightCol();
@@ -94,7 +96,7 @@ public:
     show_context_menu_f popupContextMenu;
     void *pluginUserdata;
 
-    PluginController(bpbx_inst_s *instrument);
+    PluginController(const clap_plugin_t *plugin, bpbx_inst_s *instrument);
 
     void graphicsInit();
     void graphicsClose();

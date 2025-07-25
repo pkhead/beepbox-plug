@@ -1,8 +1,9 @@
-#ifndef _bpbxclap_plugin_h_
-#define _bpbxclap_plugin_h_
+#ifndef _bpbxclap_plugin_impl_h_
+#define _bpbxclap_plugin_impl_h_
 
 #include <beepbox_synth.h>
 #include <clap/clap.h>
+#include "include/clap_plugin.h"
 #include <plugin_gui.h>
 
 typedef struct {
@@ -39,6 +40,11 @@ typedef struct {
    double cur_beat;
    bool is_playing;
 
+   double gain;
+   bool tempo_use_override;
+   double tempo_multiplier;
+   double tempo_override;
+
    // tracked voices
    plugin_voice_s voices[BPBX_INST_MAX_VOICES];
 } plugin_s;
@@ -55,18 +61,26 @@ typedef enum {
    NO_RECURSION = 4,
 } event_send_flags_e;
 
+typedef struct {
+    const char *name;
+    const char serialized_id[8];
+    double min_value;
+    double max_value;
+    double default_value;
+    uint32_t flags;
+} plugin_control_param_info_s;
+
+plugin_control_param_info_s plugin_control_param_info[PLUGIN_CPARAM_COUNT];
+
 void plugin_init_inst(plugin_s *plug);
 
-bool plugin_set_param(plugin_s *plug, int id, double value, event_send_flags_e send_flags, const clap_output_events_t *out_events);
 void process_gui_events(plugin_s *plug, const clap_output_events_t *out_events);
 
 void plugin_process_transport(plugin_s *plug, const clap_event_transport_t *ev);
 void plugin_process_event(plugin_s *plug, const clap_event_header_t *hdr, const clap_output_events_t *out_events);
 clap_process_status plugin_process(const struct clap_plugin *plugin, const clap_process_t *process);
 
-uint32_t plugin_params_count(const clap_plugin_t *plugin);
-bool plugin_params_get_info(const clap_plugin_t *plugin, uint32_t param_index, clap_param_info_t *param_info);
-bool plugin_params_get_value(const clap_plugin_t *plugin, clap_id param_id, double *out_value);
+bool plugin_params_set_value(plugin_s *plug, clap_id id, double value, event_send_flags_e send_flags, const clap_output_events_t *out_events);
 
 bool plugin_params_value_to_text(
       const clap_plugin_t *plugin,
@@ -77,5 +91,9 @@ bool plugin_params_text_to_value(const clap_plugin_t *plugin, clap_id param_id, 
 
 bool plugin_state_save(const clap_plugin_t *plugin, const clap_ostream_t *stream);
 bool plugin_state_load(const clap_plugin_t *plugin, const clap_istream_t *stream);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

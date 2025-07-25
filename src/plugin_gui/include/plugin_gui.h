@@ -58,6 +58,7 @@ typedef struct {
     const char *api;
     bool is_floating;
 
+    const clap_plugin_t *plugin;
     bpbx_inst_s *instrument;
 
     show_context_menu_f show_context_menu;

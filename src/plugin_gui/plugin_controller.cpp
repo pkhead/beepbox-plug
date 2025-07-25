@@ -3,11 +3,13 @@
 #include <cstring>
 
 #include <cbeepsynth/include/beepbox_synth.h>
+#include <clap/clap.h>
 #include <vector>
 #include <algorithm>
 #include "plugin_controller.hpp"
 #include "util.hpp"
 #include "log.hpp"
+#include <plugin/include/clap_plugin.h>
 
 #ifdef PLUGIN_VST3
 #include "resource/vst_logo.hpp"
@@ -42,7 +44,8 @@ void PluginController::graphicsClose() {
     #endif
 }
 
-PluginController::PluginController(bpbx_inst_s *instrument) :
+PluginController::PluginController(const clap_plugin_t *plugin, bpbx_inst_s *instrument) :
+    plugin(plugin),
     instrument(instrument),
     plugin_to_gui(),
     gui_to_plugin()
@@ -58,12 +61,24 @@ PluginController::PluginController(bpbx_inst_s *instrument) :
 
 void PluginController::sync() {
     bpbx_inst_type_e type = bpbx_inst_type(instrument);
-
-    const uint32_t param_count = bpbx_param_count(type);
-    params.resize(param_count);
+    
+    uint32_t param_count = plugin_params_count(plugin);
+    params.reserve(param_count * 2.0);
 
     for (int i = 0; i < param_count; i++) {
-        bpbx_inst_get_param_double(instrument, i, &params[i]);
+        clap_param_info_t param_info;
+        
+        if (!plugin_params_get_info(plugin, i, &param_info)) {
+            log_error("could not initialize parameter #%i because get_info failed", i);
+            continue;
+        }
+
+        double param_value;
+        if (!plugin_params_get_value(plugin, param_info.id, &param_value)) {
+            log_error("could not initialize parameter #%i because get_value failed", i);
+        }
+
+        params[param_info.id] = param_value;
     }
 
     envelopes.clear();
@@ -883,7 +898,8 @@ void PluginController::filterRemovePole(FilterType filter, int control_idx) {
     int baseEnum = 0;
     switch (filter) {
         case FILTER_EQ:
-            baseEnum = BPBX_PARAM_EQ_TYPE0;
+            assert(false);
+            // baseEnum = BPBX_PARAM_EQ_TYPE0;
             break;
 
         case FILTER_NOTE:
@@ -909,7 +925,8 @@ void PluginController::filterInsertPole(FilterType filter, int control_idx, bpbx
     int baseEnum = 0;
     switch (filter) {
         case FILTER_EQ:
-            baseEnum = BPBX_PARAM_EQ_TYPE0;
+            assert(false);
+            // baseEnum = BPBX_PARAM_EQ_TYPE0;
             break;
 
         case FILTER_NOTE:
@@ -939,7 +956,8 @@ void PluginController::drawEqWidget(FilterType filter, const char *id, ImVec2 si
     int baseEnum = 0;
     switch (filter) {
         case FILTER_EQ:
-            baseEnum = BPBX_PARAM_EQ_TYPE0;
+            assert(false);
+            // baseEnum = BPBX_PARAM_EQ_TYPE0;
             break;
 
         case FILTER_NOTE:
@@ -1517,8 +1535,9 @@ void PluginController::drawEqPage(FilterType targetFilter) {
     const char *filterName = "???";
     int baseEnum;
     if (targetFilter == FILTER_EQ) {
+        assert(false);
         filterName = "EQ";
-        baseEnum = BPBX_PARAM_EQ_TYPE0;
+        // baseEnum = BPBX_PARAM_EQ_TYPE0;
     } else if (targetFilter == FILTER_NOTE) {
         filterName = "N. Filt.";
         baseEnum = BPBX_PARAM_NOTE_FILTER_TYPE0;
@@ -1585,13 +1604,24 @@ void PluginController::draw(platform::Window *window) {
     // imgui
     {
         if (ImGui::BeginMainMenuBar()) {
-            if (ImGui::BeginMenu("Presets")) {
-                ImGui::MenuItem("Test");
+            if (ImGui::BeginMenu(".")) {
+                if (ImGui::BeginMenu("Presets")) {
+                    ImGui::MenuItem("Test");
+                    ImGui::EndMenu();
+                }
+
+                if (ImGui::MenuItem("About")) {
+                    showAbout = !showAbout;
+                }
+
+                // ImGui::Separator();
+
+                // {
+                //     float gain = paramChange(uint32_t param_id, double value)
+                //     ImGui::Text("Gain");
+                //     ImGui::SliderFloat("##gain", float *v, float v_min, float v_max)
+                // }
                 ImGui::EndMenu();
-            }
-    
-            if (ImGui::MenuItem("About")) {
-                showAbout = !showAbout;
             }
 
             if (currentPage != PAGE_MAIN || showAbout) {

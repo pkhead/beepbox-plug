@@ -15,7 +15,7 @@
 #include <clap/clap.h>
 #include <plugin_gui.h>
 #include "system.h"
-#include "plugin.h"
+#include "plugin_impl.h"
 
 #define CREATE_INSTRUMENT_PLUGIN(inst_id, inst_name, inst_desc) { \
    .clap_version = CLAP_VERSION_INIT, \
@@ -140,6 +140,8 @@ void plugin_params_flush(const clap_plugin_t *plugin, const clap_input_events_t 
    }
 }
 
+
+
 static const clap_plugin_params_t s_plugin_params = {
    .count = plugin_params_count,
    .get_info = plugin_params_get_info,
@@ -182,6 +184,7 @@ bool plugin_gui_create(const clap_plugin_t *plugin, const char *api, bool is_flo
 
    plug->gui = gui_create(&(gui_creation_params_s) {
       .api = api,
+      .plugin = plugin,
       .is_floating = is_floating,
       .instrument = plug->instrument,
       .show_context_menu = gui_show_context_menu,
