@@ -38,7 +38,7 @@ static inline void enable_denormals(const fp_env env) {
 }
 #else
 #include <immintrin.h>
-#define fp_env uint8_t
+typedef uint32_t fp_env;
 
 static inline fp_env disable_denormals() {
    const uint32_t mask = _MM_DENORMALS_ZERO_MASK | _MM_FLUSH_ZERO_MASK;
