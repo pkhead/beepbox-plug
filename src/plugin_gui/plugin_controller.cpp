@@ -1604,24 +1604,56 @@ void PluginController::draw(platform::Window *window) {
     // imgui
     {
         if (ImGui::BeginMainMenuBar()) {
-            if (ImGui::BeginMenu(".")) {
+            // if (ImGui::BeginMenu("."))
+            {
                 if (ImGui::BeginMenu("Presets")) {
                     ImGui::MenuItem("Test");
+                    ImGui::EndMenu();
+                }
+
+                if (ImGui::BeginMenu("Extras")) {
+                    ImGui::PushStyleVarY(ImGuiStyleVar_FramePadding, 0.f);
+                    ImGui::PushItemWidth(ImGui::GetFontSize() * 9.f);
+
+                    ImGui::BeginGroup();
+                    ImGui::Text("Gain");
+                    ImGui::Text("Tempo Mult.");
+                    ImGui::Text("Force Tempo");
+
+                    if (params[PLUGIN_CPARAM_TEMPO_USE_OVERRIDE])
+                        ImGui::Text("Tempo");
+                    
+                    ImGui::EndGroup();
+
+                    ImGui::SameLine();
+                    ImGui::BeginGroup();
+                    sliderParameter(PLUGIN_CPARAM_GAIN, "###gain", -10.0, 10.0, "%.3f dB");
+                    sliderParameter(PLUGIN_CPARAM_TEMPO_MULTIPLIER, "###tempomult", 0.0, 10.0, "%.1fx");
+                    
+                    bool useTempoOverride = params[PLUGIN_CPARAM_TEMPO_USE_OVERRIDE] != 0.0;
+                    if (ImGui::Checkbox("##tempooverridetoggle", &useTempoOverride)) {
+                        paramGestureBegin(PLUGIN_CPARAM_TEMPO_USE_OVERRIDE);
+                        paramChange(PLUGIN_CPARAM_TEMPO_USE_OVERRIDE, useTempoOverride ? 1.0 : 0.0);
+                        paramGestureEnd(PLUGIN_CPARAM_TEMPO_USE_OVERRIDE);
+                    }
+                    paramControls(PLUGIN_CPARAM_TEMPO_USE_OVERRIDE);
+                    
+                    if (params[PLUGIN_CPARAM_TEMPO_USE_OVERRIDE])
+                        sliderParameter(PLUGIN_CPARAM_TEMPO_OVERRIDE, "###tempooverride", 30.0, 500.0, "%.0f");
+                    
+                    ImGui::EndGroup();
+                    
+                    ImGui::PopItemWidth();
+                    ImGui::PopStyleVar();
+
                     ImGui::EndMenu();
                 }
 
                 if (ImGui::MenuItem("About")) {
                     showAbout = !showAbout;
                 }
-
-                // ImGui::Separator();
-
-                // {
-                //     float gain = paramChange(uint32_t param_id, double value)
-                //     ImGui::Text("Gain");
-                //     ImGui::SliderFloat("##gain", float *v, float v_min, float v_max)
-                // }
-                ImGui::EndMenu();
+                
+                // ImGui::EndMenu();
             }
 
             if (currentPage != PAGE_MAIN || showAbout) {

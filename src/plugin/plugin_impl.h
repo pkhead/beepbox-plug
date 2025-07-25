@@ -45,6 +45,9 @@ typedef struct {
    double tempo_multiplier;
    double tempo_override;
 
+   // derived from gain property
+   double linear_gain;
+
    // tracked voices
    plugin_voice_s voices[BPBX_INST_MAX_VOICES];
 } plugin_s;

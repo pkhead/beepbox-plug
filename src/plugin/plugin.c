@@ -274,7 +274,6 @@ clap_process_status plugin_process(const struct clap_plugin *plugin, const clap_
    }
 
    const double sample_len = 1.0 / plug->sample_rate;
-   const double beats_per_sec = plug->bpm / 60.0;
 
    const uint32_t nframes = process->frames_count;
    const uint32_t nev = process->in_events->size(process->in_events);
@@ -305,6 +304,19 @@ clap_process_status plugin_process(const struct clap_plugin *plugin, const clap_
             break;
          }
       }
+      
+      // update extra plugin values
+      plug->linear_gain = pow(10.0, plug->gain / 10.0);
+      double active_bpm;
+      if (plug->tempo_use_override) {
+         active_bpm = plug->tempo_override;
+      } else {
+         active_bpm = plug->bpm;
+      
+      }
+
+      active_bpm *= plug->tempo_multiplier;
+      const double beats_per_sec = active_bpm / 60.0;
 
       /* process every samples until the next event */
       uint32_t frame_count = next_ev_frame - i;
@@ -313,12 +325,12 @@ clap_process_status plugin_process(const struct clap_plugin *plugin, const clap_
          inst_proc.cur_sample = i + j;
          if (plug->frames_until_next_tick == 0) {
             bpbx_inst_tick(plug->instrument, &(bpbx_tick_ctx_s) {
-               .bpm = plug->bpm,
+               .bpm = active_bpm,
                .beat = plug->cur_beat,
             });
 
             plug->frames_until_next_tick =
-               (uint32_t)ceil(bpbx_calc_samples_per_tick(plug->bpm, plug->sample_rate));
+               (uint32_t)ceil(bpbx_calc_samples_per_tick(active_bpm, plug->sample_rate));
          }
 
          // render the audio
@@ -334,8 +346,9 @@ clap_process_status plugin_process(const struct clap_plugin *plugin, const clap_
       uint32_t buffer_idx = 0;
       for (; i < next_ev_frame; ++i) {
          // store output samples
-         process->audio_outputs[0].data32[0][i] = plug->process_block[buffer_idx];
-         process->audio_outputs[0].data32[1][i] = plug->process_block[buffer_idx];
+         const float v = plug->process_block[buffer_idx] * plug->linear_gain;
+         process->audio_outputs[0].data32[0][i] = v;
+         process->audio_outputs[0].data32[1][i] = v;
          ++buffer_idx;
       }
       
@@ -1014,11 +1027,11 @@ plugin_control_param_info_s plugin_control_param_info[PLUGIN_CPARAM_COUNT] = {
     },
 
     {
-        .name = "Use Tempo Override",
+        .name = "Force Tempo",
         .serialized_id = "ctTmpMod",
         .min_value = 0,
-        .max_value = 10.0,
-        .default_value = 0.0,
+        .max_value = 1,
+        .default_value = 0,
         .flags = CLAP_PARAM_IS_STEPPED
     },
     {
@@ -1029,7 +1042,7 @@ plugin_control_param_info_s plugin_control_param_info[PLUGIN_CPARAM_COUNT] = {
         .default_value = 1.0,
     },
     {
-        .name = "Tempo Override",
+        .name = "Tempo Force Value",
         .serialized_id = "ctTmpOvr",
         .min_value = 1.0,
         .max_value = 500.0,

@@ -482,7 +482,11 @@ clap_plugin_t *plugin_create(const clap_host_t *host, const clap_plugin_descript
 
       .inst_type = inst_type,
       .has_track_color = false,
-      .bpm = 150.0
+      .bpm = 150.0,
+
+      .tempo_multiplier = 1.0,
+      .tempo_override = 150.0,
+      .tempo_use_override = false
    };
 
    // Don't call into the host here
