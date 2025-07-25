@@ -78,8 +78,9 @@ set(LIBRARIES clap beepbox_synth_static)
 ## clap target ##
 #################
 
+set(CLAP_SOURCES src/plugin/entry.c src/plugin/plugin.c)
 set(CLAP_TARGET ${PROJECT_NAME}_clap)
-add_library(${CLAP_TARGET} MODULE src/plugin/entry.c)
+add_library(${CLAP_TARGET} MODULE ${CLAP_SOURCES})
 target_compile_definitions(${CLAP_TARGET} PRIVATE PLUGIN_VERSION="${PROJECT_VERSION}")
 target_link_libraries(${CLAP_TARGET} PRIVATE ${LIBRARIES} plugin_gui)
 set_target_properties(${CLAP_TARGET} PROPERTIES
@@ -96,7 +97,7 @@ if(BUILD_STANDALONE)
     function(create_standalone INST)
         set(STANDALONE_INST ${PROJECT_NAME}_standalone_${INST})
         add_executable(${STANDALONE_INST})
-        target_sources(${STANDALONE_INST} PRIVATE src/plugin/entry.c)
+        target_sources(${STANDALONE_INST} PRIVATE ${CLAP_SOURCES})
         target_compile_definitions(${STANDALONE_INST} PRIVATE PLUGIN_VERSION="${PROJECT_VERSION}")
         target_link_libraries(${STANDALONE_INST} PRIVATE ${LIBRARIES} plugin_gui)
         target_add_standalone_wrapper(TARGET ${STANDALONE_INST}
@@ -121,7 +122,7 @@ if(BUILD_VST3)
 
     set(VST3_TARGET ${PROJECT_NAME}_vst3)
     add_library(${VST3_TARGET} MODULE)
-    target_sources(${VST3_TARGET} PRIVATE src/plugin/entry.c)
+    target_sources(${VST3_TARGET} PRIVATE ${CLAP_SOURCES})
     target_compile_definitions(${VST3_TARGET} PRIVATE PLUGIN_VERSION="${PROJECT_VERSION}")
     target_link_libraries(${VST3_TARGET} PRIVATE ${LIBRARIES} plugin_gui_vst3)
     target_add_vst3_wrapper(TARGET ${VST3_TARGET}
