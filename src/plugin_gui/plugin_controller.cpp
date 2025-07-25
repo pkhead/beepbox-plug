@@ -438,6 +438,33 @@ void PluginController::drawEffects() {
         paramControls(BPBX_PARAM_CHORD_TYPE);
     }
 
+    if (params[BPBX_PARAM_CHORD_TYPE] == BPBX_CHORD_TYPE_ARPEGGIO) {
+        // arpeggio speed
+        ImGui::AlignTextToFramePadding();
+        ImGui::Bullet();
+
+        ImGui::Text("Speed");
+        sameLineRightCol();
+        ImGui::SetNextItemWidth(-FLT_MIN);
+
+        const bpbx_inst_param_info_s *param_info = bpbx_param_info(inst_type, BPBX_PARAM_ARPEGGIO_SPEED);
+        sliderParameter(BPBX_PARAM_ARPEGGIO_SPEED, "##ArpeggioSpeed", 0.f, 50.f, param_info->enum_values[(int)params[BPBX_PARAM_ARPEGGIO_SPEED]]);
+
+        // fast two-note option
+        ImGui::AlignTextToFramePadding();
+        ImGui::Bullet();
+
+        ImGui::Text("Fast Two-Note");
+        ImGui::SameLine();
+
+        bool fast_two_note = params[BPBX_PARAM_FAST_TWO_NOTE_ARPEGGIO] != 0.0;
+        if (ImGui::Checkbox("##FastTwoNote", &fast_two_note)) {
+            paramGestureBegin(BPBX_PARAM_FAST_TWO_NOTE_ARPEGGIO);
+            paramChange(BPBX_PARAM_FAST_TWO_NOTE_ARPEGGIO, fast_two_note ? 1.0 : 0.0);
+            paramGestureEnd(BPBX_PARAM_FAST_TWO_NOTE_ARPEGGIO);
+        }
+    }
+
     // pitch shift
     if (params[BPBX_PARAM_ENABLE_PITCH_SHIFT] != 0.0) {
         ImGui::AlignTextToFramePadding();
