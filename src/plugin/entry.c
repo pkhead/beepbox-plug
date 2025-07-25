@@ -997,6 +997,34 @@ static const clap_plugin_track_info_t s_plugin_track_info = {
 // clap_plugin //
 /////////////////
 
+static void bpbx_log_cb(bpbx_log_severity_e severity, const char *msg, void *userdata) {
+   plugin_s *plug = (plugin_s*)userdata;
+   clap_log_severity clap_sev = CLAP_LOG_INFO;
+   switch (severity) {
+      case BPBX_LOG_DEBUG:
+         clap_sev = CLAP_LOG_DEBUG;
+         break;
+
+      case BPBX_LOG_INFO:
+         clap_sev = CLAP_LOG_INFO;
+         break;
+
+      case BPBX_LOG_WARNING:
+         clap_sev = CLAP_LOG_WARNING;
+         break;
+
+      case BPBX_LOG_ERROR:
+         clap_sev = CLAP_LOG_ERROR;
+         break;
+
+      case BPBX_LOG_FATAL:
+         clap_sev = CLAP_LOG_FATAL;
+         break;
+   }
+
+   plug->host_log->log(plug->host, clap_sev, msg);
+}
+
 static bool plugin_init(const struct clap_plugin *plugin) {
    plugin_s *plug = plugin->plugin_data;
 
@@ -1017,6 +1045,7 @@ static bool plugin_init(const struct clap_plugin *plugin) {
    
    if (plug->host_log) {
       gui_set_log_func(plug->host_log->log, plug->host);
+      bpbx_set_log_func(bpbx_log_cb, plug);
    }
 
    return true;

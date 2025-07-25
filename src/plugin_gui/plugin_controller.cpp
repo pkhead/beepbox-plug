@@ -405,20 +405,37 @@ void PluginController::drawEffects() {
         for (int i = 0; i < 6; i++) {
             unsigned int toggle_param = bpbx_effect_toggle_param((bpbx_instfx_type_e) i);
             bool is_active = params[toggle_param] != 0.0;
-            bool is_functional = i >= 2; // TODO: impl transition type and chord type
 
-            if (ImGui::Selectable(effectNames[i], is_active, !is_functional ? ImGuiSelectableFlags_Disabled : 0)) {
-                if (is_functional) {
-                    paramGestureBegin(toggle_param);
-                    paramChange(toggle_param, (!is_active) ? 1.0 : 0.0);
-                    paramGestureEnd(toggle_param);
+            if (ImGui::Selectable(effectNames[i], is_active)) {
+                paramGestureBegin(toggle_param);
+                paramChange(toggle_param, (!is_active) ? 1.0 : 0.0);
+                paramGestureEnd(toggle_param);
 
-                    ImGui::CloseCurrentPopup();
-                }
+                ImGui::CloseCurrentPopup();
             }
         }
 
         ImGui::EndPopup();
+    }
+
+    // transition type
+
+    // chord type
+    if (params[BPBX_PARAM_ENABLE_CHORD_TYPE] != 0.0) {
+        static const char *chordTypes[] = {"simultaneous", "strum", "arpeggio", "custom interval"};
+
+        ImGui::AlignTextToFramePadding();
+        ImGui::Text("Chords");
+        sameLineRightCol();
+        ImGui::SetNextItemWidth(-FLT_MIN);
+
+        int curItem = (int)params[BPBX_PARAM_CHORD_TYPE];
+        if (ImGui::Combo("##ChordTypes", &curItem, chordTypes, 6)) {
+            paramGestureBegin(BPBX_PARAM_CHORD_TYPE);
+            paramChange(BPBX_PARAM_CHORD_TYPE, (double)curItem);
+            paramGestureEnd(BPBX_PARAM_CHORD_TYPE);
+        }
+        paramControls(BPBX_PARAM_CHORD_TYPE);
     }
 
     // pitch shift
