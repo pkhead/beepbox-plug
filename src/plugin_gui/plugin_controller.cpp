@@ -430,7 +430,7 @@ void PluginController::drawEffects() {
         ImGui::SetNextItemWidth(-FLT_MIN);
 
         int curItem = (int)params[BPBX_PARAM_CHORD_TYPE];
-        if (ImGui::Combo("##ChordTypes", &curItem, chordTypes, 6)) {
+        if (ImGui::Combo("##ChordTypes", &curItem, chordTypes, 4)) {
             paramGestureBegin(BPBX_PARAM_CHORD_TYPE);
             paramChange(BPBX_PARAM_CHORD_TYPE, (double)curItem);
             paramGestureEnd(BPBX_PARAM_CHORD_TYPE);
