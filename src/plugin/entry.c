@@ -82,6 +82,15 @@ static const clap_plugin_descriptor_t s_harmonics_plug_desc =
    CREATE_INSTRUMENT_PLUGIN("harmonics", "Harmonics", "BeepBox additive synthesizer");
 
 typedef struct {
+   bpbx_voice_id bpbx;
+
+   int32_t note_id;
+   int16_t port_index;
+   int16_t channel;
+   int16_t key;
+} plugin_voice_s;
+
+typedef struct {
    clap_plugin_t plugin;
    plugin_gui_s *gui;
 
@@ -105,6 +114,8 @@ typedef struct {
    double bpm;
    double cur_beat;
    bool is_playing;
+
+   plugin_voice_s active_voices[BPBX_INST_MAX_VOICES];
 } plugin_s;
 
 typedef enum {
@@ -275,22 +286,56 @@ static void plugin_process_transport(plugin_s *plug, const clap_event_transport_
    plug->is_playing = is_playing;
 }
 
+static inline bool voice_match(const plugin_voice_s *voice, int32_t note_id, int16_t channel, int16_t port_index, int16_t key) {
+   return (note_id == -1    || note_id == voice->note_id) &&
+          (channel == -1    || channel == voice->channel) &&
+          (port_index == -1 || port_index == voice->port_index) &&
+          (key == -1        || key == voice->key);
+}
+
+#define voice_match_event(voice, ev) voice_match(voice, (ev)->note_id, (ev)->channel, (ev)->port_index, (ev)->key)
+
+static inline void plugin_begin_note(
+   plugin_s *plug, int16_t key, double velocity,
+   int32_t note_id, int16_t port_index, int16_t channel
+) {
+   bpbx_voice_id bpbx_id = bpbx_inst_begin_note(plug->instrument, key, velocity);
+      plug->active_voices[bpbx_id] = (plugin_voice_s) {
+         .bpbx = bpbx_id,
+         .note_id = note_id,
+         .port_index = port_index,
+         .channel = channel,
+         .key = key
+      };
+}
+
+static inline void plugin_end_notes(
+   plugin_s *plug, int16_t key,
+   int32_t note_id, int16_t port_index, int16_t channel
+) {
+   for (int i = 0; i < BPBX_INST_MAX_VOICES; i++) {
+      plugin_voice_s *voice = &plug->active_voices[i];
+      if (voice->bpbx != -1 && voice_match(voice, note_id, channel, port_index, key)) {
+         bpbx_inst_end_note(plug->instrument, voice->bpbx);
+         voice->bpbx = -1;
+      }
+   }
+}
+
 static void plugin_process_event(plugin_s *plug, const clap_event_header_t *hdr, const clap_output_events_t *out_events) {
    if (hdr->space_id == CLAP_CORE_EVENT_SPACE_ID) {
       switch (hdr->type) {
       case CLAP_EVENT_NOTE_ON: {
          const clap_event_note_t *ev = (const clap_event_note_t *)hdr;
 
-         bpbx_inst_begin_note(plug->instrument, ev->key, (int)(ev->velocity * 127.0));
-         
+         plugin_begin_note(plug, ev->key, ev->velocity, ev->note_id, ev->port_index, ev->channel);
          break;
       }
 
       case CLAP_EVENT_NOTE_OFF: {
          const clap_event_note_t *ev = (const clap_event_note_t *)hdr;
 
-         bpbx_inst_end_note(plug->instrument, ev->key, 0);
-         
+         plugin_end_notes(plug, ev->key, ev->note_id, ev->port_index, ev->channel);
          break;
       }
 
@@ -329,15 +374,24 @@ static void plugin_process_event(plugin_s *plug, const clap_event_header_t *hdr,
          const clap_event_midi_t *ev = (const clap_event_midi_t *)hdr;
 
          uint8_t status = ev->data[0] & 0xF0;
+         uint8_t channel = ev->data[0] & 0x0F;
 
          // off
          if ((status == 0x80) || ((status == 0x90) && ev->data[2] == 0)) {
-            bpbx_inst_end_note(plug->instrument, ev->data[1], ev->data[2]);
+            plugin_end_notes(plug, ev->data[1], -1, ev->port_index, channel);
          }
          
          // on
          else if (status == 0x90) {
-            bpbx_inst_begin_note(plug->instrument, ev->data[1], ev->data[2]);
+            plugin_begin_note(plug, ev->data[1], ev->data[2] / 127.0, -1, ev->port_index, channel);
+         }
+
+         // channel mode messages
+         else if (status == 0xB0) {
+            // all notes off
+            if (ev->data[1] == 123 && ev->data[2] == 0) {
+               plugin_end_notes(plug, -1, -1, ev->port_index, channel);
+            }
          }
 
          break;
@@ -1214,6 +1268,10 @@ clap_plugin_t *plugin_create(const clap_host_t *host, const clap_plugin_descript
       .has_track_color = false,
       .bpm = 150.0
    };
+
+   for (int i = 0; i < BPBX_INST_MAX_VOICES; i++) {
+      p->active_voices[i].bpbx = -1;
+   }
 
    // Don't call into the host here
 
