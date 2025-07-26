@@ -534,7 +534,7 @@ bool plugin_params_get_value(const clap_plugin_t *plugin, clap_id param_id, doub
                 break;
 
             case PLUGIN_CPARAM_TEMPO_USE_OVERRIDE:
-                *out_value = plug->tempo_override ? 1.0 : 0.0;
+                *out_value = plug->tempo_use_override ? 1.0 : 0.0;
                 break;
 
             case PLUGIN_CPARAM_TEMPO_MULTIPLIER:
@@ -1044,6 +1044,7 @@ plugin_control_param_info_s plugin_control_param_info[PLUGIN_CPARAM_COUNT] = {
         .min_value = -10.0,
         .max_value = 10.0,
         .default_value = 0.0,
+        .flags = CLAP_PARAM_IS_AUTOMATABLE
     },
 
     {
@@ -1052,7 +1053,7 @@ plugin_control_param_info_s plugin_control_param_info[PLUGIN_CPARAM_COUNT] = {
         .min_value = 0,
         .max_value = 1,
         .default_value = 0,
-        .flags = CLAP_PARAM_IS_STEPPED
+        .flags = CLAP_PARAM_IS_STEPPED | CLAP_PARAM_IS_AUTOMATABLE
     },
     {
         .name = "Tempo Multiplier",
@@ -1060,6 +1061,7 @@ plugin_control_param_info_s plugin_control_param_info[PLUGIN_CPARAM_COUNT] = {
         .min_value = 0.0,
         .max_value = 10.0,
         .default_value = 1.0,
+        .flags = CLAP_PARAM_IS_AUTOMATABLE
     },
     {
         .name = "Tempo Force Value",
@@ -1067,5 +1069,6 @@ plugin_control_param_info_s plugin_control_param_info[PLUGIN_CPARAM_COUNT] = {
         .min_value = 1.0,
         .max_value = 500.0,
         .default_value = 150.0,
+        .flags = CLAP_PARAM_IS_AUTOMATABLE
     },
 };

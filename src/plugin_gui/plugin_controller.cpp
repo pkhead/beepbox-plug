@@ -1621,7 +1621,7 @@ void PluginController::draw(platform::Window *window) {
                     ImGui::EndMenu();
                 }
 
-                if (ImGui::BeginMenu("Extras")) {
+                if (ImGui::BeginMenu("Control")) {
                     ImGui::PushStyleVarY(ImGuiStyleVar_FramePadding, 0.f);
                     ImGui::PushItemWidth(ImGui::GetFontSize() * 9.f);
 
