@@ -60,7 +60,7 @@ typedef struct {
 
     const clap_plugin_t *plugin;
     const clap_host_t *host;
-    bpbx_inst_s *instrument;
+    bpbx_synth_s *instrument;
 
     show_context_menu_f show_context_menu;
     void *userdata;

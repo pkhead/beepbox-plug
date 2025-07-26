@@ -386,7 +386,7 @@ static bool plugin_init(const struct clap_plugin *plugin) {
    plug->host_track_info = (const clap_host_track_info_t*) plug->host->get_extension(plug->host, CLAP_EXT_TRACK_INFO);
    plug->host_context_menu = (const clap_host_context_menu_t*) plug->host->get_extension(plug->host, CLAP_EXT_CONTEXT_MENU);
 
-   plug->instrument = bpbx_inst_new(plug->inst_type);
+   plug->instrument = bpbx_synth_new(plug->inst_type);
    plugin_init_inst(plug);
 
    if (plug->host_track_info) {
@@ -405,7 +405,7 @@ static void plugin_destroy(const struct clap_plugin *plugin) {
    plugin_s *plug = plugin->plugin_data;
 
    if (plug->instrument)
-      bpbx_inst_destroy(plug->instrument);
+      bpbx_synth_destroy(plug->instrument);
 
    free(plug);
 }
@@ -414,7 +414,7 @@ static bool plugin_activate(const struct clap_plugin *plugin, double sample_rate
    plugin_s *plug = plugin->plugin_data;
    
    plug->sample_rate = sample_rate;
-   bpbx_inst_set_sample_rate(plug->instrument, plug->sample_rate);
+   bpbx_synth_set_sample_rate(plug->instrument, plug->sample_rate);
 
    free(plug->process_block);
    plug->process_block = malloc(max_frames_count * sizeof(float));
@@ -464,7 +464,7 @@ static const void *plugin_get_extension(const struct clap_plugin *plugin, const 
 
 static void plugin_on_main_thread(const struct clap_plugin *plugin) {}
 
-clap_plugin_t *plugin_create(const clap_host_t *host, const clap_plugin_descriptor_t *desc, bpbx_inst_type_e inst_type) {
+clap_plugin_t *plugin_create(const clap_host_t *host, const clap_plugin_descriptor_t *desc, bpbx_synth_type_e inst_type) {
    plugin_s *p = malloc(sizeof(plugin_s));
    *p = (plugin_s) {
       .host = host,

@@ -26,11 +26,11 @@ private:
 
     const clap_plugin_t *const plugin;
     const clap_host_t *const host;
-    bpbx_inst_s *const instrument;
+    bpbx_synth_s *const instrument;
     Page currentPage;
 
     bool showAbout;
-    bpbx_inst_type_e inst_type;
+    bpbx_synth_type_e inst_type;
     std::unordered_map<clap_id, double> params;
     
     float uiRightCol;
@@ -98,7 +98,7 @@ public:
     show_context_menu_f popupContextMenu;
     void *pluginUserdata;
 
-    PluginController(const clap_plugin_t *plugin, const clap_host_t *host, bpbx_inst_s *instrument);
+    PluginController(const clap_plugin_t *plugin, const clap_host_t *host, bpbx_synth_s *instrument);
 
     void graphicsInit();
     void graphicsClose();

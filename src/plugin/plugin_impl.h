@@ -30,8 +30,8 @@ typedef struct {
    const clap_host_track_info_t *host_track_info;
    const clap_host_context_menu_t *host_context_menu;
    
-   bpbx_inst_type_e inst_type;
-   bpbx_inst_s *instrument;
+   bpbx_synth_type_e inst_type;
+   bpbx_synth_s *instrument;
    uint32_t frames_until_next_tick;
    float *process_block;
 
@@ -49,7 +49,7 @@ typedef struct {
    double linear_gain;
 
    // tracked voices
-   plugin_voice_s voices[BPBX_INST_MAX_VOICES];
+   plugin_voice_s voices[BPBX_SYNTH_MAX_VOICES];
    int8_t active_voice_count;
 } plugin_s;
 

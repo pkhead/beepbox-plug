@@ -44,7 +44,7 @@ void PluginController::graphicsClose() {
     #endif
 }
 
-PluginController::PluginController(const clap_plugin_t *plugin, const clap_host_t *host, bpbx_inst_s *instrument) :
+PluginController::PluginController(const clap_plugin_t *plugin, const clap_host_t *host, bpbx_synth_s *instrument) :
     plugin(plugin),
     host(host),
     instrument(instrument),
@@ -54,14 +54,14 @@ PluginController::PluginController(const clap_plugin_t *plugin, const clap_host_
     showAbout = false;
     useCustomColors = false;
     currentPage = PAGE_MAIN;
-    inst_type = bpbx_inst_type(instrument);
+    inst_type = bpbx_synth_type(instrument);
 
     // initialize copy of plugin state
     sync();
 }
 
 void PluginController::sync() {
-    bpbx_inst_type_e type = bpbx_inst_type(instrument);
+    bpbx_synth_type_e type = bpbx_synth_type(instrument);
     
     uint32_t param_count = plugin_params_count(plugin);
     params.reserve(param_count * 2.0);
@@ -84,8 +84,8 @@ void PluginController::sync() {
 
     envelopes.clear();
     envelopes.reserve(BPBX_MAX_ENVELOPE_COUNT);
-    envelopes.resize(bpbx_inst_envelope_count(instrument));
-    memcpy(envelopes.data(), bpbx_inst_get_envelope(instrument, 0), sizeof(bpbx_envelope_s) * envelopes.size());
+    envelopes.resize(bpbx_synth_envelope_count(instrument));
+    memcpy(envelopes.data(), bpbx_synth_get_envelope(instrument, 0), sizeof(bpbx_envelope_s) * envelopes.size());
 }
 
 bool PluginController::updateParams() {
@@ -269,7 +269,7 @@ void PluginController::drawFmGui() {
     ImGui::SetNextItemWidth(-FLT_MIN);
 
     {
-        const bpbx_inst_param_info_s *p_info = bpbx_param_info(bpbx_inst_type(instrument), BPBX_FM_PARAM_ALGORITHM);
+        const bpbx_param_info_s *p_info = bpbx_param_info(bpbx_synth_type(instrument), BPBX_FM_PARAM_ALGORITHM);
         assert(p_info);
         const char **algoNames = p_info->enum_values;
         if (ImGui::Combo("##algo", &p_algo, algoNames, 13)) {
@@ -293,7 +293,7 @@ void PluginController::drawFmGui() {
 
         const uint32_t id = BPBX_FM_PARAM_FREQ1 + op * 2;
 
-        const bpbx_inst_param_info_s *p_info = bpbx_param_info(bpbx_inst_type(instrument), id);
+        const bpbx_param_info_s *p_info = bpbx_param_info(bpbx_synth_type(instrument), id);
         assert(p_info);
         const char **freqRatios = p_info->enum_values;
 
@@ -318,7 +318,7 @@ void PluginController::drawFmGui() {
     float feedbackEndX = ImGui::GetCursorPosX();
     ImGui::SetNextItemWidth(-FLT_MIN);
     {
-        const bpbx_inst_param_info_s *p_info = bpbx_param_info(bpbx_inst_type(instrument), BPBX_FM_PARAM_FEEDBACK_TYPE);
+        const bpbx_param_info_s *p_info = bpbx_param_info(bpbx_synth_type(instrument), BPBX_FM_PARAM_FEEDBACK_TYPE);
         assert(p_info);
         const char **feedbackNames = p_info->enum_values;
 
@@ -349,7 +349,7 @@ void PluginController::drawChipGui1() {
     ImGui::SetNextItemWidth(-FLT_MIN);
     {
         int p_wave = params[BPBX_CHIP_PARAM_WAVEFORM];
-        const bpbx_inst_param_info_s *p_info = bpbx_param_info(bpbx_inst_type(instrument), BPBX_CHIP_PARAM_WAVEFORM);
+        const bpbx_param_info_s *p_info = bpbx_param_info(bpbx_synth_type(instrument), BPBX_CHIP_PARAM_WAVEFORM);
         assert(p_info);
         const char **waveNames = p_info->enum_values;
         if (ImGui::Combo("##wave", &p_wave, waveNames, BPBX_CHIP_WAVE_COUNT)) {
@@ -370,7 +370,7 @@ void PluginController::drawChipGui2() {
     ImGui::SetNextItemWidth(-FLT_MIN);
     {
         int p_unison = params[BPBX_CHIP_PARAM_UNISON];
-        const bpbx_inst_param_info_s *p_info = bpbx_param_info(bpbx_inst_type(instrument), BPBX_CHIP_PARAM_UNISON);
+        const bpbx_param_info_s *p_info = bpbx_param_info(bpbx_synth_type(instrument), BPBX_CHIP_PARAM_UNISON);
         assert(p_info);
         const char **unisonNames = p_info->enum_values;
         if (ImGui::Combo("##unison", &p_unison, unisonNames, BPBX_UNISON_COUNT)) {
@@ -397,7 +397,7 @@ void PluginController::drawHarmonicsGui() {
     ImGui::SetNextItemWidth(-FLT_MIN);
     {
         int p_unison = params[BPBX_HARMONICS_PARAM_UNISON];
-        const bpbx_inst_param_info_s *p_info = bpbx_param_info(bpbx_inst_type(instrument), BPBX_HARMONICS_PARAM_UNISON);
+        const bpbx_param_info_s *p_info = bpbx_param_info(bpbx_synth_type(instrument), BPBX_HARMONICS_PARAM_UNISON);
         assert(p_info);
         const char **unisonNames = p_info->enum_values;
         if (ImGui::Combo("##unison", &p_unison, unisonNames, BPBX_UNISON_COUNT)) {
@@ -428,7 +428,7 @@ void PluginController::drawEffects() {
         static const char *effectNames[] = {"transition type", "chord type", "pitch shift", "detune", "vibrato", "note filter"};
 
         for (int i = 0; i < 6; i++) {
-            unsigned int toggle_param = bpbx_effect_toggle_param((bpbx_instfx_type_e) i);
+            unsigned int toggle_param = bpbx_effect_toggle_param((bpbx_synthfx_type_e) i);
             bool is_active = params[toggle_param] != 0.0;
 
             if (ImGui::Selectable(effectNames[i], is_active)) {
@@ -472,7 +472,7 @@ void PluginController::drawEffects() {
         sameLineRightCol();
         ImGui::SetNextItemWidth(-FLT_MIN);
 
-        const bpbx_inst_param_info_s *param_info = bpbx_param_info(inst_type, BPBX_PARAM_ARPEGGIO_SPEED);
+        const bpbx_param_info_s *param_info = bpbx_param_info(inst_type, BPBX_PARAM_ARPEGGIO_SPEED);
         sliderParameter(BPBX_PARAM_ARPEGGIO_SPEED, "##ArpeggioSpeed", 0.f, 50.f, param_info->enum_values[(int)params[BPBX_PARAM_ARPEGGIO_SPEED]]);
 
         // fast two-note option
@@ -616,7 +616,7 @@ void PluginController::drawEnvelopes() {
         }
     }
 
-    bpbx_inst_type_e instType = bpbx_inst_type(instrument);
+    bpbx_synth_type_e instType = bpbx_synth_type(instrument);
     const char **curveNames = bpbx_envelope_curve_preset_names();
 
     for (int envIndex = 0; envIndex < envelopes.size(); envIndex++) {
