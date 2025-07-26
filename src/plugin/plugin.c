@@ -318,6 +318,15 @@ clap_process_status plugin_process(const struct clap_plugin *plugin, const clap_
       }
 
       active_bpm *= plug->tempo_multiplier;
+
+      // clamp active_bpm because if it is zero then the plugin will
+      // take an (essentially) infinite amount of time to process a tick.
+      // then this means any subsequent ticks will not be processed.
+      // also it will completely freeze processing somehow.
+      if (active_bpm < 1.0) {
+         active_bpm = 1.0;
+      }
+
       const double beats_per_sec = active_bpm / 60.0;
 
       /* process every samples until the next event */
@@ -333,6 +342,8 @@ clap_process_status plugin_process(const struct clap_plugin *plugin, const clap_
 
             plug->frames_until_next_tick =
                (uint32_t)ceil(bpbx_calc_samples_per_tick(active_bpm, plug->sample_rate));
+
+            plug->cur_beat += beats_per_sec * sample_len * plug->frames_until_next_tick;
          }
 
          // render the audio
@@ -353,8 +364,7 @@ clap_process_status plugin_process(const struct clap_plugin *plugin, const clap_
          process->audio_outputs[0].data32[1][i] = v;
          ++buffer_idx;
       }
-      
-      plug->cur_beat += beats_per_sec * sample_len * frame_count;
+
    }
 
    bpbx_inst_set_userdata(plug->instrument, NULL);
