@@ -5,7 +5,7 @@
 #include <clap/include/clap/ext/gui.h>
 #include <clap/include/clap/ext/track-info.h>
 #include <clap/include/clap/ext/log.h>
-#include <cbeepsynth/include/beepbox_synth.h>
+#include <cbeepsynth/synth/include/beepbox_synth.h>
 
 #ifdef __cplusplus
 #include <cstdint>

@@ -2,7 +2,7 @@
 #include <stb_image.h>
 #include <cstring>
 
-#include <cbeepsynth/include/beepbox_synth.h>
+#include <cbeepsynth/synth/include/beepbox_synth.h>
 #include <clap/clap.h>
 #include <vector>
 #include <algorithm>

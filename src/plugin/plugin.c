@@ -834,9 +834,10 @@ bool plugin_state_save(const clap_plugin_t *plugin, const clap_ostream_t *stream
    ERRCHK(stream_write_prim(stream, &save_version, sizeof(save_version)));
 
    // write synth version
-   uint32_t synth_maj = BPBX_VERSION_MAJOR;
-   uint32_t synth_min = BPBX_VERSION_MINOR;
-   uint32_t synth_rev = BPBX_VERSION_REVISION;
+   // TODO: why does it write the version of the synth library, and not the plugin itself?
+   uint32_t synth_maj = BPBXSYN_VERSION_MAJOR;
+   uint32_t synth_min = BPBXSYN_VERSION_MINOR;
+   uint32_t synth_rev = BPBXSYN_VERSION_REVISION;
    ERRCHK(stream_write_prim(stream, &synth_maj, sizeof(synth_maj)));
    ERRCHK(stream_write_prim(stream, &synth_min, sizeof(synth_min)));
    ERRCHK(stream_write_prim(stream, &synth_rev, sizeof(synth_rev)));
@@ -931,9 +932,9 @@ bool plugin_state_load(const clap_plugin_t *plugin, const clap_istream_t *stream
    ERRCHK(stream_read_prim(stream, &synth_min, sizeof(synth_min)));
    ERRCHK(stream_read_prim(stream, &synth_rev, sizeof(synth_rev)));
 
-   if (synth_maj != BPBX_VERSION_MAJOR) return false;
-   if (synth_min != BPBX_VERSION_MINOR) return false;
-   if (synth_rev != BPBX_VERSION_REVISION) return false;
+   if (synth_maj != BPBXSYN_VERSION_MAJOR) return false;
+   if (synth_min != BPBXSYN_VERSION_MINOR) return false;
+   if (synth_rev != BPBXSYN_VERSION_REVISION) return false;
 
    // read parameters
    bpbx_synth_type_e type = bpbx_synth_type(plug->instrument);
