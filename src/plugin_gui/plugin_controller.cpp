@@ -944,7 +944,7 @@ void PluginController::filterInsertPole(FilterType filter, int control_idx, bpbx
             break;
     }
 
-    for (int i = BPBX_FILTER_GROUP_COUNT - 1; i >= control_idx; i--) {
+    for (int i = BPBX_FILTER_GROUP_COUNT - 2; i >= control_idx; i--) {
         paramChange(baseEnum + (i+1) * 3, params[baseEnum + i * 3]);
         paramChange(baseEnum + (i+1) * 3 + 1, params[baseEnum + i * 3 + 1]);
         paramChange(baseEnum + (i+1) * 3 + 2, params[baseEnum + i * 3 + 2]);
