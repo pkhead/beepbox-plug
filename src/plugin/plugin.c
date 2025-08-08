@@ -68,7 +68,10 @@ static inline void plugin_begin_note(
    plugin_s *plug, int16_t key, double velocity,
    int32_t note_id, int16_t port_index, int16_t channel
 ) {
-   bpbx_voice_id bpbx_id = bpbx_synth_begin_note(plug->instrument, key, velocity);
+   bpbx_voice_id bpbx_id = bpbx_synth_begin_note(
+      plug->instrument, key, velocity,
+      BPBX_NOTE_LENGTH_UNKNOWN);
+   
    plug->voices[bpbx_id] = (plugin_voice_s) {
       .active = true,
       .note_id = note_id,
@@ -76,6 +79,7 @@ static inline void plugin_begin_note(
       .channel = channel,
       .key = key
    };
+   
    plug->active_voice_count++;
 }
 
