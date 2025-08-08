@@ -1,1 +1,34 @@
-- vibrato starts from wrong beat in fl studio. Could either clap-wrapper not providing playback information (not likely) or my code being faulty. need to check with bitwig studio.
+- vibrato starts from wrong beat in fl studio. Could either clap-wrapper not
+  providing playback information (not likely) or my code being faulty. need to
+  check with bitwig studio.
+- implement strum chord type
+- explicitly-named note size, instead of calling it "mod wheel" or whatever.
+- now that a note length can be assigned to each note:
+	- implement negative fade-out correctly
+- add a way for the user to notify the synth of a "next note"
+  per voice. that way, the slide transition will work as it does in BeepBox,
+  where the seam between the note is the halfway point of the slide transition.
+
+
+
+
+
+STRUM:
+	on tick start:
+		choke every released note in a chord that is still active.
+		
+		when triggered, each voice (but the base) will not be computed, until
+		it is determined (using the voice index + strum speed setting [which is
+		a feature specific to this mod because idk why no mods have this]) that
+		the voice should finally be activated. Voice still needs to exist
+		upfront since polyphonic modulation needs something to write to. plus i
+		want the last sent modulation value to have an effect.
+		
+		(it will refer to beat start property of the voice index 0 of that
+		chord)
+	
+CUSTOM INTERVAL:
+	in all my years of beepboxing i honestly have no idea what this does.
+	i've never used it nor have i seen anyone that have.
+	But i do know it makes the instrument monophonic so i'll probably share code
+	because with the "monophonic"izer of the arpeggio chord type.
