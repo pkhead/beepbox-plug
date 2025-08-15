@@ -1,7 +1,7 @@
 - vibrato starts from wrong beat in fl studio. Could either clap-wrapper not
   providing playback information (not likely) or my code being faulty. need to
   check with bitwig studio.
-- implement strum chord type
+- implement custom interval chord type
 - explicitly-named note size, instead of calling it "mod wheel" or whatever.
 - now that a note length can be assigned to each note:
 	- implement negative fade-out correctly
