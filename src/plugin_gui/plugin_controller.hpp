@@ -26,17 +26,17 @@ private:
 
     const clap_plugin_t *const plugin;
     const clap_host_t *const host;
-    bpbx_synth_s *const instrument;
+    bpbxsyn_synth_s *const instrument;
     Page currentPage;
 
     bool showAbout;
-    bpbx_synth_type_e inst_type;
+    bpbxsyn_synth_type_e inst_type;
     std::unordered_map<clap_id, double> params;
     
     float uiRightCol;
     void sameLineRightCol();
 
-    std::vector<bpbx_envelope_s> envelopes;
+    std::vector<bpbxsyn_envelope_s> envelopes;
 
     bool updateParams();
     void updateColors(); // update style based on custom colors
@@ -65,7 +65,7 @@ private:
     void paramGestureEnd(uint32_t param_id);
 
     void filterRemovePole(FilterType filter, int control_idx);
-    void filterInsertPole(FilterType filter, int control_idx, bpbx_filter_type_e type, double freq, double gain);
+    void filterInsertPole(FilterType filter, int control_idx, bpbxsyn_filter_type_e type, double freq, double gain);
 
     int fadeDragMode;
     double fadeDragInit;
@@ -76,7 +76,7 @@ private:
         ImVec2 initialDragPos;
         std::vector<int> activeGestures;
 
-        bpbx_filter_type_e draggingPoleType;
+        bpbxsyn_filter_type_e draggingPoleType;
         bool draggingPoleExists;
         bool hasPoleBeenRemoved = false; // if the pole was ever removed during the drag
         bool poleIsNewlyAdded = false;
@@ -84,7 +84,7 @@ private:
     } eqWidgetDragState;
 
     struct {
-        bool activeGestures[BPBX_HARMONICS_CONTROL_COUNT] = {0};
+        bool activeGestures[BPBXSYN_HARMONICS_CONTROL_COUNT] = {0};
     } harmonicsEditorState;
 
 #ifdef PLUGIN_VST3
@@ -98,7 +98,7 @@ public:
     show_context_menu_f popupContextMenu;
     void *pluginUserdata;
 
-    PluginController(const clap_plugin_t *plugin, const clap_host_t *host, bpbx_synth_s *instrument);
+    PluginController(const clap_plugin_t *plugin, const clap_host_t *host, bpbxsyn_synth_s *instrument);
 
     void graphicsInit();
     void graphicsClose();

@@ -17,7 +17,7 @@ typedef struct plugin_gui_s {
     platform::Window *window;
     PluginController control;
 
-    plugin_gui_s(const clap_plugin_t *plugin, const clap_host_t *host, bpbx_synth_s *inst) : control(plugin, host, inst) {} 
+    plugin_gui_s(const clap_plugin_t *plugin, const clap_host_t *host, bpbxsyn_synth_s *inst) : control(plugin, host, inst) {} 
 } plugin_gui_s;
 
 void gui_event_enqueue(plugin_gui_s *iface, gui_event_queue_item_s item) {

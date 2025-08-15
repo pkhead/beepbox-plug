@@ -46,7 +46,7 @@ typedef struct {
 
         struct {
             uint32_t index;
-            bpbx_envelope_s envelope;
+            bpbxsyn_envelope_s envelope;
         } modify_envelope;
     };
 } gui_event_queue_item_s;
@@ -60,7 +60,7 @@ typedef struct {
 
     const clap_plugin_t *plugin;
     const clap_host_t *host;
-    bpbx_synth_s *instrument;
+    bpbxsyn_synth_s *instrument;
 
     show_context_menu_f show_context_menu;
     void *userdata;

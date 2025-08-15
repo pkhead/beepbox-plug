@@ -346,27 +346,27 @@ static const clap_plugin_track_info_t s_plugin_track_info = {
 // clap_plugin //
 /////////////////
 
-static void bpbx_log_cb(bpbx_log_severity_e severity, const char *msg, void *userdata) {
+static void bpbx_log_cb(bpbxsyn_log_severity_e severity, const char *msg, void *userdata) {
    plugin_s *plug = (plugin_s*)userdata;
    clap_log_severity clap_sev = CLAP_LOG_INFO;
    switch (severity) {
-      case BPBX_LOG_DEBUG:
+      case BPBXSYN_LOG_DEBUG:
          clap_sev = CLAP_LOG_DEBUG;
          break;
 
-      case BPBX_LOG_INFO:
+      case BPBXSYN_LOG_INFO:
          clap_sev = CLAP_LOG_INFO;
          break;
 
-      case BPBX_LOG_WARNING:
+      case BPBXSYN_LOG_WARNING:
          clap_sev = CLAP_LOG_WARNING;
          break;
 
-      case BPBX_LOG_ERROR:
+      case BPBXSYN_LOG_ERROR:
          clap_sev = CLAP_LOG_ERROR;
          break;
 
-      case BPBX_LOG_FATAL:
+      case BPBXSYN_LOG_FATAL:
          clap_sev = CLAP_LOG_FATAL;
          break;
    }
@@ -386,7 +386,7 @@ static bool plugin_init(const struct clap_plugin *plugin) {
    plug->host_track_info = (const clap_host_track_info_t*) plug->host->get_extension(plug->host, CLAP_EXT_TRACK_INFO);
    plug->host_context_menu = (const clap_host_context_menu_t*) plug->host->get_extension(plug->host, CLAP_EXT_CONTEXT_MENU);
 
-   plug->instrument = bpbx_synth_new(plug->inst_type);
+   plug->instrument = bpbxsyn_synth_new(plug->inst_type);
    plugin_init_inst(plug);
 
    if (plug->host_track_info) {
@@ -395,7 +395,7 @@ static bool plugin_init(const struct clap_plugin *plugin) {
    
    if (plug->host_log) {
       gui_set_log_func(plug->host_log->log, plug->host);
-      bpbx_set_log_func(bpbx_log_cb, plug);
+      bpbxsyn_set_log_func(bpbx_log_cb, plug);
    }
 
    return true;
@@ -405,7 +405,7 @@ static void plugin_destroy(const struct clap_plugin *plugin) {
    plugin_s *plug = plugin->plugin_data;
 
    if (plug->instrument)
-      bpbx_synth_destroy(plug->instrument);
+      bpbxsyn_synth_destroy(plug->instrument);
 
    free(plug);
 }
@@ -414,7 +414,7 @@ static bool plugin_activate(const struct clap_plugin *plugin, double sample_rate
    plugin_s *plug = plugin->plugin_data;
    
    plug->sample_rate = sample_rate;
-   bpbx_synth_set_sample_rate(plug->instrument, plug->sample_rate);
+   bpbxsyn_synth_set_sample_rate(plug->instrument, plug->sample_rate);
 
    free(plug->process_block);
    plug->process_block = malloc(max_frames_count * sizeof(float));
@@ -464,7 +464,7 @@ static const void *plugin_get_extension(const struct clap_plugin *plugin, const 
 
 static void plugin_on_main_thread(const struct clap_plugin *plugin) {}
 
-clap_plugin_t *plugin_create(const clap_host_t *host, const clap_plugin_descriptor_t *desc, bpbx_synth_type_e inst_type) {
+clap_plugin_t *plugin_create(const clap_host_t *host, const clap_plugin_descriptor_t *desc, bpbxsyn_synth_type_e inst_type) {
    plugin_s *p = malloc(sizeof(plugin_s));
    *p = (plugin_s) {
       .host = host,
@@ -496,15 +496,15 @@ clap_plugin_t *plugin_create(const clap_host_t *host, const clap_plugin_descript
 }
 
 clap_plugin_t *plugin_create_fm(const clap_host_t *host) {
-   return plugin_create(host, &s_fm_plug_desc, BPBX_INSTRUMENT_FM);
+   return plugin_create(host, &s_fm_plug_desc, BPBXSYN_SYNTH_FM);
 }
 
 clap_plugin_t *plugin_create_chip(const clap_host_t *host) {
-   return plugin_create(host, &s_chip_plug_desc, BPBX_INSTRUMENT_CHIP);
+   return plugin_create(host, &s_chip_plug_desc, BPBXSYN_SYNTH_CHIP);
 }
 
 clap_plugin_t *plugin_create_harmonics(const clap_host_t *host) {
-   return plugin_create(host, &s_harmonics_plug_desc, BPBX_INSTRUMENT_HARMONICS);
+   return plugin_create(host, &s_harmonics_plug_desc, BPBXSYN_SYNTH_HARMONICS);
 }
 
 /////////////////////////
