@@ -2,6 +2,7 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include <cbeepsynth/synth/include/beepbox_synth.h>
 #include "system.h"
@@ -532,7 +533,6 @@ bool plugin_params_text_to_value(const plugin_s *plug, clap_id param_id,
             break;
 
         case BPBXSYN_PARAM_DOUBLE: {
-            // TODO: why the fuck isn't this working. "-25.0" returns 0?
             *out_value = atof(param_value_text);
             break;
         }
