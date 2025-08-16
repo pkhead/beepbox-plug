@@ -78,7 +78,7 @@ set(LIBRARIES clap beepbox_synth_static)
 ## clap target ##
 #################
 
-set(CLAP_SOURCES src/plugin/entry.c src/plugin/plugin.c)
+set(CLAP_SOURCES src/plugin/entry.c src/plugin/plugin.c src/plugin/instrument.c)
 set(CLAP_TARGET ${PROJECT_NAME}_clap)
 add_library(${CLAP_TARGET} MODULE ${CLAP_SOURCES})
 target_compile_definitions(${CLAP_TARGET} PRIVATE PLUGIN_VERSION="${PROJECT_VERSION}")

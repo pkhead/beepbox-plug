@@ -9,7 +9,6 @@
 #include "plugin_controller.hpp"
 #include "util.hpp"
 #include "log.hpp"
-#include <plugin/include/clap_plugin.h>
 
 #ifdef PLUGIN_VST3
 #include "resource/vst_logo.hpp"
@@ -18,6 +17,8 @@
 #define FILTER_PARAM_TYPE(controlIndex) ((controlIndex) * 3)
 #define FILTER_PARAM_FREQ(controlIndex) ((controlIndex) * 3 + 1)
 #define FILTER_PARAM_GAIN(controlIndex) ((controlIndex) * 3 + 2)
+
+#define INSTR_CPARAM(local_idx) instr_global_id(INSTR_MODULE_CONTROL, INSTR_CPARAM_##local_idx)
 
 void PluginController::graphicsInit() {
     #ifdef PLUGIN_VST3
@@ -44,7 +45,7 @@ void PluginController::graphicsClose() {
     #endif
 }
 
-PluginController::PluginController(const clap_plugin_t *plugin, const clap_host_t *host, bpbxsyn_synth_s *instrument) :
+PluginController::PluginController(const clap_plugin_t *plugin, const clap_host_t *host, instrument_s *instrument) :
     plugin(plugin),
     host(host),
     instrument(instrument),
@@ -54,38 +55,37 @@ PluginController::PluginController(const clap_plugin_t *plugin, const clap_host_
     showAbout = false;
     useCustomColors = false;
     currentPage = PAGE_MAIN;
-    inst_type = bpbxsyn_synth_type(instrument);
+    inst_type = bpbxsyn_synth_type(instrument->synth);
 
     // initialize copy of plugin state
     sync();
 }
 
 void PluginController::sync() {
-    bpbxsyn_synth_type_e type = bpbxsyn_synth_type(instrument);
+    bpbxsyn_synth_type_e type = bpbxsyn_synth_type(instrument->synth);
     
-    uint32_t param_count = plugin_params_count(plugin);
+    uint32_t param_count = instr_params_count(instrument);
     params.reserve(param_count * 2.0);
 
     for (int i = 0; i < param_count; i++) {
-        clap_param_info_t param_info;
-        
-        if (!plugin_params_get_info(plugin, i, &param_info)) {
+        instr_param_id id = instr_get_param_id(instrument, i);
+        if (!id) {
             log_error("could not initialize parameter #%i because get_info failed", i);
             continue;
         }
 
         double param_value;
-        if (!plugin_params_get_value(plugin, param_info.id, &param_value)) {
+        if (!instr_get_param(instrument, id, &param_value)) {
             log_error("could not initialize parameter #%i because get_value failed", i);
         }
 
-        params[param_info.id] = param_value;
+        params[id] = param_value;
     }
 
     envelopes.clear();
     envelopes.reserve(BPBXSYN_MAX_ENVELOPE_COUNT);
-    envelopes.resize(bpbxsyn_synth_envelope_count(instrument));
-    memcpy(envelopes.data(), bpbxsyn_synth_get_envelope(instrument, 0), sizeof(bpbxsyn_envelope_s) * envelopes.size());
+    envelopes.resize(bpbxsyn_synth_envelope_count(instrument->synth));
+    memcpy(envelopes.data(), bpbxsyn_synth_get_envelope(instrument->synth, 0), sizeof(bpbxsyn_envelope_s) * envelopes.size());
 }
 
 bool PluginController::updateParams() {
@@ -269,7 +269,7 @@ void PluginController::drawFmGui() {
     ImGui::SetNextItemWidth(-FLT_MIN);
 
     {
-        const bpbxsyn_param_info_s *p_info = bpbxsyn_synth_param_info(bpbxsyn_synth_type(instrument), BPBXSYN_FM_PARAM_ALGORITHM);
+        const bpbxsyn_param_info_s *p_info = bpbxsyn_synth_param_info(inst_type, BPBXSYN_FM_PARAM_ALGORITHM);
         assert(p_info);
         const char **algoNames = p_info->enum_values;
         if (ImGui::Combo("##algo", &p_algo, algoNames, 13)) {
@@ -293,7 +293,7 @@ void PluginController::drawFmGui() {
 
         const uint32_t id = BPBXSYN_FM_PARAM_FREQ1 + op * 2;
 
-        const bpbxsyn_param_info_s *p_info = bpbxsyn_synth_param_info(bpbxsyn_synth_type(instrument), id);
+        const bpbxsyn_param_info_s *p_info = bpbxsyn_synth_param_info(inst_type, id);
         assert(p_info);
         const char **freqRatios = p_info->enum_values;
 
@@ -318,7 +318,7 @@ void PluginController::drawFmGui() {
     float feedbackEndX = ImGui::GetCursorPosX();
     ImGui::SetNextItemWidth(-FLT_MIN);
     {
-        const bpbxsyn_param_info_s *p_info = bpbxsyn_synth_param_info(bpbxsyn_synth_type(instrument), BPBXSYN_FM_PARAM_FEEDBACK_TYPE);
+        const bpbxsyn_param_info_s *p_info = bpbxsyn_synth_param_info(inst_type, BPBXSYN_FM_PARAM_FEEDBACK_TYPE);
         assert(p_info);
         const char **feedbackNames = p_info->enum_values;
 
@@ -349,7 +349,7 @@ void PluginController::drawChipGui1() {
     ImGui::SetNextItemWidth(-FLT_MIN);
     {
         int p_wave = params[BPBXSYN_CHIP_PARAM_WAVEFORM];
-        const bpbxsyn_param_info_s *p_info = bpbxsyn_synth_param_info(bpbxsyn_synth_type(instrument), BPBXSYN_CHIP_PARAM_WAVEFORM);
+        const bpbxsyn_param_info_s *p_info = bpbxsyn_synth_param_info(inst_type, BPBXSYN_CHIP_PARAM_WAVEFORM);
         assert(p_info);
         const char **waveNames = p_info->enum_values;
         if (ImGui::Combo("##wave", &p_wave, waveNames, BPBXSYN_CHIP_WAVE_COUNT)) {
@@ -370,7 +370,7 @@ void PluginController::drawChipGui2() {
     ImGui::SetNextItemWidth(-FLT_MIN);
     {
         int p_unison = params[BPBXSYN_CHIP_PARAM_UNISON];
-        const bpbxsyn_param_info_s *p_info = bpbxsyn_synth_param_info(bpbxsyn_synth_type(instrument), BPBXSYN_CHIP_PARAM_UNISON);
+        const bpbxsyn_param_info_s *p_info = bpbxsyn_synth_param_info(inst_type, BPBXSYN_CHIP_PARAM_UNISON);
         assert(p_info);
         const char **unisonNames = p_info->enum_values;
         if (ImGui::Combo("##unison", &p_unison, unisonNames, BPBXSYN_UNISON_COUNT)) {
@@ -397,7 +397,7 @@ void PluginController::drawHarmonicsGui() {
     ImGui::SetNextItemWidth(-FLT_MIN);
     {
         int p_unison = params[BPBXSYN_HARMONICS_PARAM_UNISON];
-        const bpbxsyn_param_info_s *p_info = bpbxsyn_synth_param_info(bpbxsyn_synth_type(instrument), BPBXSYN_HARMONICS_PARAM_UNISON);
+        const bpbxsyn_param_info_s *p_info = bpbxsyn_synth_param_info(inst_type, BPBXSYN_HARMONICS_PARAM_UNISON);
         assert(p_info);
         const char **unisonNames = p_info->enum_values;
         if (ImGui::Combo("##unison", &p_unison, unisonNames, BPBXSYN_UNISON_COUNT)) {
@@ -632,7 +632,7 @@ void PluginController::drawEnvelopes() {
         }
     }
 
-    bpbxsyn_synth_type_e instType = bpbxsyn_synth_type(instrument);
+    bpbxsyn_synth_type_e instType = inst_type;
     const char **curveNames = bpbxsyn_envelope_curve_preset_names();
 
     for (int envIndex = 0; envIndex < envelopes.size(); envIndex++) {
@@ -1646,26 +1646,26 @@ void PluginController::draw(platform::Window *window) {
                     ImGui::Text("Tempo Mult.");
                     ImGui::Text("Force Tempo");
 
-                    if (params[PLUGIN_CPARAM_TEMPO_USE_OVERRIDE])
+                    if (params[INSTR_CPARAM(TEMPO_USE_OVERRIDE)])
                         ImGui::Text("Tempo");
                     
                     ImGui::EndGroup();
 
                     ImGui::SameLine();
                     ImGui::BeginGroup();
-                    sliderParameter(PLUGIN_CPARAM_GAIN, "###gain", -10.0, 10.0, "%.3f dB");
-                    sliderParameter(PLUGIN_CPARAM_TEMPO_MULTIPLIER, "###tempomult", 0.0, 10.0, "%.1fx");
+                    sliderParameter(INSTR_CPARAM(GAIN), "###gain", -10.0, 10.0, "%.3f dB");
+                    sliderParameter(INSTR_CPARAM(TEMPO_MULTIPLIER), "###tempomult", 0.0, 10.0, "%.1fx");
                     
-                    bool useTempoOverride = params[PLUGIN_CPARAM_TEMPO_USE_OVERRIDE] != 0.0;
+                    bool useTempoOverride = params[INSTR_CPARAM(TEMPO_USE_OVERRIDE)] != 0.0;
                     if (ImGui::Checkbox("##tempooverridetoggle", &useTempoOverride)) {
-                        paramGestureBegin(PLUGIN_CPARAM_TEMPO_USE_OVERRIDE);
-                        paramChange(PLUGIN_CPARAM_TEMPO_USE_OVERRIDE, useTempoOverride ? 1.0 : 0.0);
-                        paramGestureEnd(PLUGIN_CPARAM_TEMPO_USE_OVERRIDE);
+                        paramGestureBegin(INSTR_CPARAM(TEMPO_USE_OVERRIDE));
+                        paramChange(INSTR_CPARAM(TEMPO_USE_OVERRIDE), useTempoOverride ? 1.0 : 0.0);
+                        paramGestureEnd(INSTR_CPARAM(TEMPO_USE_OVERRIDE));
                     }
-                    paramControls(PLUGIN_CPARAM_TEMPO_USE_OVERRIDE);
+                    paramControls(INSTR_CPARAM(TEMPO_USE_OVERRIDE));
                     
-                    if (params[PLUGIN_CPARAM_TEMPO_USE_OVERRIDE])
-                        sliderParameter(PLUGIN_CPARAM_TEMPO_OVERRIDE, "###tempooverride", 30.0, 500.0, "%.0f");
+                    if (params[INSTR_CPARAM(TEMPO_USE_OVERRIDE)])
+                        sliderParameter(INSTR_CPARAM(TEMPO_OVERRIDE), "###tempooverride", 30.0, 500.0, "%.0f");
                     
                     ImGui::EndGroup();
                     

@@ -118,21 +118,66 @@ static const clap_plugin_latency_t s_plugin_latency = {
 // clap_state //
 ////////////////
 
+static bool clap_plugin_state_save(const clap_plugin_t *plugin,
+                                   const clap_ostream_t *stream)
+{
+   return plugin_state_save(plugin->plugin_data, stream);
+}
+
+static bool clap_plugin_state_load(const clap_plugin_t *plugin,
+                                   const clap_istream_t *stream)
+{
+   return plugin_state_load(plugin->plugin_data, stream);
+}
+
 static const clap_plugin_state_t s_plugin_state = {
-   .save = plugin_state_save,
-   .load = plugin_state_load,
+   .save = clap_plugin_state_save,
+   .load = clap_plugin_state_load,
 };
 
 /////////////////
 // clap_params //
 /////////////////
 
-void plugin_params_flush(const clap_plugin_t *plugin, const clap_input_events_t *in, const clap_output_events_t *out) {
+static uint32_t clap_plugin_params_count(const clap_plugin_t *plugin) {
+   return plugin_params_count(plugin->plugin_data);
+}
+
+static bool clap_plugin_params_get_info(const clap_plugin_t *plugin,
+                                        uint32_t param_index,
+                                        clap_param_info_t *param_info)
+{
+   return plugin_params_get_info(plugin->plugin_data, param_index, param_info);
+}
+
+static bool clap_plugin_params_get_value(const clap_plugin_t *plugin,
+                                         clap_id param_id, double *out_value)
+{
+   return plugin_params_get_value(plugin->plugin_data, param_id, out_value);
+}
+
+static bool clap_plugin_params_value_to_text(const clap_plugin_t *plugin,
+                                             clap_id param_id, double value,
+                                             char *out_buffer,
+                                             uint32_t out_buffer_capacity)
+{
+   return plugin_params_value_to_text(plugin->plugin_data, param_id, value, out_buffer, out_buffer_capacity);
+}
+
+static bool clap_plugin_params_text_to_value(const clap_plugin_t *plugin,
+                                             clap_id param_id,
+                                             const char *param_value_text,
+                                             double *out_value)
+{
+   return plugin_params_text_to_value(plugin->plugin_data, param_id, param_value_text, out_value);
+}
+
+static void clap_plugin_params_flush(const clap_plugin_t *plugin, const clap_input_events_t *in, const clap_output_events_t *out) {
    plugin_s *plug = plugin->plugin_data;
    uint32_t size = in->size(in);
 
    if (plug->gui)
-      process_gui_events(plug, out);
+      plugin_process_gui_events(plug, out);
 
    for (uint32_t i = 0; i < size; ++i) {
       const clap_event_header_t *hdr = in->get(in, i);
@@ -143,12 +188,12 @@ void plugin_params_flush(const clap_plugin_t *plugin, const clap_input_events_t 
 
 
 static const clap_plugin_params_t s_plugin_params = {
-   .count = plugin_params_count,
-   .get_info = plugin_params_get_info,
-   .get_value = plugin_params_get_value,
-   .value_to_text = plugin_params_value_to_text,
-   .text_to_value = plugin_params_text_to_value,
-   .flush = plugin_params_flush
+   .count = clap_plugin_params_count,
+   .get_info = clap_plugin_params_get_info,
+   .get_value = clap_plugin_params_get_value,
+   .value_to_text = clap_plugin_params_value_to_text,
+   .text_to_value = clap_plugin_params_text_to_value,
+   .flush = clap_plugin_params_flush
 };
 
 //////////////
@@ -187,7 +232,7 @@ bool plugin_gui_create(const clap_plugin_t *plugin, const char *api, bool is_flo
       .plugin = plugin,
       .host = plug->host,
       .is_floating = is_floating,
-      .instrument = plug->instrument,
+      .instrument = &plug->instrument,
       .show_context_menu = gui_show_context_menu,
       .userdata = plug
    });
@@ -374,65 +419,37 @@ static void bpbx_log_cb(bpbxsyn_log_severity_e severity, const char *msg, void *
    plug->host_log->log(plug->host, clap_sev, msg);
 }
 
-static bool plugin_init(const struct clap_plugin *plugin) {
+static bool clap_plugin_init(const clap_plugin_t *plugin) {
    plugin_s *plug = plugin->plugin_data;
+   return plugin_init(plug);
+}
 
-   // Fetch host's extensions here
-   // Make sure to check that the interface functions are not null pointers
-   plug->host_log = (const clap_host_log_t *)plug->host->get_extension(plug->host, CLAP_EXT_LOG);
-   plug->host_thread_check = (const clap_host_thread_check_t *)plug->host->get_extension(plug->host, CLAP_EXT_THREAD_CHECK);
-   plug->host_latency = (const clap_host_latency_t *)plug->host->get_extension(plug->host, CLAP_EXT_LATENCY);
-   plug->host_state = (const clap_host_state_t *)plug->host->get_extension(plug->host, CLAP_EXT_STATE);
-   plug->host_track_info = (const clap_host_track_info_t*) plug->host->get_extension(plug->host, CLAP_EXT_TRACK_INFO);
-   plug->host_context_menu = (const clap_host_context_menu_t*) plug->host->get_extension(plug->host, CLAP_EXT_CONTEXT_MENU);
+static void clap_plugin_destroy(const clap_plugin_t *plugin) {
+   plugin_s *plug = plugin->plugin_data;
+   plugin_destroy(plug);
+}
 
-   plug->instrument = bpbxsyn_synth_new(plug->inst_type);
-   plugin_init_inst(plug);
+static bool clap_plugin_activate(const struct clap_plugin *plugin, double sample_rate, uint32_t min_frames_count, uint32_t max_frames_count) {
+   plugin_s *plug = plugin->plugin_data;
+   return plugin_activate(plug, sample_rate, min_frames_count, max_frames_count);
+}
 
-   if (plug->host_track_info) {
-      plugin_track_info_changed(plugin);
-   }
-   
-   if (plug->host_log) {
-      gui_set_log_func(plug->host_log->log, plug->host);
-      bpbxsyn_set_log_func(bpbx_log_cb, plug);
-   }
+static void clap_plugin_deactivate(const struct clap_plugin *plugin) {
+   plugin_s *plug = plugin->plugin_data;
+   plugin_deactivate(plug);
+}
 
+static bool plugin_start_processing(const struct clap_plugin *plugin) {
    return true;
 }
-
-static void plugin_destroy(const struct clap_plugin *plugin) {
-   plugin_s *plug = plugin->plugin_data;
-
-   if (plug->instrument)
-      bpbxsyn_synth_destroy(plug->instrument);
-
-   free(plug);
-}
-
-static bool plugin_activate(const struct clap_plugin *plugin, double sample_rate, uint32_t min_frames_count, uint32_t max_frames_count) {
-   plugin_s *plug = plugin->plugin_data;
-   
-   plug->sample_rate = sample_rate;
-   bpbxsyn_synth_set_sample_rate(plug->instrument, plug->sample_rate);
-
-   free(plug->process_block);
-   plug->process_block = malloc(max_frames_count * sizeof(float));
-
-   return true;
-}
-
-static void plugin_deactivate(const struct clap_plugin *plugin) {
-   plugin_s *plug = plugin->plugin_data;
-   free(plug->process_block);
-   plug->process_block = NULL;
-}
-
-static bool plugin_start_processing(const struct clap_plugin *plugin) { return true; }
 
 static void plugin_stop_processing(const struct clap_plugin *plugin) {}
 
 static void plugin_reset(const struct clap_plugin *plugin) {}
+
+clap_process_status clap_plugin_process(const clap_plugin_t *plugin, const clap_process_t *process) {
+   return plugin_process(plugin->plugin_data, process);
+}
 
 static const void *plugin_get_extension(const struct clap_plugin *plugin, const char *id) {
    if (!strcmp(id, CLAP_EXT_LATENCY))
@@ -464,47 +481,39 @@ static const void *plugin_get_extension(const struct clap_plugin *plugin, const 
 
 static void plugin_on_main_thread(const struct clap_plugin *plugin) {}
 
-clap_plugin_t *plugin_create(const clap_host_t *host, const clap_plugin_descriptor_t *desc, bpbxsyn_synth_type_e inst_type) {
+clap_plugin_t *clap_plugin_create(const clap_host_t *host, const clap_plugin_descriptor_t *desc, bpbxsyn_synth_type_e inst_type) {
    plugin_s *p = malloc(sizeof(plugin_s));
    *p = (plugin_s) {
       .host = host,
       .plugin.desc = desc,
       .plugin.plugin_data = p,
-      .plugin.init = plugin_init,
-      .plugin.destroy = plugin_destroy,
-      .plugin.activate = plugin_activate,
-      .plugin.deactivate = plugin_deactivate,
+      .plugin.init = clap_plugin_init,
+      .plugin.destroy = clap_plugin_destroy,
+      .plugin.activate = clap_plugin_activate,
+      .plugin.deactivate = clap_plugin_deactivate,
       .plugin.start_processing = plugin_start_processing,
       .plugin.stop_processing = plugin_stop_processing,
       .plugin.reset = plugin_reset,
-      .plugin.process = plugin_process,
+      .plugin.process = clap_plugin_process,
       .plugin.get_extension = plugin_get_extension,
       .plugin.on_main_thread = plugin_on_main_thread,
-
-      .inst_type = inst_type,
-      .has_track_color = false,
-      .bpm = 150.0,
-
-      .tempo_multiplier = 1.0,
-      .tempo_override = 150.0,
-      .tempo_use_override = false
    };
 
    // Don't call into the host here
-
+   plugin_create(p, inst_type);
    return &p->plugin;
 }
 
 clap_plugin_t *plugin_create_fm(const clap_host_t *host) {
-   return plugin_create(host, &s_fm_plug_desc, BPBXSYN_SYNTH_FM);
+   return clap_plugin_create(host, &s_fm_plug_desc, BPBXSYN_SYNTH_FM);
 }
 
 clap_plugin_t *plugin_create_chip(const clap_host_t *host) {
-   return plugin_create(host, &s_chip_plug_desc, BPBXSYN_SYNTH_CHIP);
+   return clap_plugin_create(host, &s_chip_plug_desc, BPBXSYN_SYNTH_CHIP);
 }
 
 clap_plugin_t *plugin_create_harmonics(const clap_host_t *host) {
-   return plugin_create(host, &s_harmonics_plug_desc, BPBXSYN_SYNTH_HARMONICS);
+   return clap_plugin_create(host, &s_harmonics_plug_desc, BPBXSYN_SYNTH_HARMONICS);
 }
 
 /////////////////////////

@@ -2,6 +2,7 @@
 #define _bpbxclap_util_h
 
 #ifdef _MSC_VER
+#include <string.h>
 #define impl_strcpy_s strcpy_s
 #else
 static inline void impl_strcpy_s(char *restrict dest, size_t destsz, const char *restrict src) {

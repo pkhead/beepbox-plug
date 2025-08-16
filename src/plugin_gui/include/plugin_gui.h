@@ -6,6 +6,7 @@
 #include <clap/include/clap/ext/track-info.h>
 #include <clap/include/clap/ext/log.h>
 #include <cbeepsynth/synth/include/beepbox_synth.h>
+#include <plugin/include/instrument.h>
 
 #ifdef __cplusplus
 #include <cstdint>
@@ -60,7 +61,7 @@ typedef struct {
 
     const clap_plugin_t *plugin;
     const clap_host_t *host;
-    bpbxsyn_synth_s *instrument;
+    instrument_s *instrument;
 
     show_context_menu_f show_context_menu;
     void *userdata;
