@@ -201,7 +201,7 @@ void instr_process(instrument_s *instr, float **output, uint32_t frame_count,
         for (uint32_t i = 0; i < frame_count; ++i) {
             const float v = instr->synth_mono_buffer[i] * instr->linear_gain;
             process_block[0][i] = v;
-            process_block[1][i] = v;
+            process_block[1][i] = 0.0;
         }
 
         // perform effect processing
