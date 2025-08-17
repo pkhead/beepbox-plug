@@ -55,6 +55,7 @@ PluginController::PluginController(const clap_plugin_t *plugin, const clap_host_
 {
     showAbout = false;
     useCustomColors = false;
+    showPanDelay = false;
     currentPage = PAGE_MAIN;
     inst_type = bpbxsyn_synth_type(instrument->synth);
 
@@ -1727,16 +1728,24 @@ void PluginController::draw(platform::Window *window) {
                         // panning
                         ImGui::AlignTextToFramePadding();
                         ImGui::Text("Panning");
+                        ImGui::SameLine();
+                        if (ImGui::SmallButton("v")) {
+                            showPanDelay = !showPanDelay;
+                        }
+
                         sameLineRightCol();
                         ImGui::SetNextItemWidth(-FLT_MIN);
                         sliderParameter(PARAM(PANNING, BPBXSYN_PANNING_PARAM_PAN), "##panning", 0.f, BPBXSYN_PAN_VALUE_MAX, "%.0f");
 
                         // pan delay
-                        ImGui::AlignTextToFramePadding();
-                        ImGui::Text("Pan Delay");
-                        sameLineRightCol();
-                        ImGui::SetNextItemWidth(-FLT_MIN);
-                        sliderParameter(PARAM(PANNING, BPBXSYN_PANNING_PARAM_PAN_DELAY), "##panDelay", 0.f, BPBXSYN_PAN_DELAY_MAX, "%.0f");
+                        if (showPanDelay) {
+                            ImGui::AlignTextToFramePadding();
+                            ImGui::Bullet();
+                            ImGui::Text("Delay");
+                            sameLineRightCol();
+                            ImGui::SetNextItemWidth(-FLT_MIN);
+                            sliderParameter(PARAM(PANNING, BPBXSYN_PANNING_PARAM_PAN_DELAY), "##panDelay", 0.f, BPBXSYN_PAN_DELAY_MAX, "%.0f");
+                        }
 
                         // why are some uis separated like this
                         switch (inst_type) {

@@ -70,6 +70,8 @@ private:
     int fadeDragMode;
     double fadeDragInit;
 
+    bool showPanDelay;
+
     struct {
         int activePoleIndex = -1;
         bool wasDragging = false;
