@@ -19,6 +19,7 @@
 #define FILTER_PARAM_GAIN(controlIndex) ((controlIndex) * 3 + 2)
 
 #define INSTR_CPARAM(local_idx) instr_global_id(INSTR_MODULE_CONTROL, INSTR_CPARAM_##local_idx)
+#define PARAM(module, local_idx) instr_global_id(INSTR_MODULE_##module, local_idx)
 
 void PluginController::graphicsInit() {
     #ifdef PLUGIN_VST3
@@ -1722,6 +1723,20 @@ void PluginController::draw(platform::Window *window) {
                         sameLineRightCol();
                         ImGui::SetNextItemWidth(-FLT_MIN);
                         sliderParameter(BPBXSYN_PARAM_VOLUME, "##volume", -25.0, 25.0, "%.0f");
+
+                        // panning
+                        ImGui::AlignTextToFramePadding();
+                        ImGui::Text("Panning");
+                        sameLineRightCol();
+                        ImGui::SetNextItemWidth(-FLT_MIN);
+                        sliderParameter(PARAM(PANNING, BPBXSYN_PANNING_PARAM_PAN), "##panning", 0.f, BPBXSYN_PAN_VALUE_MAX, "%.0f");
+
+                        // pan delay
+                        ImGui::AlignTextToFramePadding();
+                        ImGui::Text("Pan Delay");
+                        sameLineRightCol();
+                        ImGui::SetNextItemWidth(-FLT_MIN);
+                        sliderParameter(PARAM(PANNING, BPBXSYN_PANNING_PARAM_PAN_DELAY), "##panDelay", 0.f, BPBXSYN_PAN_DELAY_MAX, "%.0f");
 
                         // why are some uis separated like this
                         switch (inst_type) {

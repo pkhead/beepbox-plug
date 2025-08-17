@@ -87,10 +87,15 @@ bool instr_init(instrument_s *instr, bpbxsyn_synth_type_e type) {
     instr->fx_panning = bpbxsyn_effect_new(BPBXSYN_EFFECT_PANNING);
     if (!instr->fx_panning) return false;
 
+    instr_activate_module(instr, INSTR_MODULE_PANNING);
+
     return true;
 }
 
 void instr_destroy(instrument_s *instr) {
+    // caller should have called this before, but do it again just in case.
+    instr_deactivate(instr);
+
     bpbxsyn_synth_destroy(instr->synth);
     bpbxsyn_effect_destroy(instr->fx_panning);
 }
@@ -103,17 +108,28 @@ bool instr_activate(instrument_s *instr, double sample_rate,
     bpbxsyn_synth_set_sample_rate(instr->synth, sample_rate);
     bpbxsyn_effect_set_sample_rate(instr->fx_panning, sample_rate);
 
-    free(instr->process_block);
-    instr->process_block = malloc(max_frames_count * sizeof(float));
-    if (!instr->process_block)
-        return false;
+    // allocate process blocks
+    instr->synth_mono_buffer = malloc(max_frames_count * sizeof(float));
+    for (int i = 0; i < 2; ++i) {
+        free(instr->process_block[i]);
+        instr->process_block[i] = malloc(max_frames_count * sizeof(float));
+        if (!instr->process_block[i]) return false;
+    }
 
     return true;
 }
 
 bool instr_deactivate(instrument_s *instr) {
-    free(instr->process_block);
-    instr->process_block = NULL;
+    // free process blocks
+    free(instr->synth_mono_buffer);
+    instr->synth_mono_buffer = NULL;
+
+    for (int i = 0; i < 2; ++i) {
+        free(instr->process_block[i]);
+
+        instr->process_block[i] = NULL;
+    }
+
     return true;
 }
 
@@ -148,15 +164,21 @@ void instr_process(instrument_s *instr, float **output, uint32_t frame_count,
     const double beats_per_sec = active_bpm / 60.0;
     const double sample_len = 1.0 / instr->sample_rate;
 
+    const bool uses_panning = instr_is_module_active(instr, INSTR_MODULE_PANNING);
+
     float *out_l = output[0];
     float *out_r = output[1];
     for (uint32_t i = 0; i < frame_count;) {
         // instrument needs a tick
         if (instr->frames_until_next_tick == 0) {
-            bpbxsyn_synth_tick(instr->synth, &(bpbxsyn_tick_ctx_s) {
+            bpbxsyn_tick_ctx_s tick_ctx = (bpbxsyn_tick_ctx_s) {
                 .bpm = active_bpm,
                 .beat = instr->cur_beat,
-            });
+            };
+
+            bpbxsyn_synth_tick(instr->synth, &tick_ctx);
+            if (uses_panning)
+                bpbxsyn_effect_tick(instr->fx_panning, &tick_ctx);
 
             instr->frames_until_next_tick =
                 (uint32_t)ceil(bpbxsyn_calc_samples_per_tick(active_bpm, instr->sample_rate));
@@ -164,22 +186,37 @@ void instr_process(instrument_s *instr, float **output, uint32_t frame_count,
             instr->cur_beat += beats_per_sec * sample_len * instr->frames_until_next_tick;
         }
 
-        // render the audio
+        // render the mono audio into process_block[1]
         uint32_t frames_to_process = frame_count - i;
         if (instr->frames_until_next_tick < frames_to_process)
             frames_to_process = instr->frames_until_next_tick;
 
-        bpbxsyn_synth_run(instr->synth, instr->process_block + i, frames_to_process);
+        bpbxsyn_synth_run(instr->synth, instr->synth_mono_buffer + i, frames_to_process);
+
+        // convert mono audio from process_block[1] into process_block[0]
+        float *process_block[2];
+        process_block[0] = instr->process_block[0] + i;
+        process_block[1] = instr->process_block[1] + i;
+
+        for (uint32_t i = 0; i < frame_count; ++i) {
+            const float v = instr->synth_mono_buffer[i] * instr->linear_gain;
+            process_block[0][i] = v;
+            process_block[1][i] = v;
+        }
+
+        // perform effect processing
+        if (uses_panning)
+            bpbxsyn_effect_run(instr->fx_panning, process_block, frames_to_process);
+
         i += frames_to_process;
         inst_proc.cur_sample += frames_to_process;
         instr->frames_until_next_tick -= frames_to_process;
     }
 
+    // write output
     for (uint32_t i = 0; i < frame_count; ++i) {
-        // store output samples
-        const float v = instr->process_block[i] * instr->linear_gain;
-        output[0][i] = v;
-        output[1][i] = v;
+        output[0][i] = instr->process_block[0][i];
+        output[1][i] = instr->process_block[1][i];
     }
 
     bpbxsyn_synth_set_userdata(instr->synth, NULL);

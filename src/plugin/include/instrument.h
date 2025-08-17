@@ -56,7 +56,13 @@ typedef struct {
     bpbxsyn_effect_s *fx_panning;
 
     uint32_t frames_until_next_tick;
-    float *process_block;
+    
+    // mono output buffer for the synth
+    float *synth_mono_buffer;
+    
+    // stereo processing block (effect processing is done in-place)
+    // process_block[0] is the left channel, and process_block[1] is the right.
+    float *process_block[2];
 
     double sample_rate;
     double bpm;
