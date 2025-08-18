@@ -18,7 +18,7 @@
 #define FILTER_PARAM_FREQ(controlIndex) ((controlIndex) * 3 + 1)
 #define FILTER_PARAM_GAIN(controlIndex) ((controlIndex) * 3 + 2)
 
-#define INSTR_CPARAM(local_idx) instr_global_id(INSTR_MODULE_CONTROL, INSTR_CPARAM_##local_idx)
+#define CPARAM(local_idx) instr_global_id(INSTR_MODULE_CONTROL, INSTR_CPARAM_##local_idx)
 #define PARAM(module, local_idx) instr_global_id(INSTR_MODULE_##module, local_idx)
 
 void PluginController::graphicsInit() {
@@ -442,6 +442,14 @@ void PluginController::drawEffects() {
             }
         }
 
+        if (ImGui::Selectable("echo", params[CPARAM(ENABLE_ECHO)] != 0.0)) {
+            bool e = params[CPARAM(ENABLE_ECHO)] != 0.0;
+
+            paramGestureBegin(CPARAM(ENABLE_ECHO));
+            paramChange(CPARAM(ENABLE_ECHO), (!e) ? 1.0 : 0.0);
+            paramGestureEnd(CPARAM(ENABLE_ECHO));
+        }
+
         ImGui::EndPopup();
     }
 
@@ -607,6 +615,21 @@ void PluginController::drawEffects() {
 
         sameLineRightCol();
         drawEqWidget(FILTER_NOTE, "eqctl", ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() * 1.75f));
+    }
+
+    // echo
+    if (params[CPARAM(ENABLE_ECHO)] != 0) {
+        ImGui::AlignTextToFramePadding();
+        ImGui::Text("Echo");
+        sameLineRightCol();
+        ImGui::SetNextItemWidth(-FLT_MIN);
+        sliderParameter(PARAM(ECHO, BPBXSYN_ECHO_PARAM_SUSTAIN), "##echoSustain", 0.f, BPBXSYN_ECHO_SUSTAIN_MAX, "%.0f");
+
+        ImGui::AlignTextToFramePadding();
+        ImGui::Text("Echo Delay");
+        sameLineRightCol();
+        ImGui::SetNextItemWidth(-FLT_MIN);
+        sliderParameter(PARAM(ECHO, BPBXSYN_ECHO_PARAM_DELAY), "##echoDelay", 0.f, BPBXSYN_ECHO_DELAY_MAX, "%.0f");
     }
 }
 
@@ -1648,26 +1671,26 @@ void PluginController::draw(platform::Window *window) {
                     ImGui::Text("Tempo Mult.");
                     ImGui::Text("Force Tempo");
 
-                    if (params[INSTR_CPARAM(TEMPO_USE_OVERRIDE)])
+                    if (params[CPARAM(TEMPO_USE_OVERRIDE)])
                         ImGui::Text("Tempo");
                     
                     ImGui::EndGroup();
 
                     ImGui::SameLine();
                     ImGui::BeginGroup();
-                    sliderParameter(INSTR_CPARAM(GAIN), "###gain", -10.0, 10.0, "%.3f dB");
-                    sliderParameter(INSTR_CPARAM(TEMPO_MULTIPLIER), "###tempomult", 0.0, 10.0, "%.1fx");
+                    sliderParameter(CPARAM(GAIN), "###gain", -10.0, 10.0, "%.3f dB");
+                    sliderParameter(CPARAM(TEMPO_MULTIPLIER), "###tempomult", 0.0, 10.0, "%.1fx");
                     
-                    bool useTempoOverride = params[INSTR_CPARAM(TEMPO_USE_OVERRIDE)] != 0.0;
+                    bool useTempoOverride = params[CPARAM(TEMPO_USE_OVERRIDE)] != 0.0;
                     if (ImGui::Checkbox("##tempooverridetoggle", &useTempoOverride)) {
-                        paramGestureBegin(INSTR_CPARAM(TEMPO_USE_OVERRIDE));
-                        paramChange(INSTR_CPARAM(TEMPO_USE_OVERRIDE), useTempoOverride ? 1.0 : 0.0);
-                        paramGestureEnd(INSTR_CPARAM(TEMPO_USE_OVERRIDE));
+                        paramGestureBegin(CPARAM(TEMPO_USE_OVERRIDE));
+                        paramChange(CPARAM(TEMPO_USE_OVERRIDE), useTempoOverride ? 1.0 : 0.0);
+                        paramGestureEnd(CPARAM(TEMPO_USE_OVERRIDE));
                     }
-                    paramControls(INSTR_CPARAM(TEMPO_USE_OVERRIDE));
+                    paramControls(CPARAM(TEMPO_USE_OVERRIDE));
                     
-                    if (params[INSTR_CPARAM(TEMPO_USE_OVERRIDE)])
-                        sliderParameter(INSTR_CPARAM(TEMPO_OVERRIDE), "###tempooverride", 30.0, 500.0, "%.0f");
+                    if (params[CPARAM(TEMPO_USE_OVERRIDE)])
+                        sliderParameter(CPARAM(TEMPO_OVERRIDE), "###tempooverride", 30.0, 500.0, "%.0f");
                     
                     ImGui::EndGroup();
                     

@@ -49,6 +49,11 @@ typedef struct {
             uint32_t index;
             bpbxsyn_envelope_s envelope;
         } modify_envelope;
+
+        struct {
+            uint8_t module_index;
+            bool active_state;
+        } update_module;
     };
 } gui_event_queue_item_s;
 

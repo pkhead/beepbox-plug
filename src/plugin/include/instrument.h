@@ -29,12 +29,22 @@ typedef enum {
     INSTR_MODULE_COUNT
 } instr_module_e;
 
+#define INSTR_FIRST_EFFECT_MODULE INSTR_MODULE_EQ
+#define INSTR_LAST_EFFECT_MODULE INSTR_MODULE_REVERB
+#define INSTR_EFFECT_MODULE_COUNT ((INSTR_LAST_EFFECT_MODULE - INSTR_FIRST_EFFECT_MODULE + 1))
+
 // plugin control parameters, stored in instrument/effect instances
 typedef enum {
     INSTR_CPARAM_GAIN,
     INSTR_CPARAM_TEMPO_USE_OVERRIDE,
     INSTR_CPARAM_TEMPO_MULTIPLIER,
     INSTR_CPARAM_TEMPO_OVERRIDE,
+
+    INSTR_CPARAM_ENABLE_DISTORTION,
+    INSTR_CPARAM_ENABLE_BITCRUSHER,
+    INSTR_CPARAM_ENABLE_CHORUS,
+    INSTR_CPARAM_ENABLE_ECHO,
+    INSTR_CPARAM_ENABLE_REVERB,
 
     INSTR_CPARAM_COUNT
 } instr_cparam_e;
@@ -52,8 +62,24 @@ typedef struct {
     bpbxsyn_synth_type_e type;
     bpbxsyn_synth_s *synth;
 
-    uint8_t active_modules[INSTR_MODULE_COUNT];
-    bpbxsyn_effect_s *fx_panning;
+    bool use_distortion;
+    bool use_bitcrusher;
+    bool use_chorus;
+    bool use_echo;
+    bool use_reverb;
+
+    union {
+        bpbxsyn_effect_s *effect_modules[INSTR_EFFECT_MODULE_COUNT];
+        struct {
+            bpbxsyn_effect_s *eq;
+            bpbxsyn_effect_s *panning;
+            bpbxsyn_effect_s *distortion;
+            bpbxsyn_effect_s *bitcrusher;
+            bpbxsyn_effect_s *chorus;
+            bpbxsyn_effect_s *echo;
+            bpbxsyn_effect_s *reverb;
+        } fx;
+    };
 
     uint32_t frames_until_next_tick;
     
@@ -102,9 +128,9 @@ bool instr_activate(instrument_s *instr, double sample_rate,
                     uint32_t max_frames_count);
 bool instr_deactivate(instrument_s *instr);
 
-void instr_activate_module(instrument_s *instr, instr_module_e module);
-void instr_deactivate_module(instrument_s *instr, instr_module_e module);
-bool instr_is_module_active(const instrument_s *instr, instr_module_e module);
+void instr_set_effect_active(instrument_s *instr, bpbxsyn_effect_type_e effect,
+                             bool value);
+// bool instr_is_module_active(const instrument_s *instr, instr_module_e module);
 
 void instr_begin_note(instrument_s *instr, int16_t key, double velocity,
                       int32_t note_id, int16_t port_index, int16_t channel);

@@ -46,6 +46,11 @@ static void bpbxsyn_voice_end_cb(bpbxsyn_synth_s *inst, bpbxsyn_voice_id id) {
    // ud->plugin->host_log->log(ud->plugin->host, CLAP_LOG_DEBUG, str);
 }
 
+static inline bool is_effect(instr_module_e module) {
+    return    module >= INSTR_FIRST_EFFECT_MODULE
+           && module <= INSTR_LAST_EFFECT_MODULE;
+}
+
 bpbxsyn_param_info_s control_param_info[INSTR_CPARAM_COUNT];
 
 
@@ -76,18 +81,18 @@ bool instr_init(instrument_s *instr, bpbxsyn_synth_type_e type) {
         .tempo_multiplier = 1.0,
         .tempo_override = 150.0,
         .tempo_use_override = false,
-
-        .active_modules[INSTR_MODULE_SYNTH] = true,
-        .active_modules[INSTR_MODULE_CONTROL] = true,
     };
 
     instr->synth = bpbxsyn_synth_new(type);
     if (!instr->synth) return false;
 
-    instr->fx_panning = bpbxsyn_effect_new(BPBXSYN_EFFECT_PANNING);
-    if (!instr->fx_panning) return false;
+    instr->fx.panning = bpbxsyn_effect_new(BPBXSYN_EFFECT_PANNING);
+    if (!instr->fx.panning) return false;
 
-    instr_activate_module(instr, INSTR_MODULE_PANNING);
+    instr->fx.echo = bpbxsyn_effect_new(BPBXSYN_EFFECT_ECHO);
+    if (!instr->fx.echo) return false;
+
+    instr_set_effect_active(instr, BPBXSYN_EFFECT_ECHO, true);
 
     return true;
 }
@@ -97,7 +102,9 @@ void instr_destroy(instrument_s *instr) {
     instr_deactivate(instr);
 
     bpbxsyn_synth_destroy(instr->synth);
-    bpbxsyn_effect_destroy(instr->fx_panning);
+    for (int i = 0; i < INSTR_EFFECT_MODULE_COUNT; ++i) {
+        bpbxsyn_effect_destroy(instr->effect_modules[i]);
+    }
 }
 
 bool instr_activate(instrument_s *instr, double sample_rate,
@@ -106,7 +113,11 @@ bool instr_activate(instrument_s *instr, double sample_rate,
     instr->sample_rate = sample_rate;
 
     bpbxsyn_synth_set_sample_rate(instr->synth, sample_rate);
-    bpbxsyn_effect_set_sample_rate(instr->fx_panning, sample_rate);
+
+    for (int i = 0; i < INSTR_EFFECT_MODULE_COUNT; ++i) {
+        if (instr->effect_modules[i])
+            bpbxsyn_effect_set_sample_rate(instr->effect_modules[i], sample_rate);
+    }
 
     // allocate process blocks
     instr->synth_mono_buffer = malloc(max_frames_count * sizeof(float));
@@ -154,17 +165,15 @@ void instr_process(instrument_s *instr, float **output, uint32_t frame_count,
     active_bpm *= instr->tempo_multiplier;
 
     // clamp active_bpm because if it is zero then the plugin will
-    // take an (essentially) infinite amount of time to process a tick.
+    // take a (theoretically) infinite amount of time to process a tick.
     // then this means any subsequent ticks will not be processed.
-    // also it will completely freeze processing somehow.
+    // also completely freezes processing somehow
     if (active_bpm < 1.0) {
         active_bpm = 1.0;
     }
 
     const double beats_per_sec = active_bpm / 60.0;
     const double sample_len = 1.0 / instr->sample_rate;
-
-    const bool uses_panning = instr_is_module_active(instr, INSTR_MODULE_PANNING);
 
     float *out_l = output[0];
     float *out_r = output[1];
@@ -177,8 +186,12 @@ void instr_process(instrument_s *instr, float **output, uint32_t frame_count,
             };
 
             bpbxsyn_synth_tick(instr->synth, &tick_ctx);
-            if (uses_panning)
-                bpbxsyn_effect_tick(instr->fx_panning, &tick_ctx);
+
+            // tick panning
+            bpbxsyn_effect_tick(instr->fx.panning, &tick_ctx);
+
+            if (instr->use_echo)
+                bpbxsyn_effect_tick(instr->fx.echo, &tick_ctx);
 
             instr->frames_until_next_tick =
                 (uint32_t)ceil(bpbxsyn_calc_samples_per_tick(active_bpm, instr->sample_rate));
@@ -205,8 +218,10 @@ void instr_process(instrument_s *instr, float **output, uint32_t frame_count,
         }
 
         // perform effect processing
-        if (uses_panning)
-            bpbxsyn_effect_run(instr->fx_panning, process_block, frames_to_process);
+        bpbxsyn_effect_run(instr->fx.panning, process_block, frames_to_process);
+
+        if (instr->use_echo)
+            bpbxsyn_effect_run(instr->fx.echo, process_block, frames_to_process);
 
         i += frames_to_process;
         inst_proc.cur_sample += frames_to_process;
@@ -222,43 +237,50 @@ void instr_process(instrument_s *instr, float **output, uint32_t frame_count,
     bpbxsyn_synth_set_userdata(instr->synth, NULL);
 }
 
-bool instr_is_module_active(const instrument_s *instr, instr_module_e module) {
-    // these modules cannot be deactivated
-    if (module == INSTR_MODULE_SYNTH || module == INSTR_MODULE_CONTROL)
-        return true;
+// bool instr_is_module_active(const instrument_s *instr, instr_module_e module) {
+//     // these modules cannot be deactivated
+//     if (module == INSTR_MODULE_SYNTH || module == INSTR_MODULE_CONTROL)
+//         return true;
 
-    return instr->active_modules[module];
-}
+//     return instr->active_modules[module];
+// }
 
-void instr_activate_module(instrument_s *instr, instr_module_e module) {
-    // these modules cannot be interacted with
-    if (module == INSTR_MODULE_SYNTH || module == INSTR_MODULE_CONTROL)
-        return;
+void instr_set_effect_active(instrument_s *instr, bpbxsyn_effect_type_e effect,
+                             bool value)
+{
+    #define HANDLE_EFFECT(name) \
+        if (instr->use_##name != value) { \
+            if (!value) { \
+                bpbxsyn_effect_stop(instr->fx.name); \
+            } \
+            instr->use_##name = value; \
+        } \
 
-    // this module is already active
-    if (instr->active_modules[module]) return;
-    instr->active_modules[module] = true;
-}
+    switch (effect) {
+        case BPBXSYN_EFFECT_DISTORTION:
+            HANDLE_EFFECT(distortion);
+            break;
 
-void instr_deactivate_module(instrument_s *instr, instr_module_e module) {
-    // these modules cannot be deactivated
-    if (module == INSTR_MODULE_SYNTH || module == INSTR_MODULE_CONTROL)
-        return;
+        case BPBXSYN_EFFECT_BITCRUSHER:
+            HANDLE_EFFECT(bitcrusher);
+            break;
 
-    // this module is already inactive
-    if (!instr->active_modules[module]) return;
+        case BPBXSYN_EFFECT_CHORUS:
+            HANDLE_EFFECT(chorus);
+            break;
 
-    instr->active_modules[module] = false;
+        case BPBXSYN_EFFECT_ECHO:
+            HANDLE_EFFECT(echo);
+            break;
 
-    // choke the effect processing
-    switch (module) {
-        case INSTR_MODULE_PANNING:
-            bpbxsyn_effect_stop(instr->fx_panning);
+        case BPBXSYN_EFFECT_REVERB:
+            HANDLE_EFFECT(reverb);
             break;
         
-        default:
-            break;
+        default: break;
     }
+
+    #undef HANDLE_EFFECT
 }
 
 void instr_begin_note(instrument_s *instr, int16_t key, double velocity,
@@ -291,9 +313,16 @@ void instr_end_notes(instrument_s *instr, int16_t key, int32_t note_id,
 }
 
 uint32_t instr_params_count(const instrument_s *instr) {
-    return bpbxsyn_synth_param_count(instr->type) +
-        INSTR_CPARAM_COUNT +
-        BPBXSYN_PANNING_PARAM_COUNT;
+    uint32_t count =
+        bpbxsyn_synth_param_count(instr->type) + INSTR_CPARAM_COUNT;
+    
+    count += BPBXSYN_PANNING_PARAM_COUNT;
+    count += BPBXSYN_ECHO_PARAM_COUNT;
+    // for (int i = 0; i < BPBXSYN_EFFECT_COUNT; ++i) {
+    //     count += bpbxsyn_effect_param_count(i);
+    // }
+
+    return count;
 }
 
 instr_param_id instr_get_param_id(const instrument_s *instr, uint32_t index) {
@@ -307,12 +336,23 @@ instr_param_id instr_get_param_id(const instrument_s *instr, uint32_t index) {
     check(INSTR_MODULE_SYNTH, synth_param_count);
     check(INSTR_MODULE_CONTROL, INSTR_CPARAM_COUNT);
     check(INSTR_MODULE_PANNING, BPBXSYN_PANNING_PARAM_COUNT);
+    check(INSTR_MODULE_ECHO, BPBXSYN_ECHO_PARAM_COUNT);
+    // for (int i = 0; i < BPBXSYN_EFFECT_COUNT; ++i) {
+    //     unsigned int effect_param_count = bpbxsyn_effect_param_count(i);
+    //     check(INSTR_FIRST_EFFECT_MODULE + i, effect_param_count);
+    // }
+
     return INSTR_INVALID_ID;
 
     #undef check
 }
 
 bool instr_set_param(instrument_s *instr, instr_param_id id, double value) {
+    #define HANDLE_EFFECT(e) \
+        case INSTR_CPARAM_ENABLE_##e: \
+            instr_set_effect_active(instr, BPBXSYN_EFFECT_##e, value != 0.0); \
+            break;
+
     assert(id != INSTR_INVALID_ID);
     if (id == INSTR_INVALID_ID) return false;
 
@@ -342,17 +382,28 @@ bool instr_set_param(instrument_s *instr, instr_param_id id, double value) {
                     instr->tempo_override = value;
                     break;
                 
+                HANDLE_EFFECT(DISTORTION)
+                HANDLE_EFFECT(BITCRUSHER)
+                HANDLE_EFFECT(CHORUS)
+                HANDLE_EFFECT(ECHO)
+                HANDLE_EFFECT(REVERB)
+                
                 default:
                     return false;
             }
             return true;
         
-        case INSTR_MODULE_PANNING:
-            return !bpbxsyn_effect_set_param_double(instr->fx_panning, idx, value);
-        
         default:
+            if (is_effect(module) && instr->effect_modules[module - INSTR_FIRST_EFFECT_MODULE]) {
+                return !bpbxsyn_effect_set_param_double(
+                    instr->effect_modules[module - INSTR_FIRST_EFFECT_MODULE],
+                    idx, value);
+            }
+
             return false;
     }
+
+    #undef HANDLE_EFFECT
 }
 
 bool instr_get_param(const instrument_s *instr, instr_param_id id, double *value) {
@@ -385,15 +436,33 @@ bool instr_get_param(const instrument_s *instr, instr_param_id id, double *value
                     *value = instr->tempo_override;
                     break;
                 
+                case INSTR_CPARAM_ENABLE_DISTORTION:
+                    *value = instr->use_distortion ? 1.0 : 0.0;
+                    break;
+                case INSTR_CPARAM_ENABLE_BITCRUSHER:
+                    *value = instr->use_bitcrusher ? 1.0 : 0.0;
+                    break;
+                case INSTR_CPARAM_ENABLE_CHORUS:
+                    *value = instr->use_chorus ? 1.0 : 0.0;
+                    break;
+                case INSTR_CPARAM_ENABLE_ECHO:
+                    *value = instr->use_echo ? 1.0 : 0.0;
+                    break;
+                case INSTR_CPARAM_ENABLE_REVERB:
+                    *value = instr->use_reverb ? 1.0 : 0.0;
+                    break;
+                
                 default:
                     return false;
             }
             return true;
         
-        case INSTR_MODULE_PANNING:
-            return !bpbxsyn_effect_get_param_double(instr->fx_panning, idx, value);
-        
         default:
+            if (is_effect(module) && instr->effect_modules[module - INSTR_FIRST_EFFECT_MODULE]) {
+                return !bpbxsyn_effect_get_param_double(
+                    instr->effect_modules[module - INSTR_FIRST_EFFECT_MODULE], idx, value);
+            }
+
             return false;
     }
 }
@@ -415,10 +484,11 @@ const bpbxsyn_param_info_s* instr_get_param_info(const instrument_s *instr,
         case INSTR_MODULE_CONTROL:
             return &control_param_info[idx];
         
-        case INSTR_MODULE_PANNING:
-            return bpbxsyn_effect_param_info(BPBXSYN_EFFECT_PANNING, idx);
-        
         default:
+            if (is_effect(module))
+                return bpbxsyn_effect_param_info(
+                    module - INSTR_FIRST_EFFECT_MODULE, idx);
+            
             return false;
     }
 }
@@ -490,5 +560,71 @@ bpbxsyn_param_info_s control_param_info[INSTR_CPARAM_COUNT] = {
         .default_value = 150.0,
 
         .flags = BPBXSYN_PARAM_FLAG_NO_AUTOMATION
+    },
+    
+    {
+        .group = "Audio Effects",
+        .name = "Enable Distortion",
+        .id = "ctDistor",
+        .type = BPBXSYN_PARAM_UINT8,
+        .flags = BPBXSYN_PARAM_FLAG_NO_AUTOMATION,
+
+        .min_value = 0,
+        .max_value = 1,
+        .default_value = 0,
+
+        .enum_values = bool_enum_values
+    },
+    {
+        .group = "Audio Effects",
+        .name = "Enable Bitcrusher",
+        .id = "ctBitcru",
+        .type = BPBXSYN_PARAM_UINT8,
+        .flags = BPBXSYN_PARAM_FLAG_NO_AUTOMATION,
+
+        .min_value = 0,
+        .max_value = 1,
+        .default_value = 0,
+
+        .enum_values = bool_enum_values
+    },
+    {
+        .group = "Audio Effects",
+        .name = "Enable Chorus",
+        .id = "ctChorus",
+        .type = BPBXSYN_PARAM_UINT8,
+        .flags = BPBXSYN_PARAM_FLAG_NO_AUTOMATION,
+
+        .min_value = 0,
+        .max_value = 1,
+        .default_value = 0,
+
+        .enum_values = bool_enum_values
+    },
+    {
+        .group = "Audio Effects",
+        .name = "Enable Echo",
+        .id = "ctEcho\0\0",
+        .type = BPBXSYN_PARAM_UINT8,
+        .flags = BPBXSYN_PARAM_FLAG_NO_AUTOMATION,
+
+        .min_value = 0,
+        .max_value = 1,
+        .default_value = 0,
+
+        .enum_values = bool_enum_values
+    },
+    {
+        .group = "Audio Effects",
+        .name = "Enable Reverb",
+        .id = "ctReverb",
+        .type = BPBXSYN_PARAM_UINT8,
+        .flags = BPBXSYN_PARAM_FLAG_NO_AUTOMATION,
+
+        .min_value = 0,
+        .max_value = 1,
+        .default_value = 0,
+
+        .enum_values = bool_enum_values
     },
 };
