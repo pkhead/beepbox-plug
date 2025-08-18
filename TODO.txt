@@ -8,6 +8,19 @@
 - add a way for the user to notify the synth of a "next note"
   per voice. that way, the slide transition will work as it does in BeepBox,
   where the seam between the note is the halfway point of the slide transition.
+- standalone plugins for effects:
+	- BeepBox Distortion (M)
+	- BeepBox Bitcrusher (M)
+	- BeepBox Chorus (M)
+	- BeepBox Echo (S)
+	- BeepBox Reverb (S)
+
+	or, perhaps:
+	- "BeepBox Mono Effects", which includes:
+		- distortion, bitcrusher, chorus
+	- "BeepBox Stereo Effects", which includes:
+		- echo, reverb
+		- and mono effects applied individually per channel
 
 
 
