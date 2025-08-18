@@ -18,19 +18,20 @@ typedef enum {
     INSTR_MODULE_SYNTH,
     INSTR_MODULE_CONTROL,
     
-    INSTR_MODULE_EQ,
     INSTR_MODULE_PANNING,
     INSTR_MODULE_DISTORTION,
     INSTR_MODULE_BITCRUSHER,
     INSTR_MODULE_CHORUS,
     INSTR_MODULE_ECHO,
     INSTR_MODULE_REVERB,
+    INSTR_MODULE_EQ,
+    INSTR_MODULE_VOLUME,
 
     INSTR_MODULE_COUNT
 } instr_module_e;
 
-#define INSTR_FIRST_EFFECT_MODULE INSTR_MODULE_EQ
-#define INSTR_LAST_EFFECT_MODULE INSTR_MODULE_REVERB
+#define INSTR_FIRST_EFFECT_MODULE INSTR_MODULE_PANNING
+#define INSTR_LAST_EFFECT_MODULE INSTR_MODULE_VOLUME
 #define INSTR_EFFECT_MODULE_COUNT ((INSTR_LAST_EFFECT_MODULE - INSTR_FIRST_EFFECT_MODULE + 1))
 
 // plugin control parameters, stored in instrument/effect instances
@@ -71,13 +72,14 @@ typedef struct {
     union {
         bpbxsyn_effect_s *effect_modules[INSTR_EFFECT_MODULE_COUNT];
         struct {
-            bpbxsyn_effect_s *eq;
             bpbxsyn_effect_s *panning;
             bpbxsyn_effect_s *distortion;
             bpbxsyn_effect_s *bitcrusher;
             bpbxsyn_effect_s *chorus;
             bpbxsyn_effect_s *echo;
             bpbxsyn_effect_s *reverb;
+            bpbxsyn_effect_s *eq;
+            bpbxsyn_effect_s *fader;
         } fx;
     };
 

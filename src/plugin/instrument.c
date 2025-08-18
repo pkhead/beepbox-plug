@@ -86,6 +86,9 @@ bool instr_init(instrument_s *instr, bpbxsyn_synth_type_e type) {
     instr->synth = bpbxsyn_synth_new(type);
     if (!instr->synth) return false;
 
+    instr->fx.fader = bpbxsyn_effect_new(BPBXSYN_EFFECT_VOLUME);
+    if (!instr->fx.fader) return false;
+
     instr->fx.panning = bpbxsyn_effect_new(BPBXSYN_EFFECT_PANNING);
     if (!instr->fx.panning) return false;
 
@@ -185,8 +188,9 @@ void instr_process(instrument_s *instr, float **output, uint32_t frame_count,
 
             bpbxsyn_synth_tick(instr->synth, &tick_ctx);
 
-            // tick panning
+            // tick panning, eq, and fader
             bpbxsyn_effect_tick(instr->fx.panning, &tick_ctx);
+            bpbxsyn_effect_tick(instr->fx.fader, &tick_ctx);
 
             if (instr->use_echo)
                 bpbxsyn_effect_tick(instr->fx.echo, &tick_ctx);
@@ -210,7 +214,7 @@ void instr_process(instrument_s *instr, float **output, uint32_t frame_count,
         process_block[1] = instr->process_block[1] + i;
 
         for (uint32_t j = 0; j < frames_to_process; ++j) {
-            const float v = instr->synth_mono_buffer[i+j] * instr->linear_gain;
+            const float v = instr->synth_mono_buffer[i+j];
             process_block[0][j] = v;
             process_block[1][j] = 0.0;
         }
@@ -221,15 +225,18 @@ void instr_process(instrument_s *instr, float **output, uint32_t frame_count,
         if (instr->use_echo)
             bpbxsyn_effect_run(instr->fx.echo, process_block, frames_to_process);
 
+        bpbxsyn_effect_run(instr->fx.fader, process_block, frames_to_process);
+
         i += frames_to_process;
         inst_proc.cur_sample += frames_to_process;
         instr->frames_until_next_tick -= frames_to_process;
     }
 
     // write output
+    float control_gain = (float)instr->linear_gain;
     for (uint32_t i = 0; i < frame_count; ++i) {
-        output[0][i] = instr->process_block[0][i];
-        output[1][i] = instr->process_block[1][i];
+        output[0][i] = instr->process_block[0][i] * control_gain;
+        output[1][i] = instr->process_block[1][i] * control_gain;
     }
 
     bpbxsyn_synth_set_userdata(instr->synth, NULL);
@@ -314,6 +321,7 @@ uint32_t instr_params_count(const instrument_s *instr) {
     uint32_t count =
         bpbxsyn_synth_param_count(instr->type) + INSTR_CPARAM_COUNT;
     
+    count += BPBXSYN_VOLUME_PARAM_COUNT;
     count += BPBXSYN_PANNING_PARAM_COUNT;
     count += BPBXSYN_ECHO_PARAM_COUNT;
     // for (int i = 0; i < BPBXSYN_EFFECT_COUNT; ++i) {
@@ -328,17 +336,51 @@ instr_param_id instr_get_param_id(const instrument_s *instr, uint32_t index) {
         if (index < count) \
             return instr_global_id(module, index); \
         index -= count
+    
+    #define check_within(module, start, count) \
+        if (index < (count)) \
+            return instr_global_id((module), (start) + (index)); \
+        index -= (count)
+    
+    #define check1(module, pindex) \
+        if (index == 0) \
+            return instr_global_id((module), (pindex)); \
+        index--
 
     unsigned int synth_param_count = bpbxsyn_synth_param_count(instr->type);
 
-    check(INSTR_MODULE_SYNTH, synth_param_count);
-    check(INSTR_MODULE_CONTROL, INSTR_CPARAM_COUNT);
+    // control parameters
+    check_within(INSTR_MODULE_CONTROL, 0, INSTR_CPARAM_ENABLE_DISTORTION);
+    
+    // volume and panning
+    check(INSTR_MODULE_VOLUME, BPBXSYN_VOLUME_PARAM_COUNT);
     check(INSTR_MODULE_PANNING, BPBXSYN_PANNING_PARAM_COUNT);
+
+    // synth general parameters
+    const int note_effect_start = BPBXSYN_PARAM_ENABLE_TRANSITION_TYPE;
+    check_within(INSTR_MODULE_SYNTH, 0, note_effect_start);
+
+    // synth params
+    check_within(INSTR_MODULE_SYNTH, BPBXSYN_BASE_PARAM_COUNT, synth_param_count - BPBXSYN_BASE_PARAM_COUNT);
+
+    // synth note effect parameters
+    check_within(INSTR_MODULE_SYNTH, note_effect_start, BPBXSYN_BASE_PARAM_COUNT - note_effect_start);
+
+    // distortion
+    check1(INSTR_MODULE_CONTROL, INSTR_CPARAM_ENABLE_DISTORTION);
+
+    // bitcrusher
+    check1(INSTR_MODULE_CONTROL, INSTR_CPARAM_ENABLE_BITCRUSHER);
+
+    // chorus
+    check1(INSTR_MODULE_CONTROL, INSTR_CPARAM_ENABLE_CHORUS);
+
+    // echo
+    check1(INSTR_MODULE_CONTROL, INSTR_CPARAM_ENABLE_ECHO);
     check(INSTR_MODULE_ECHO, BPBXSYN_ECHO_PARAM_COUNT);
-    // for (int i = 0; i < BPBXSYN_EFFECT_COUNT; ++i) {
-    //     unsigned int effect_param_count = bpbxsyn_effect_param_count(i);
-    //     check(INSTR_FIRST_EFFECT_MODULE + i, effect_param_count);
-    // }
+
+    // reverb
+    check1(INSTR_MODULE_CONTROL, INSTR_CPARAM_ENABLE_REVERB);
 
     return INSTR_INVALID_ID;
 
@@ -561,8 +603,8 @@ bpbxsyn_param_info_s control_param_info[INSTR_CPARAM_COUNT] = {
     },
     
     {
-        .group = "Audio Effects",
-        .name = "Enable Distortion",
+        .group = "Effects/Distortion",
+        .name = "Distortion Toggle",
         .id = "ctDistor",
         .type = BPBXSYN_PARAM_UINT8,
         .flags = BPBXSYN_PARAM_FLAG_NO_AUTOMATION,
@@ -574,8 +616,8 @@ bpbxsyn_param_info_s control_param_info[INSTR_CPARAM_COUNT] = {
         .enum_values = bool_enum_values
     },
     {
-        .group = "Audio Effects",
-        .name = "Enable Bitcrusher",
+        .group = "Effects/Bitcrusher",
+        .name = "Bitcrusher Toggle",
         .id = "ctBitcru",
         .type = BPBXSYN_PARAM_UINT8,
         .flags = BPBXSYN_PARAM_FLAG_NO_AUTOMATION,
@@ -587,8 +629,8 @@ bpbxsyn_param_info_s control_param_info[INSTR_CPARAM_COUNT] = {
         .enum_values = bool_enum_values
     },
     {
-        .group = "Audio Effects",
-        .name = "Enable Chorus",
+        .group = "Effects/Chorus",
+        .name = "Chorus Toggle",
         .id = "ctChorus",
         .type = BPBXSYN_PARAM_UINT8,
         .flags = BPBXSYN_PARAM_FLAG_NO_AUTOMATION,
@@ -600,8 +642,8 @@ bpbxsyn_param_info_s control_param_info[INSTR_CPARAM_COUNT] = {
         .enum_values = bool_enum_values
     },
     {
-        .group = "Audio Effects",
-        .name = "Enable Echo",
+        .group = "Effects/Echo",
+        .name = "Echo Toggle",
         .id = "ctEcho\0\0",
         .type = BPBXSYN_PARAM_UINT8,
         .flags = BPBXSYN_PARAM_FLAG_NO_AUTOMATION,
@@ -613,8 +655,8 @@ bpbxsyn_param_info_s control_param_info[INSTR_CPARAM_COUNT] = {
         .enum_values = bool_enum_values
     },
     {
-        .group = "Audio Effects",
-        .name = "Enable Reverb",
+        .group = "Effects/Reverb",
+        .name = "Reverb Toggle",
         .id = "ctReverb",
         .type = BPBXSYN_PARAM_UINT8,
         .flags = BPBXSYN_PARAM_FLAG_NO_AUTOMATION,

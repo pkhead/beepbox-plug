@@ -1746,7 +1746,7 @@ void PluginController::draw(platform::Window *window) {
                         ImGui::Text("Volume");
                         sameLineRightCol();
                         ImGui::SetNextItemWidth(-FLT_MIN);
-                        sliderParameter(BPBXSYN_PARAM_VOLUME, "##volume", -25.0, 25.0, "%.0f");
+                        sliderParameter(PARAM(VOLUME, BPBXSYN_VOLUME_PARAM_VOLUME), "##volume", -25.0, 25.0, "%.0f");
 
                         // panning
                         ImGui::AlignTextToFramePadding();
