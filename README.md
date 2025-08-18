@@ -18,15 +18,15 @@ This plugin library includes (or will include) several synthesizer plugins:
 | FM6 *(planned)* | A six-operator FM synthesizer |
 | Drumset *(planned)* | A Spectrum + filter envelope for each of the 12 keys in one octave |
 
-This library will also include these audio effects:
+This library also includes these audio effects bundled into the synthesizer:
 - Distortion (planned)
 - Bitcrusher (also includes a downsampler) (planned)
 - Chorus (planned)
-- Echo (aka delay) (planned)
+- Echo (aka delay)
 - Reverb (planned)
 - Compressor/Limiter (in one) (planned)
 
-Note that these effects will have very simple parameters (only one or two).
+Note that these effects have very simple parameters (only one or two).
 
 The project's source code is located within three subdirectories of the `src` folder.
 - `cbeepsynth/`: The C port of relevant portions of BeepBox's synth.ts and SynthConfig.ts. It itself is designed as a modular and portable library.
