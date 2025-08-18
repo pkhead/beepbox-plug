@@ -92,8 +92,6 @@ bool instr_init(instrument_s *instr, bpbxsyn_synth_type_e type) {
     instr->fx.echo = bpbxsyn_effect_new(BPBXSYN_EFFECT_ECHO);
     if (!instr->fx.echo) return false;
 
-    instr_set_effect_active(instr, BPBXSYN_EFFECT_ECHO, true);
-
     return true;
 }
 
@@ -211,10 +209,10 @@ void instr_process(instrument_s *instr, float **output, uint32_t frame_count,
         process_block[0] = instr->process_block[0] + i;
         process_block[1] = instr->process_block[1] + i;
 
-        for (uint32_t i = 0; i < frame_count; ++i) {
-            const float v = instr->synth_mono_buffer[i] * instr->linear_gain;
-            process_block[0][i] = v;
-            process_block[1][i] = 0.0;
+        for (uint32_t j = 0; j < frames_to_process; ++j) {
+            const float v = instr->synth_mono_buffer[i+j] * instr->linear_gain;
+            process_block[0][j] = v;
+            process_block[1][j] = 0.0;
         }
 
         // perform effect processing
