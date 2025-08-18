@@ -92,6 +92,9 @@ bool instr_init(instrument_s *instr, bpbxsyn_synth_type_e type) {
     instr->fx.panning = bpbxsyn_effect_new(BPBXSYN_EFFECT_PANNING);
     if (!instr->fx.panning) return false;
 
+    instr->fx.distortion = bpbxsyn_effect_new(BPBXSYN_EFFECT_DISTORTION);
+    if (!instr->fx.distortion) return false;
+
     instr->fx.echo = bpbxsyn_effect_new(BPBXSYN_EFFECT_ECHO);
     if (!instr->fx.echo) return false;
 
@@ -192,6 +195,9 @@ void instr_process(instrument_s *instr, float **output, uint32_t frame_count,
             bpbxsyn_effect_tick(instr->fx.panning, &tick_ctx);
             bpbxsyn_effect_tick(instr->fx.fader, &tick_ctx);
 
+            if (instr->use_distortion)
+                bpbxsyn_effect_tick(instr->fx.distortion, &tick_ctx);
+
             if (instr->use_echo)
                 bpbxsyn_effect_tick(instr->fx.echo, &tick_ctx);
 
@@ -220,11 +226,21 @@ void instr_process(instrument_s *instr, float **output, uint32_t frame_count,
         }
 
         // perform effect processing
+
+        // mono effects first
+        // distortion, bitcrusher, chorus
+        if (instr->use_distortion)
+            bpbxsyn_effect_run(instr->fx.distortion, process_block, frames_to_process);
+
+        // then, run panning, which converts to stereo
         bpbxsyn_effect_run(instr->fx.panning, process_block, frames_to_process);
 
+        // then, stereo effects
+        // echo and reverb
         if (instr->use_echo)
             bpbxsyn_effect_run(instr->fx.echo, process_block, frames_to_process);
 
+        // and last, volume control
         bpbxsyn_effect_run(instr->fx.fader, process_block, frames_to_process);
 
         i += frames_to_process;
@@ -368,6 +384,7 @@ instr_param_id instr_get_param_id(const instrument_s *instr, uint32_t index) {
 
     // distortion
     check1(INSTR_MODULE_CONTROL, INSTR_CPARAM_ENABLE_DISTORTION);
+    check(INSTR_MODULE_DISTORTION, BPBXSYN_DISTORTION_PARAM_COUNT);
 
     // bitcrusher
     check1(INSTR_MODULE_CONTROL, INSTR_CPARAM_ENABLE_BITCRUSHER);

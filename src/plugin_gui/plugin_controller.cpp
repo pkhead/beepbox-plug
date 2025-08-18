@@ -442,6 +442,14 @@ void PluginController::drawEffects() {
             }
         }
 
+        if (ImGui::Selectable("distortion", params[CPARAM(ENABLE_DISTORTION)] != 0.0)) {
+            bool e = params[CPARAM(ENABLE_DISTORTION)] != 0.0;
+
+            paramGestureBegin(CPARAM(ENABLE_DISTORTION));
+            paramChange(CPARAM(ENABLE_DISTORTION), (!e) ? 1.0 : 0.0);
+            paramGestureEnd(CPARAM(ENABLE_DISTORTION));
+        }
+
         if (ImGui::Selectable("echo", params[CPARAM(ENABLE_ECHO)] != 0.0)) {
             bool e = params[CPARAM(ENABLE_ECHO)] != 0.0;
 
@@ -615,6 +623,15 @@ void PluginController::drawEffects() {
 
         sameLineRightCol();
         drawEqWidget(FILTER_NOTE, "eqctl", ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() * 1.75f));
+    }
+
+    // distortion
+    if (params[CPARAM(ENABLE_DISTORTION)] != 0) {
+        ImGui::AlignTextToFramePadding();
+        ImGui::Text("Distortion");
+        sameLineRightCol();
+        ImGui::SetNextItemWidth(-FLT_MIN);
+        sliderParameter(PARAM(DISTORTION, BPBXSYN_DISTORTION_PARAM_POWER), "##distortionPower", 0.f, BPBXSYN_DISTORTION_MAX, "%0.f");
     }
 
     // echo
