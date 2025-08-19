@@ -22,6 +22,9 @@
 		- echo, reverb
 		- and mono effects applied individually per channel
 
+ACCURACY:
+	- why doesn't this happen?
+		https://jummb.us/#j6N07Unnamedn311s0k0l00e00t2ma7g00j07r1O_U0000000000i0o421T0v0pu00f00010q0Q0105e00510Oad0a0w9h0E0c0T5v0pua0f060m92hc1ea2k02f30re00q8740Oa7ad370H_QiBy9asq99900h0E0c0T1v0pueaf012ta00q0C010r5000Oa7d180A8F8B8Q126bPda58R0000E4c0b862863g78T2v0pu15f180q040Oad030w0E0c0Tav0pu00f0000q00d040E0c0b4000p1DF4sIj8Y30M5C1wqVQU0000001D_UWt0cz0RhPw0
 
 
 
