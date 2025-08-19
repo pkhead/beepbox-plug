@@ -21,6 +21,7 @@ typedef struct {
     const clap_host_track_info_t *host_track_info;
     const clap_host_context_menu_t *host_context_menu;
 
+    bpbxsyn_context_s *ctx;
     instrument_s instrument;
 } plugin_s;
 
@@ -29,6 +30,9 @@ typedef enum {
     SEND_TO_HOST = 2,
     NO_RECURSION = 4,
 } event_send_flags_e;
+
+void plugin_static_init(void);
+void plugin_static_deinit(void);
 
 void plugin_create(plugin_s *plug, bpbxsyn_synth_type_e type);
 bool plugin_init(plugin_s *plug);

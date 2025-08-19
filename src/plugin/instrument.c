@@ -74,7 +74,7 @@ bpbxsyn_param_info_s control_param_info[INSTR_CPARAM_COUNT];
 
 
 
-bool instr_init(instrument_s *instr, bpbxsyn_synth_type_e type) {
+bool instr_init(instrument_s *instr, bpbxsyn_context_s *ctx, bpbxsyn_synth_type_e type) {
     *instr = (instrument_s) {
         .type = type,
         .bpm = 150.0,
@@ -83,19 +83,22 @@ bool instr_init(instrument_s *instr, bpbxsyn_synth_type_e type) {
         .tempo_use_override = false,
     };
 
-    instr->synth = bpbxsyn_synth_new(type);
+    instr->synth = bpbxsyn_synth_new(ctx, type);
     if (!instr->synth) return false;
 
-    instr->fx.fader = bpbxsyn_effect_new(BPBXSYN_EFFECT_VOLUME);
+    instr->fx.fader = bpbxsyn_effect_new(ctx, BPBXSYN_EFFECT_VOLUME);
     if (!instr->fx.fader) return false;
 
-    instr->fx.panning = bpbxsyn_effect_new(BPBXSYN_EFFECT_PANNING);
+    instr->fx.panning = bpbxsyn_effect_new(ctx, BPBXSYN_EFFECT_PANNING);
     if (!instr->fx.panning) return false;
 
-    instr->fx.distortion = bpbxsyn_effect_new(BPBXSYN_EFFECT_DISTORTION);
+    instr->fx.distortion = bpbxsyn_effect_new(ctx, BPBXSYN_EFFECT_DISTORTION);
     if (!instr->fx.distortion) return false;
 
-    instr->fx.echo = bpbxsyn_effect_new(BPBXSYN_EFFECT_ECHO);
+    instr->fx.bitcrusher = bpbxsyn_effect_new(ctx, BPBXSYN_EFFECT_BITCRUSHER);
+    if (!instr->fx.bitcrusher) return false;
+
+    instr->fx.echo = bpbxsyn_effect_new(ctx, BPBXSYN_EFFECT_ECHO);
     if (!instr->fx.echo) return false;
 
     return true;
@@ -198,6 +201,9 @@ void instr_process(instrument_s *instr, float **output, uint32_t frame_count,
             if (instr->use_distortion)
                 bpbxsyn_effect_tick(instr->fx.distortion, &tick_ctx);
 
+            if (instr->use_bitcrusher)
+                bpbxsyn_effect_tick(instr->fx.bitcrusher, &tick_ctx);
+
             if (instr->use_echo)
                 bpbxsyn_effect_tick(instr->fx.echo, &tick_ctx);
 
@@ -231,6 +237,8 @@ void instr_process(instrument_s *instr, float **output, uint32_t frame_count,
         // distortion, bitcrusher, chorus
         if (instr->use_distortion)
             bpbxsyn_effect_run(instr->fx.distortion, process_block, frames_to_process);
+        if (instr->use_bitcrusher)
+            bpbxsyn_effect_run(instr->fx.bitcrusher, process_block, frames_to_process);
 
         // then, run panning, which converts to stereo
         bpbxsyn_effect_run(instr->fx.panning, process_block, frames_to_process);
@@ -388,6 +396,7 @@ instr_param_id instr_get_param_id(const instrument_s *instr, uint32_t index) {
 
     // bitcrusher
     check1(INSTR_MODULE_CONTROL, INSTR_CPARAM_ENABLE_BITCRUSHER);
+    check(INSTR_MODULE_BITCRUSHER, BPBXSYN_BITCRUSHER_PARAM_COUNT);
 
     // chorus
     check1(INSTR_MODULE_CONTROL, INSTR_CPARAM_ENABLE_CHORUS);

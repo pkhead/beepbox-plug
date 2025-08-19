@@ -59,7 +59,7 @@ static void bpbx_log_cb(bpbxsyn_log_severity_e severity, const char *msg, void *
 
 void plugin_create(plugin_s *plug, bpbxsyn_synth_type_e type) {
     plug->has_track_color = false;
-    instr_init(&plug->instrument, type);
+    plug->instrument.type = type; // store type temporarily
 }
 
 bool plugin_init(plugin_s *plug) {
@@ -72,13 +72,19 @@ bool plugin_init(plugin_s *plug) {
     plug->host_track_info = (const clap_host_track_info_t*) plug->host->get_extension(plug->host, CLAP_EXT_TRACK_INFO);
     plug->host_context_menu = (const clap_host_context_menu_t*) plug->host->get_extension(plug->host, CLAP_EXT_CONTEXT_MENU);
 
+    plug->ctx = bpbxsyn_context_new(NULL);
+    if (!plug->ctx) return false;
+
+    if (!instr_init(&plug->instrument, plug->ctx, plug->instrument.type))
+        return false;
+
     if (plug->host_track_info) {
         plugin_track_info_changed(plug);
     }
     
     if (plug->host_log) {
         gui_set_log_func(plug->host_log->log, plug->host);
-        bpbxsyn_set_log_func(bpbx_log_cb, plug);
+        bpbxsyn_set_log_func(plug->ctx, bpbx_log_cb, plug);
     }
 
     return true;
@@ -86,6 +92,8 @@ bool plugin_init(plugin_s *plug) {
 
 void plugin_destroy(plugin_s *plug) {
     instr_destroy(&plug->instrument);
+    bpbxsyn_context_destroy(plug->ctx);
+    plug->ctx = NULL;
 }
 
 bool plugin_activate(plugin_s *plug, double sample_rate,

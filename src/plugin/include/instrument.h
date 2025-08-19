@@ -121,7 +121,7 @@ typedef struct {
 
 // plugin_control_param_info_s instr_control_param_info[INSTR_CPARAM_COUNT];
 
-bool instr_init(instrument_s *instr, bpbxsyn_synth_type_e type);
+bool instr_init(instrument_s *instr, bpbxsyn_context_s *ctx, bpbxsyn_synth_type_e type);
 void instr_destroy(instrument_s *instr);
 void instr_process(instrument_s *instr, float **output, uint32_t frame_count,
                    uint32_t start_frame, const clap_output_events_t *out_events);
