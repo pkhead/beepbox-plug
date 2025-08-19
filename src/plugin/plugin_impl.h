@@ -23,6 +23,10 @@ typedef struct {
 
     bpbxsyn_context_s *ctx;
     instrument_s instrument;
+
+    #ifndef _NDEBUG
+    size_t mem_allocated;
+    #endif
 } plugin_s;
 
 typedef enum {

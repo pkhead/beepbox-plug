@@ -62,6 +62,27 @@ void plugin_create(plugin_s *plug, bpbxsyn_synth_type_e type) {
     plug->instrument.type = type; // store type temporarily
 }
 
+#ifndef _NDEBUG
+static void* testalloc(size_t size, void *ud) {
+    plugin_s *plug = ud;
+    uint8_t *alloc = malloc(size + sizeof(size_t));
+    if (!alloc) return NULL;
+
+    plug->mem_allocated += size;
+    *((size_t*)alloc) = size;
+    return alloc + sizeof(size_t);
+}
+
+static void testfree(void *ptr, void *ud) {
+    if (!ptr) return;
+
+    plugin_s *plug = ud;
+    uint8_t *base = (uint8_t*)ptr - sizeof(size_t);
+    plug->mem_allocated -= *((size_t*)base);
+    free(base);
+}
+#endif
+
 bool plugin_init(plugin_s *plug) {
     // Fetch host's extensions here
     // Make sure to check that the interface functions are not null pointers
@@ -72,7 +93,16 @@ bool plugin_init(plugin_s *plug) {
     plug->host_track_info = (const clap_host_track_info_t*) plug->host->get_extension(plug->host, CLAP_EXT_TRACK_INFO);
     plug->host_context_menu = (const clap_host_context_menu_t*) plug->host->get_extension(plug->host, CLAP_EXT_CONTEXT_MENU);
 
-    plug->ctx = bpbxsyn_context_new(NULL);
+    #ifndef _NDEBUG
+    bpbxsyn_allocator_s alloc = (bpbxsyn_allocator_s) {
+        .alloc = testalloc,
+        .free = testfree,
+        .userdata = plug
+    };
+
+    plug->ctx = bpbxsyn_context_new(&alloc);
+    #endif
+
     if (!plug->ctx) return false;
 
     if (!instr_init(&plug->instrument, plug->ctx, plug->instrument.type))
@@ -103,6 +133,13 @@ bool plugin_activate(plugin_s *plug, double sample_rate,
 }
 
 bool plugin_deactivate(plugin_s *plug) {
+    #ifndef _NDEBUG
+    char buf[128];
+    snprintf(buf, 128, "%llu bytes allocated", plug->mem_allocated);
+
+    plug->host_log->log(plug->host, CLAP_LOG_DEBUG, buf);
+    #endif
+    
     return instr_deactivate(&plug->instrument);
 }
 
