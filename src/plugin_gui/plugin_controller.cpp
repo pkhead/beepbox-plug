@@ -450,6 +450,14 @@ void PluginController::drawEffects() {
             paramGestureEnd(CPARAM(ENABLE_DISTORTION));
         }
 
+        if (ImGui::Selectable("bitcrusher", params[CPARAM(ENABLE_BITCRUSHER)] != 0.0)) {
+            bool e = params[CPARAM(ENABLE_BITCRUSHER)] != 0.0;
+
+            paramGestureBegin(CPARAM(ENABLE_BITCRUSHER));
+            paramChange(CPARAM(ENABLE_BITCRUSHER), (!e) ? 1.0 : 0.0);
+            paramGestureEnd(CPARAM(ENABLE_BITCRUSHER));
+        }
+
         if (ImGui::Selectable("echo", params[CPARAM(ENABLE_ECHO)] != 0.0)) {
             bool e = params[CPARAM(ENABLE_ECHO)] != 0.0;
 
@@ -632,6 +640,21 @@ void PluginController::drawEffects() {
         sameLineRightCol();
         ImGui::SetNextItemWidth(-FLT_MIN);
         sliderParameter(PARAM(DISTORTION, BPBXSYN_DISTORTION_PARAM_POWER), "##distortionPower", 0.f, BPBXSYN_DISTORTION_MAX, "%0.f");
+    }
+
+    // bitcrusher
+    if (params[CPARAM(ENABLE_BITCRUSHER)] != 0) {
+        ImGui::AlignTextToFramePadding();
+        ImGui::Text("Bit Crush");
+        sameLineRightCol();
+        ImGui::SetNextItemWidth(-FLT_MIN);
+        sliderParameter(PARAM(BITCRUSHER, BPBXSYN_BITCRUSHER_PARAM_BIT_QUANTIZATION), "##bitCrushQuant", 0.f, BPBXSYN_BITCRUSHER_QUANTIZATION_MAX, "%0.f");
+
+        ImGui::AlignTextToFramePadding();
+        ImGui::Text("Freq Crush");
+        sameLineRightCol();
+        ImGui::SetNextItemWidth(-FLT_MIN);
+        sliderParameter(PARAM(BITCRUSHER, BPBXSYN_BITCRUSHER_PARAM_FREQ_QUANTIZATION), "##bitCrushFreqQuant", 0.f, BPBXSYN_BITCRUSHER_FREQ_MAX, "%0.f");
     }
 
     // echo
