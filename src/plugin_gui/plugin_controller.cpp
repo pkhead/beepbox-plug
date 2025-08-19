@@ -458,6 +458,14 @@ void PluginController::drawEffects() {
             paramGestureEnd(CPARAM(ENABLE_BITCRUSHER));
         }
 
+        if (ImGui::Selectable("chorus", params[CPARAM(ENABLE_CHORUS)] != 0.0)) {
+            bool e = params[CPARAM(ENABLE_CHORUS)] != 0.0;
+
+            paramGestureBegin(CPARAM(ENABLE_CHORUS));
+            paramChange(CPARAM(ENABLE_CHORUS), (!e) ? 1.0 : 0.0);
+            paramGestureEnd(CPARAM(ENABLE_CHORUS));
+        }
+
         if (ImGui::Selectable("echo", params[CPARAM(ENABLE_ECHO)] != 0.0)) {
             bool e = params[CPARAM(ENABLE_ECHO)] != 0.0;
 
@@ -655,6 +663,15 @@ void PluginController::drawEffects() {
         sameLineRightCol();
         ImGui::SetNextItemWidth(-FLT_MIN);
         sliderParameter(PARAM(BITCRUSHER, BPBXSYN_BITCRUSHER_PARAM_FREQ_QUANTIZATION), "##bitCrushFreqQuant", 0.f, BPBXSYN_BITCRUSHER_FREQ_MAX, "%0.f");
+    }
+
+    // chorus
+    if (params[CPARAM(ENABLE_CHORUS)] != 0) {
+        ImGui::AlignTextToFramePadding();
+        ImGui::Text("Chorus");
+        sameLineRightCol();
+        ImGui::SetNextItemWidth(-FLT_MIN);
+        sliderParameter(PARAM(CHORUS, BPBXSYN_CHORUS_PARAM_CHORUS), "##chorus", 0.f, BPBXSYN_CHORUS_MAX, "%.0f");
     }
 
     // echo

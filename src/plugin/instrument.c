@@ -98,6 +98,9 @@ bool instr_init(instrument_s *instr, bpbxsyn_context_s *ctx, bpbxsyn_synth_type_
     instr->fx.bitcrusher = bpbxsyn_effect_new(ctx, BPBXSYN_EFFECT_BITCRUSHER);
     if (!instr->fx.bitcrusher) return false;
 
+    instr->fx.chorus = bpbxsyn_effect_new(ctx, BPBXSYN_EFFECT_CHORUS);
+    if (!instr->fx.chorus) return false;
+
     instr->fx.echo = bpbxsyn_effect_new(ctx, BPBXSYN_EFFECT_ECHO);
     if (!instr->fx.echo) return false;
 
@@ -204,6 +207,9 @@ void instr_process(instrument_s *instr, float **output, uint32_t frame_count,
             if (instr->use_bitcrusher)
                 bpbxsyn_effect_tick(instr->fx.bitcrusher, &tick_ctx);
 
+            if (instr->use_chorus)
+                bpbxsyn_effect_tick(instr->fx.chorus, &tick_ctx);
+
             if (instr->use_echo)
                 bpbxsyn_effect_tick(instr->fx.echo, &tick_ctx);
 
@@ -234,7 +240,7 @@ void instr_process(instrument_s *instr, float **output, uint32_t frame_count,
         // perform effect processing
 
         // mono effects first
-        // distortion, bitcrusher, chorus
+        // distortion and bitcrusher
         if (instr->use_distortion)
             bpbxsyn_effect_run(instr->fx.distortion, process_block, frames_to_process);
         if (instr->use_bitcrusher)
@@ -244,7 +250,10 @@ void instr_process(instrument_s *instr, float **output, uint32_t frame_count,
         bpbxsyn_effect_run(instr->fx.panning, process_block, frames_to_process);
 
         // then, stereo effects
-        // echo and reverb
+        // chorus, echo and reverb
+        if (instr->use_chorus)
+            bpbxsyn_effect_run(instr->fx.chorus, process_block, frames_to_process);
+
         if (instr->use_echo)
             bpbxsyn_effect_run(instr->fx.echo, process_block, frames_to_process);
 
@@ -400,6 +409,7 @@ instr_param_id instr_get_param_id(const instrument_s *instr, uint32_t index) {
 
     // chorus
     check1(INSTR_MODULE_CONTROL, INSTR_CPARAM_ENABLE_CHORUS);
+    check(INSTR_MODULE_CHORUS, BPBXSYN_CHORUS_PARAM_COUNT);
 
     // echo
     check1(INSTR_MODULE_CONTROL, INSTR_CPARAM_ENABLE_ECHO);
