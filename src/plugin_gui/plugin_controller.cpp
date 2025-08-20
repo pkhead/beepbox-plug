@@ -71,7 +71,7 @@ void PluginController::sync() {
 
     for (int i = 0; i < param_count; i++) {
         instr_param_id id = instr_get_param_id(instrument, i);
-        if (!id) {
+        if (id == INSTR_INVALID_ID) {
             log_error("could not initialize parameter #%i because get_info failed", i);
             continue;
         }
