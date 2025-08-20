@@ -359,11 +359,17 @@ void instr_end_notes(instrument_s *instr, int16_t key, int32_t note_id,
 
 uint32_t instr_params_count(const instrument_s *instr) {
     uint32_t count =
-        bpbxsyn_synth_param_count(instr->type) + INSTR_CPARAM_COUNT;
-    
-    count += BPBXSYN_VOLUME_PARAM_COUNT;
-    count += BPBXSYN_PANNING_PARAM_COUNT;
-    count += BPBXSYN_ECHO_PARAM_COUNT;
+        bpbxsyn_synth_param_count(instr->type)
+        + INSTR_CPARAM_COUNT
+        + BPBXSYN_VOLUME_PARAM_COUNT
+        + BPBXSYN_PANNING_PARAM_COUNT
+        + BPBXSYN_EQ_PARAM_COUNT
+        + BPBXSYN_DISTORTION_PARAM_COUNT
+        + BPBXSYN_BITCRUSHER_PARAM_COUNT
+        + BPBXSYN_CHORUS_PARAM_COUNT
+        + BPBXSYN_ECHO_PARAM_COUNT;
+    // TODO: add reverb for param count
+
     // for (int i = 0; i < BPBXSYN_EFFECT_COUNT; ++i) {
     //     count += bpbxsyn_effect_param_count(i);
     // }
