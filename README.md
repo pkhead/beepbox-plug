@@ -19,9 +19,9 @@ This plugin library includes (or will include) several synthesizer plugins:
 | Drumset *(planned)* | A Spectrum + filter envelope for each of the 12 keys in one octave |
 
 This library also includes these audio effects bundled into the synthesizer:
-- Distortion (planned)
-- Bitcrusher (also includes a downsampler) (planned)
-- Chorus (planned)
+- Distortion
+- Bitcrusher
+- Chorus
 - Echo (aka delay)
 - Reverb (planned)
 - Compressor/Limiter (in one) (planned)
@@ -29,9 +29,9 @@ This library also includes these audio effects bundled into the synthesizer:
 Note that these effects have very simple parameters (only one or two).
 
 The project's source code is located within three subdirectories of the `src` folder.
-- `cbeepsynth/`: The C port of relevant portions of BeepBox's synth.ts and SynthConfig.ts. It itself is designed as a modular and portable library.
+- `cbeepsynth/`: The library which contains the C port of BeepBox's synthesizers and effects.
 - `plugin/`: CLAP audio plugin, written in C.
-- `plugin_gui/`: CLAP audio plugin gui, written in C++. (Associated with `gui_libs`)
+- `plugin_gui/`: CLAP audio plugin gui, written in C++.
 
 **To be implemented:**
 - Presets
@@ -45,15 +45,7 @@ The project's source code is located within three subdirectories of the `src` fo
     - Spectrum
     - Picked string
     - Supersaw
-- Instrument effects:
-    - Transition type
-    - Chord type
 - Audio effects:
-    - Distortion
-    - Bitcrusher
-    - Panning
-    - Chorus (or is this a modifier?)
-    - Echo
     - Reverb
     - Compressor/limiter
 
@@ -87,6 +79,8 @@ cmake --build .
 - [BeepBox](https://beepbox.co), created by John Nesky. Very awesome.
 - [imgui](https://github.com/ocornut/imgui) GUI library. Neat.
 - [clap-wrapper](https://github.com/free-audio/clap-wrapper)
+- [pugl](https://gitlab.com/lv2/pugl/) windowing library.
+- [stb_image](https://github.com/nothings/stb) for loading the VST trademark logo.
 
 ## vst logo for legal reasons
 ![VST is a registered trademark of Steinberg Media Technologies GmbH](vst_logo.png)
