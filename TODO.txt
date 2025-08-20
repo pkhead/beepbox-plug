@@ -1,3 +1,6 @@
+BUG: WHY when i change chip wave to sine it changes to spiky?
+     (in juce reference host. standalone is fine?)
+
 - vibrato starts from wrong beat in fl studio. Could either clap-wrapper not
   providing playback information (not likely) or my code being faulty. need to
   check with bitwig studio.
@@ -11,15 +14,18 @@
 - standalone plugins for effects:
 	- BeepBox Distortion (M)
 	- BeepBox Bitcrusher (M)
-	- BeepBox Chorus (M)
-	- BeepBox Echo (S)
-	- BeepBox Reverb (S)
+	- BeepBox Chorus
+	- BeepBox Echo
+	- BeepBox Reverb
+
+	- BeepBox Stereo Distortion
+	- BeepBox Stereo Bitcrusher
 
 	or, perhaps:
 	- "BeepBox Mono Effects", which includes:
-		- distortion, bitcrusher, chorus
+		- distortion, bitcrusher
 	- "BeepBox Stereo Effects", which includes:
-		- echo, reverb
+		- chorus, echo, reverb
 		- and mono effects applied individually per channel
 
 ACCURACY:
