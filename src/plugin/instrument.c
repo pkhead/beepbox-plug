@@ -98,6 +98,9 @@ bool instr_init(instrument_s *instr, bpbxsyn_context_s *ctx, bpbxsyn_synth_type_
     instr->fx.bitcrusher = bpbxsyn_effect_new(ctx, BPBXSYN_EFFECT_BITCRUSHER);
     if (!instr->fx.bitcrusher) return false;
 
+    instr->fx.eq = bpbxsyn_effect_new(ctx, BPBXSYN_EFFECT_EQ);
+    if (!instr->fx.eq) return false;
+
     instr->fx.chorus = bpbxsyn_effect_new(ctx, BPBXSYN_EFFECT_CHORUS);
     if (!instr->fx.chorus) return false;
 
@@ -199,6 +202,7 @@ void instr_process(instrument_s *instr, float **output, uint32_t frame_count,
 
             // tick panning, eq, and fader
             bpbxsyn_effect_tick(instr->fx.panning, &tick_ctx);
+            bpbxsyn_effect_tick(instr->fx.eq, &tick_ctx);
             bpbxsyn_effect_tick(instr->fx.fader, &tick_ctx);
 
             if (instr->use_distortion)
@@ -240,11 +244,14 @@ void instr_process(instrument_s *instr, float **output, uint32_t frame_count,
         // perform effect processing
 
         // mono effects first
-        // distortion and bitcrusher
+        // distortion, bitcrusher
         if (instr->use_distortion)
             bpbxsyn_effect_run(instr->fx.distortion, process_block, frames_to_process);
         if (instr->use_bitcrusher)
             bpbxsyn_effect_run(instr->fx.bitcrusher, process_block, frames_to_process);
+
+        // eq
+        bpbxsyn_effect_run(instr->fx.eq, process_block, frames_to_process);
 
         // then, run panning, which converts to stereo
         bpbxsyn_effect_run(instr->fx.panning, process_block, frames_to_process);
@@ -398,6 +405,9 @@ instr_param_id instr_get_param_id(const instrument_s *instr, uint32_t index) {
 
     // synth note effect parameters
     check_within(INSTR_MODULE_SYNTH, note_effect_start, BPBXSYN_BASE_PARAM_COUNT - note_effect_start);
+
+    // eq
+    check(INSTR_MODULE_EQ, BPBXSYN_EQ_PARAM_COUNT);
 
     // distortion
     check1(INSTR_MODULE_CONTROL, INSTR_CPARAM_ENABLE_DISTORTION);

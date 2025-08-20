@@ -73,6 +73,8 @@ private:
     bool showPanDelay;
 
     struct {
+        ImGuiID widgetId;
+
         int activePoleIndex = -1;
         bool wasDragging = false;
         ImVec2 initialDragPos;

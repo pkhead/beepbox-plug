@@ -632,13 +632,13 @@ void PluginController::drawEffects() {
 
         ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2.f, 0.f));
         ImGui::SameLine();
-        if (ImGui::SmallButton("+")) {
+        if (ImGui::SmallButton("+##noteFiltMaximize")) {
             currentPage = PAGE_NOTE_FILTER;
         }
         ImGui::PopStyleVar(2);
 
         sameLineRightCol();
-        drawEqWidget(FILTER_NOTE, "eqctl", ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() * 1.75f));
+        drawEqWidget(FILTER_NOTE, "notefiltctl", ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() * 1.75f));
     }
 
     // distortion
@@ -1006,8 +1006,7 @@ void PluginController::filterRemovePole(FilterType filter, int control_idx) {
     int baseEnum = 0;
     switch (filter) {
         case FILTER_EQ:
-            assert(false);
-            // baseEnum = BPBXSYN_PARAM_EQ_TYPE0;
+            baseEnum = PARAM(EQ, BPBXSYN_PARAM_EQ_TYPE0);
             break;
 
         case FILTER_NOTE:
@@ -1033,8 +1032,7 @@ void PluginController::filterInsertPole(FilterType filter, int control_idx, bpbx
     int baseEnum = 0;
     switch (filter) {
         case FILTER_EQ:
-            assert(false);
-            // baseEnum = BPBXSYN_PARAM_EQ_TYPE0;
+            baseEnum = PARAM(EQ, BPBXSYN_PARAM_EQ_TYPE0);
             break;
 
         case FILTER_NOTE:
@@ -1057,6 +1055,7 @@ void PluginController::drawEqWidget(FilterType filter, const char *id, ImVec2 si
     ImDrawList *drawList = ImGui::GetWindowDrawList();
     ImVec2 ui_origin = ImGui::GetCursorScreenPos();
     ImVec2 ui_end = ImVec2(ui_origin.x + size.x, ui_origin.y + size.y);
+    ImGuiID widgetId = ImGui::GetID(id);
     ImGui::InvisibleButton(id, size, ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
 
     ImU32 graph_color = ImGui::GetColorU32(ImGuiCol_Header);
@@ -1064,8 +1063,7 @@ void PluginController::drawEqWidget(FilterType filter, const char *id, ImVec2 si
     int baseEnum = 0;
     switch (filter) {
         case FILTER_EQ:
-            assert(false);
-            // baseEnum = BPBXSYN_PARAM_EQ_TYPE0;
+            baseEnum = PARAM(EQ, BPBXSYN_PARAM_EQ_TYPE0);
             break;
 
         case FILTER_NOTE:
@@ -1172,6 +1170,7 @@ void PluginController::drawEqWidget(FilterType filter, const char *id, ImVec2 si
     // begin dragging
     if (ImGui::IsItemActivated()) {
         forceDragBegin = false;
+        eqWidgetDragState.widgetId = widgetId;
 
         if (hoveredPoleIndex != -1) {
             activePoleIndex = hoveredPoleIndex;
@@ -1401,7 +1400,8 @@ void PluginController::drawEqWidget(FilterType filter, const char *id, ImVec2 si
             }
 
             // draw circle
-            drawList->AddCircleFilled(ImVec2(drawX, drawY), activePoleIndex == i ? 3.5 : 2.5, color);
+            float radius = eqWidgetDragState.widgetId == widgetId && activePoleIndex == i ? 3.5 : 2.5;
+            drawList->AddCircleFilled(ImVec2(drawX, drawY), radius, color);
         }
     }
 
@@ -1643,9 +1643,8 @@ void PluginController::drawEqPage(FilterType targetFilter) {
     const char *filterName = "???";
     int baseEnum;
     if (targetFilter == FILTER_EQ) {
-        assert(false);
         filterName = "EQ";
-        // baseEnum = BPBXSYN_PARAM_EQ_TYPE0;
+        baseEnum = PARAM(EQ, BPBXSYN_PARAM_EQ_TYPE0);
     } else if (targetFilter == FILTER_NOTE) {
         filterName = "N. Filt.";
         baseEnum = BPBXSYN_PARAM_NOTE_FILTER_TYPE0;
@@ -1835,7 +1834,23 @@ void PluginController::draw(platform::Window *window) {
 
                             default: break;
                         }
+
+                        // eq
+                        ImGui::AlignTextToFramePadding();
+                        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImGui::GetStyle().ItemInnerSpacing);
+                        ImGui::Text("EQ Filt");
+
+                        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2.f, 0.f));
+                        ImGui::SameLine();
+                        if (ImGui::SmallButton("+##eqMaximize")) {
+                            currentPage = PAGE_EQ;
+                        }
+                        ImGui::PopStyleVar(2);
+
+                        sameLineRightCol();
+                        drawEqWidget(FILTER_EQ, "eqctl", ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() * 1.75f));
         
+                        // fade in/out
                         ImGui::AlignTextToFramePadding();
                         ImGui::Text("Fade In/Out");
                         sameLineRightCol();
