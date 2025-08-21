@@ -107,6 +107,9 @@ bool instr_init(instrument_s *instr, bpbxsyn_context_s *ctx, bpbxsyn_synth_type_
     instr->fx.echo = bpbxsyn_effect_new(ctx, BPBXSYN_EFFECT_ECHO);
     if (!instr->fx.echo) return false;
 
+    instr->fx.reverb = bpbxsyn_effect_new(ctx, BPBXSYN_EFFECT_REVERB);
+    if (!instr->fx.reverb) return false;
+
     return true;
 }
 
@@ -216,6 +219,9 @@ void instr_process(instrument_s *instr, float **output, uint32_t frame_count,
 
             if (instr->use_echo)
                 bpbxsyn_effect_tick(instr->fx.echo, &tick_ctx);
+            
+            if (instr->use_reverb)
+                bpbxsyn_effect_tick(instr->fx.reverb, &tick_ctx);
 
             instr->frames_until_next_tick =
                 (uint32_t)ceil(bpbxsyn_calc_samples_per_tick(active_bpm, instr->sample_rate));
@@ -263,6 +269,9 @@ void instr_process(instrument_s *instr, float **output, uint32_t frame_count,
 
         if (instr->use_echo)
             bpbxsyn_effect_run(instr->fx.echo, process_block, frames_to_process);
+        
+        if (instr->use_reverb)
+            bpbxsyn_effect_run(instr->fx.reverb, process_block, frames_to_process);
 
         // and last, volume control
         bpbxsyn_effect_run(instr->fx.fader, process_block, frames_to_process);
@@ -367,7 +376,8 @@ uint32_t instr_params_count(const instrument_s *instr) {
         + BPBXSYN_DISTORTION_PARAM_COUNT
         + BPBXSYN_BITCRUSHER_PARAM_COUNT
         + BPBXSYN_CHORUS_PARAM_COUNT
-        + BPBXSYN_ECHO_PARAM_COUNT;
+        + BPBXSYN_ECHO_PARAM_COUNT
+        + BPBXSYN_REVERB_PARAM_COUNT;
     // TODO: add reverb for param count
 
     // for (int i = 0; i < BPBXSYN_EFFECT_COUNT; ++i) {
@@ -433,6 +443,7 @@ instr_param_id instr_get_param_id(const instrument_s *instr, uint32_t index) {
 
     // reverb
     check1(INSTR_MODULE_CONTROL, INSTR_CPARAM_ENABLE_REVERB);
+    check(INSTR_MODULE_REVERB, BPBXSYN_REVERB_PARAM_COUNT);
 
     return INSTR_INVALID_ID;
 

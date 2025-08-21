@@ -474,6 +474,14 @@ void PluginController::drawEffects() {
             paramGestureEnd(CPARAM(ENABLE_ECHO));
         }
 
+        if (ImGui::Selectable("reverb", params[CPARAM(ENABLE_REVERB)] != 0.0)) {
+            bool e = params[CPARAM(ENABLE_REVERB)] != 0.0;
+
+            paramGestureBegin(CPARAM(ENABLE_REVERB));
+            paramChange(CPARAM(ENABLE_REVERB), (!e) ? 1.0 : 0.0);
+            paramGestureEnd(CPARAM(ENABLE_REVERB));
+        }
+
         ImGui::EndPopup();
     }
 
@@ -687,6 +695,15 @@ void PluginController::drawEffects() {
         sameLineRightCol();
         ImGui::SetNextItemWidth(-FLT_MIN);
         sliderParameter(PARAM(ECHO, BPBXSYN_ECHO_PARAM_DELAY), "##echoDelay", 0.f, BPBXSYN_ECHO_DELAY_MAX, "%.0f");
+    }
+
+    // reverb
+    if (params[CPARAM(ENABLE_REVERB)] != 0) {
+        ImGui::AlignTextToFramePadding();
+        ImGui::Text("Reverb");
+        sameLineRightCol();
+        ImGui::SetNextItemWidth(-FLT_MIN);
+        sliderParameter(PARAM(REVERB, BPBXSYN_REVERB_PARAM_REVERB), "##reverb", 0.f, BPBXSYN_REVERB_MAX, "%.0f");
     }
 }
 
