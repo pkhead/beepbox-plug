@@ -8,7 +8,7 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 project(BeepBox VERSION 0.3.0)
 
-set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD 99)
 set(CMAKE_CXX_STANDARD 17)
 
 # graphics backend
@@ -21,6 +21,7 @@ if (NOT GRAPHICS_BACKEND)
 endif()
 
 include_directories(src)
+set(LIBRARIES )
 
 #################
 # imgui library #
@@ -36,6 +37,7 @@ set(IMGUI_SOURCES
 
 if (${GRAPHICS_BACKEND} STREQUAL "d3d11")
     set(IMGUI_SOURCES ${IMGUI_SOURCES} src/imgui/backends/imgui_impl_dx11.cpp)
+    set(LIBRARIES ${LIBRARIES} d3d11 dxgi dwmapi)
 elseif (${GRAPHICS_BACKEND} STREQUAL "gl")
     set(IMGUI_SOURCES ${IMGUI_SOURCES} src/imgui/backends/imgui_impl_opengl3.cpp)
 else()
@@ -72,7 +74,7 @@ endif()
 
 # plugin_gui is not added to LIBRARIES because i want a variation of the plugin_gui
 # library when building vst3 (it will add the vst3 trademark to the about page)
-set(LIBRARIES clap beepbox_synth_static)
+set(LIBRARIES ${LIBRARIES} clap beepbox_synth_static)
 
 #################
 ## clap target ##

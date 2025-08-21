@@ -11,15 +11,17 @@
 
 #ifdef GFX_D3D11
 #define WIN32_LEAN_AND_MEAN
+#ifndef NOMINMAX
 #define NOMINMAX
+#endif
 #include <windows.h>
 #include <windowsx.h>
 #include <d3d11.h>
 #include <dxgi1_2.h>
 
-#pragma comment (lib, "d3d11.lib")
-#pragma comment (lib, "dxgi.lib")
-#pragma comment (lib, "dwmapi.lib")
+// #pragma comment (lib, "d3d11.lib")
+// #pragma comment (lib, "dxgi.lib")
+// #pragma comment (lib, "dwmapi.lib")
 #elif defined(GFX_OPENGL)
 #include <pugl/gl.h>
 #else

@@ -5,6 +5,7 @@
 #include <string.h>
 #define impl_strcpy_s strcpy_s
 #else
+#include <string.h>
 static inline void impl_strcpy_s(char *restrict dest, size_t destsz, const char *restrict src) {
    strncpy(dest, src, destsz);
    dest[destsz-1] = '\0';

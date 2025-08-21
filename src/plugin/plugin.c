@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <cbeepsynth/synth/include/beepbox_synth.h>
 #include "system.h"
