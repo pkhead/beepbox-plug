@@ -1,6 +1,3 @@
-BUG: WHY when i change chip wave to sine it changes to spiky?
-     (in juce reference host. standalone is fine?)
-
 - vibrato starts from wrong beat in fl studio. Could either clap-wrapper not
   providing playback information (not likely) or my code being faulty. need to
   check with bitwig studio.
@@ -32,22 +29,6 @@ ACCURACY:
 	- why doesn't this happen?
 		https://jummb.us/#j6N07Unnamedn311s0k0l00e00t2ma7g00j07r1O_U0000000000i0o421T0v0pu00f00010q0Q0105e00510Oad0a0w9h0E0c0T5v0pua0f060m92hc1ea2k02f30re00q8740Oa7ad370H_QiBy9asq99900h0E0c0T1v0pueaf012ta00q0C010r5000Oa7d180A8F8B8Q126bPda58R0000E4c0b862863g78T2v0pu15f180q040Oad030w0E0c0Tav0pu00f0000q00d040E0c0b4000p1DF4sIj8Y30M5C1wqVQU0000001D_UWt0cz0RhPw0
 
-
-
-
-STRUM:
-	on tick start:
-		choke every released note in a chord that is still active.
-		
-		when triggered, each voice (but the base) will not be computed, until
-		it is determined (using the voice index + strum speed setting [which is
-		a feature specific to this mod because idk why no mods have this]) that
-		the voice should finally be activated. Voice still needs to exist
-		upfront since polyphonic modulation needs something to write to. plus i
-		want the last sent modulation value to have an effect.
-		
-		(it will refer to beat start property of the voice index 0 of that
-		chord)
 	
 CUSTOM INTERVAL:
 	in all my years of beepboxing i honestly have no idea what this does.
