@@ -14,6 +14,7 @@
 	- BeepBox Chorus
 	- BeepBox Echo
 	- BeepBox Reverb
+	- BeepBox Compressor/Limiter
 
 	- BeepBox Stereo Distortion
 	- BeepBox Stereo Bitcrusher
@@ -22,7 +23,7 @@
 	- "BeepBox Mono Effects", which includes:
 		- distortion, bitcrusher
 	- "BeepBox Stereo Effects", which includes:
-		- chorus, echo, reverb
+		- chorus, echo, reverb, limiter
 		- and mono effects applied individually per channel
 
 ACCURACY:

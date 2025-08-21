@@ -23,8 +23,7 @@ This library also includes these audio effects bundled into the synthesizer:
 - Bitcrusher
 - Chorus
 - Echo (aka delay)
-- Reverb (planned)
-- Compressor/Limiter (in one) (planned)
+- Reverb
 
 Note that these effects have very simple parameters (only one or two).
 
@@ -45,9 +44,6 @@ The project's source code is located within three subdirectories of the `src` fo
     - Spectrum
     - Picked string
     - Supersaw
-- Audio effects:
-    - Reverb
-    - Compressor/limiter
 
 # Building
 Requirements:
