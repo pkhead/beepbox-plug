@@ -51,7 +51,7 @@ The project's source code is located within three subdirectories of the `src` fo
 
 # Building
 Requirements:
-- C11-compliant compiler (for synth/plugin code)
+- C99-compliant compiler (for synth/plugin code)
 - C++17-compliant compiler (for GUI)
 - CMake + build system (Ninja, Makefile, MSVC, e.t.c.)
 
