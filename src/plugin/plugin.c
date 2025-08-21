@@ -436,7 +436,7 @@ bool plugin_params_set_value(plugin_s *plug, clap_id id, double value,
                              event_send_flags_e send_flags,
                              const clap_output_events_t *out_events)
 {
-    if (!instr_set_param(&plug->instrument, id, value))
+    if (!instr_set_param(&plug->instrument, id, &value))
         return false;
 
     if (out_events && (send_flags & SEND_TO_HOST)) {
@@ -793,7 +793,7 @@ bool plugin_state_load(plugin_s *plug, const clap_istream_t *stream) {
         // read value
         double value;
         ERRCHK(stream_read_prim(stream, &value, sizeof(value)));
-        if (!instr_set_param(&plug->instrument, param_id, value))
+        if (!instr_set_param(&plug->instrument, param_id, &value))
             goto error;
     }
 

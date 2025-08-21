@@ -143,7 +143,7 @@ void instr_end_notes(instrument_s *instr, int16_t key, int32_t note_id,
 uint32_t instr_params_count(const instrument_s *instr);
 instr_param_id instr_get_param_id(const instrument_s *instr, uint32_t index);
 
-bool instr_set_param(instrument_s *instr, instr_param_id id, double value);
+bool instr_set_param(instrument_s *instr, instr_param_id id, double *value);
 bool instr_get_param(const instrument_s *instr, instr_param_id id, double *value);
 
 const bpbxsyn_param_info_s* instr_get_param_info(const instrument_s *instr,

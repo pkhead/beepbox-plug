@@ -439,10 +439,11 @@ instr_param_id instr_get_param_id(const instrument_s *instr, uint32_t index) {
     #undef check
 }
 
-bool instr_set_param(instrument_s *instr, instr_param_id id, double value) {
+bool instr_set_param(instrument_s *instr, instr_param_id id, double *value) {
     #define HANDLE_EFFECT(e) \
         case INSTR_CPARAM_ENABLE_##e: \
-            instr_set_effect_active(instr, BPBXSYN_EFFECT_##e, value != 0.0); \
+            instr_set_effect_active(instr, BPBXSYN_EFFECT_##e, *value != 0.0); \
+            *value = *value != 0.0 ? 1.0 : 0.0; \
             break;
 
     assert(id != INSTR_INVALID_ID);
@@ -453,25 +454,40 @@ bool instr_set_param(instrument_s *instr, instr_param_id id, double value) {
     instr_local_id(id, &module, &idx);
 
     switch (module) {
-        case INSTR_MODULE_SYNTH:
-            return !bpbxsyn_synth_set_param_double(instr->synth, idx, value);
+        case INSTR_MODULE_SYNTH: {
+            const bpbxsyn_param_info_s *info =
+                bpbxsyn_synth_param_info(instr->type, idx);
+            assert(info);
+            if (!info) return false;
+
+            switch (info->type) {
+                case BPBXSYN_PARAM_DOUBLE:
+                    return !bpbxsyn_synth_set_param_double(instr->synth, idx, *value);
+                
+                case BPBXSYN_PARAM_INT:
+                case BPBXSYN_PARAM_UINT8:
+                    *value = round(*value);
+                    return !bpbxsyn_synth_set_param_int(instr->synth, idx, (int)*value);
+            }
+        }
         
         case INSTR_MODULE_CONTROL:
             switch (idx) {
                 case INSTR_CPARAM_GAIN:
-                    instr->gain = value;
+                    instr->gain = *value;
                     break;
                 
                 case INSTR_CPARAM_TEMPO_MULTIPLIER:
-                    instr->tempo_multiplier = value;
+                    instr->tempo_multiplier = *value;
                     break;
                 
                 case INSTR_CPARAM_TEMPO_USE_OVERRIDE:
-                    instr->tempo_use_override = value != 0.0;
+                    instr->tempo_use_override = *value != 0.0;
+                    *value = *value != 0.0 ? 1.0 : 0.0;
                     break;
                 
                 case INSTR_CPARAM_TEMPO_OVERRIDE:
-                    instr->tempo_override = value;
+                    instr->tempo_override = *value;
                     break;
                 
                 HANDLE_EFFECT(DISTORTION)
@@ -487,9 +503,23 @@ bool instr_set_param(instrument_s *instr, instr_param_id id, double value) {
         
         default:
             if (is_effect(module) && instr->effect_modules[module - INSTR_FIRST_EFFECT_MODULE]) {
-                return !bpbxsyn_effect_set_param_double(
-                    instr->effect_modules[module - INSTR_FIRST_EFFECT_MODULE],
-                    idx, value);
+                bpbxsyn_effect_s *effect =
+                    instr->effect_modules[module - INSTR_FIRST_EFFECT_MODULE];
+                
+                const bpbxsyn_param_info_s *info =
+                    bpbxsyn_effect_param_info(module - INSTR_FIRST_EFFECT_MODULE, idx);
+                assert(info);
+                if (!info) return false;
+
+                switch (info->type) {
+                    case BPBXSYN_PARAM_DOUBLE:
+                        return !bpbxsyn_effect_set_param_double(effect, idx, *value);
+                    
+                    case BPBXSYN_PARAM_INT:
+                    case BPBXSYN_PARAM_UINT8:
+                        *value = round(*value);
+                        return !bpbxsyn_effect_set_param_int(effect, idx, (int)*value);
+                }
             }
 
             return false;
