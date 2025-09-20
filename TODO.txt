@@ -1,13 +1,5 @@
-- vibrato starts from wrong beat in fl studio. Could either clap-wrapper not
-  providing playback information (not likely) or my code being faulty. need to
-  check with bitwig studio.
-- implement custom interval chord type
-- explicitly-named note size, instead of calling it "mod wheel" or whatever.
-- now that a note length can be assigned to each note:
-	- implement negative fade-out correctly
-- add a way for the user to notify the synth of a "next note"
-  per voice. that way, the slide transition will work as it does in BeepBox,
-  where the seam between the note is the halfway point of the slide transition.
+src/cbeepsynth/TODO.txt
+
 - standalone plugins for effects:
 	- BeepBox Distortion (M)
 	- BeepBox Bitcrusher (M)
@@ -26,13 +18,8 @@
 		- chorus, echo, reverb, limiter
 		- and mono effects applied individually per channel
 
-ACCURACY:
-	- why doesn't this happen?
-		https://jummb.us/#j6N07Unnamedn311s0k0l00e00t2ma7g00j07r1O_U0000000000i0o421T0v0pu00f00010q0Q0105e00510Oad0a0w9h0E0c0T5v0pua0f060m92hc1ea2k02f30re00q8740Oa7ad370H_QiBy9asq99900h0E0c0T1v0pueaf012ta00q0C010r5000Oa7d180A8F8B8Q126bPda58R0000E4c0b862863g78T2v0pu15f180q040Oad030w0E0c0Tav0pu00f0000q00d040E0c0b4000p1DF4sIj8Y30M5C1wqVQU0000001D_UWt0cz0RhPw0
-
-	
-CUSTOM INTERVAL:
-	in all my years of beepboxing i honestly have no idea what this does.
-	i've never used it nor have i seen anyone that have.
-	But i do know it makes the instrument monophonic so i'll probably share code
-	because with the "monophonic"izer of the arpeggio chord type.
+BUGS:
+- vibrato starts from wrong beat in fl studio. Could either clap-wrapper not
+  providing playback information (not likely) or my code being faulty. need to
+  check with bitwig studio.
+  (...does it? )
