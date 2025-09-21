@@ -412,6 +412,16 @@ void PluginController::drawHarmonicsGui() {
     }
 }
 
+void PluginController::drawSpectrumGui() {
+    ImGui::AlignTextToFramePadding();
+    ImGui::Text("Spectrum");
+
+    sameLineRightCol();
+    drawSpectrumEditor(
+        "##spectrum", BPBXSYN_SPECTRUM_PARAM_CONTROL_FIRST,
+        ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() * 1.75f));
+}
+
 void PluginController::drawEffects() {
     ImGui::AlignTextToFramePadding();
     ImGui::SetCursorPosX((ImGui::GetWindowContentRegionMax().x - ImGui::CalcTextSize("Effects").x) / 2.f);
@@ -1521,7 +1531,7 @@ void PluginController::drawHarmonicsEditor(const char *id, uint32_t paramId, ImV
     //     octaveGuideColor = ImGui::ColorConvertFloat4ToU32(buttonColor);
     // }
 
-    ImU32 fifthGuideColor = ImGui::GetColorU32(ImGuiCol_FrameBg);  
+    ImU32 fifthGuideColor = ImGui::GetColorU32(ImGuiCol_FrameBg);
 
     // draw the guides
     static const int octaves[] = {1, 2, 4, 8, 16};
@@ -1570,6 +1580,176 @@ void PluginController::drawHarmonicsEditor(const char *id, uint32_t paramId, ImV
                 controlColor);
         }
     }
+}
+
+void PluginController::drawSpectrumEditor(const char *id, uint32_t baseParamId,
+                                          ImVec2 size) {
+    ImDrawList *drawList = ImGui::GetWindowDrawList();
+    ImVec2 ui_origin = ImGui::GetCursorScreenPos();
+    ui_origin = ImVec2(floorf(ui_origin.x), floorf(ui_origin.y));
+
+    ImVec2 ui_end = ImVec2(ui_origin.x + size.x, ui_origin.y + size.y);
+    ui_end = ImVec2(floorf(ui_end.x), floorf(ui_end.y));
+
+    ImGui::InvisibleButton(id, size, ImGuiButtonFlags_MouseButtonLeft);
+
+    constexpr int draw_height_count = BPBXSYN_SPECTRUM_CONTROL_COUNT + 3;
+    float control_width = (ui_end.x - ui_origin.x) / (draw_height_count - 1);
+
+    // editing
+    if (ImGui::IsItemActive()) {
+        float left = ui_origin.x + control_width;
+        float right = ui_end.x - control_width * 2;
+        const ImVec2 mpos = ImGui::GetMousePos();
+
+        int ctl_index = (int)round(
+            (mpos.x - left) / (right - left)
+                * BPBXSYN_SPECTRUM_CONTROL_COUNT
+        );
+        ctl_index = clamp(ctl_index, 0, BPBXSYN_SPECTRUM_CONTROL_COUNT - 1);
+
+        int val = (int)round(
+            (1.f - (mpos.y - ui_origin.y) / (ui_end.y - ui_origin.y))
+                * BPBXSYN_SPECTRUM_CONTROL_MAX
+        );
+        val = clamp(val, 0, BPBXSYN_SPECTRUM_CONTROL_MAX);
+
+        if (!spectrumEditorState.activeGestures[ctl_index]) {
+            spectrumEditorState.activeGestures[ctl_index] = true;
+            paramGestureBegin(baseParamId + ctl_index);
+        }
+
+        paramChange(baseParamId + ctl_index, (double)val);
+    }
+
+    if (ImGui::IsItemDeactivated()) {
+        for (int i = 0; i < BPBXSYN_SPECTRUM_CONTROL_COUNT; ++i) {
+            if (spectrumEditorState.activeGestures[i]) {
+                paramGestureEnd(baseParamId + i);
+                spectrumEditorState.activeGestures[i] = false;
+            }
+        }
+    }
+
+    // rendering
+    // clip rect is necessary because line joining might make geometry that goes
+    // outside of the widget bounds
+    drawList->PushClipRect(ui_origin, ui_end, true);
+
+    float draw_heights[draw_height_count];
+    draw_heights[0] = 0.f;
+
+    for (uint32_t i = 0; i < BPBXSYN_SPECTRUM_CONTROL_COUNT; ++i) {
+        draw_heights[i+1] = params[baseParamId + i] / BPBXSYN_SPECTRUM_CONTROL_MAX; 
+    }
+
+    draw_heights[BPBXSYN_SPECTRUM_CONTROL_COUNT + 1] =
+        draw_heights[BPBXSYN_SPECTRUM_CONTROL_COUNT];
+
+    draw_heights[BPBXSYN_SPECTRUM_CONTROL_COUNT + 2] =
+        draw_heights[BPBXSYN_SPECTRUM_CONTROL_COUNT];
+
+    float height = ui_end.y - ui_origin.y;
+
+    ImU32 octave_guide_color = ImGui::GetColorU32(ImGuiCol_Button);
+    ImU32 fifth_guide_color = ImGui::GetColorU32(ImGuiCol_FrameBg);
+
+    constexpr int octaves[] = { 0, 7, 14, 21, 28 };
+    constexpr int fifths[] = { 4, 11, 18, 25 };
+
+    // draw harmonics guides
+    for (int i : octaves) {
+        float x = roundf(ui_origin.x + (i+1) * control_width);
+        drawList->AddRectFilled(
+            ImVec2(x - 1, ui_origin.y), ImVec2(x + 1, ui_end.y), octave_guide_color);
+    }
+
+    for (int i : fifths) {
+        float x = roundf(ui_origin.x + (i+1) * control_width);
+        drawList->AddRectFilled(
+            ImVec2(x - 1, ui_origin.y), ImVec2(x + 1, ui_end.y), fifth_guide_color);
+    }
+
+    // draw fill
+    ImU32 fill_color = ImGui::GetColorU32(ImGuiCol_Header);
+    for (int i = 1; i < draw_height_count; ++i) {
+        // empty spot
+        if (draw_heights[i-1] == 0.f && draw_heights[i] == 0.f)
+            continue;
+
+        float x0 = roundf(ui_origin.x + (i-1) * control_width);
+        float x1 = roundf(ui_origin.x + i * control_width);
+
+        float y0 = roundf(draw_heights[i-1] * -height + ui_end.y);
+        float y1 = roundf(draw_heights[i] * -height + ui_end.y);
+
+        // rising triangle
+        if (y0 == ui_end.y) {
+            drawList->AddTriangleFilled(
+                ImVec2(x0, y0), ImVec2(x1, y1),
+                ImVec2(x1, ui_end.y), fill_color);
+            
+        // falling triangle
+        } else if (y1 == ui_end.y) {
+            drawList->AddTriangleFilled(
+                ImVec2(x0, y0), ImVec2(x1, y1),
+                ImVec2(x0, ui_end.y), fill_color);
+        
+        // quad
+        } else {
+            drawList->AddQuadFilled(
+                ImVec2(x0, y0), ImVec2(x1, y1),
+                ImVec2(x1, ui_end.y), ImVec2(x0, ui_end.y),
+                fill_color);
+        }
+    }
+    
+    // draw outline
+    bool is_path_active = false;
+    ImU32 outline_color = ImGui::GetColorU32(ImGuiCol_ButtonHovered);
+    for (int i = 1; i < draw_height_count; ++i) {
+        // empty spot
+        if (draw_heights[i-1] == 0.f && draw_heights[i] == 0.f) {
+            if (is_path_active) {
+                drawList->PathStroke(outline_color, 0, 2.f);
+                is_path_active = false;
+            }
+        
+        // draw line
+        } else {
+            float x0 = roundf(ui_origin.x + (i-1) * control_width);
+            float x1 = roundf(ui_origin.x + i * control_width);
+
+            float y0 = roundf(draw_heights[i-1] * -height + ui_end.y);
+            float y1 = roundf(draw_heights[i] * -height + ui_end.y);
+
+            if (!is_path_active) {
+                drawList->PathLineTo(ImVec2(x0, y0));
+                is_path_active = true;
+            }
+
+            drawList->PathLineTo(ImVec2(x1, y1));
+        }
+    }
+
+    if (is_path_active) {
+        drawList->PathStroke(outline_color, 0, 2.f);
+        is_path_active = false;
+    }
+
+    // draw arrow on rightmost side
+    if (draw_heights[draw_height_count - 1] > 0.f) {
+        float x =
+            roundf(ui_origin.x + (draw_height_count - 1) * control_width);
+        float y =
+            roundf(draw_heights[draw_height_count -1] * -height + ui_end.y);
+        
+        drawList->AddTriangleFilled(
+            ImVec2(x, y), ImVec2(x - 4, y + 4), ImVec2(x - 4, y - 4),
+            outline_color);
+    }
+
+    drawList->PopClipRect();
 }
 
 void PluginController::drawModulationPad() {
@@ -1885,6 +2065,10 @@ void PluginController::draw(platform::Window *window) {
                             
                             case BPBXSYN_SYNTH_HARMONICS:
                                 drawHarmonicsGui();
+                                break;
+                            
+                            case BPBXSYN_SYNTH_SPECTRUM:
+                                drawSpectrumGui();
                                 break;
 
                             default: break;

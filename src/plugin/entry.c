@@ -39,7 +39,8 @@ static const clap_plugin_descriptor_t s_chip_plug_desc =
 static const clap_plugin_descriptor_t s_harmonics_plug_desc =
    CREATE_INSTRUMENT_PLUGIN("harmonics", "Harmonics", "BeepBox additive synthesizer");
 
-
+static const clap_plugin_descriptor_t s_spectrum_plug_desc =
+   CREATE_INSTRUMENT_PLUGIN("spectrum", "Spectrum", "BeepBox spectral synthesizer");
 
 
 
@@ -504,17 +505,15 @@ clap_plugin_t *clap_plugin_create(const clap_host_t *host, const clap_plugin_des
    return &p->plugin;
 }
 
-clap_plugin_t *plugin_create_fm(const clap_host_t *host) {
-   return clap_plugin_create(host, &s_fm_plug_desc, BPBXSYN_SYNTH_FM);
-}
+#define PLUGIN_TYPE_CONSTRUCTOR(kw, enum)                                      \
+   clap_plugin_t *plugin_create_##kw(const clap_host_t *host) {                \
+      return clap_plugin_create(host, &s_##kw##_plug_desc, enum);              \
+   }
 
-clap_plugin_t *plugin_create_chip(const clap_host_t *host) {
-   return clap_plugin_create(host, &s_chip_plug_desc, BPBXSYN_SYNTH_CHIP);
-}
-
-clap_plugin_t *plugin_create_harmonics(const clap_host_t *host) {
-   return clap_plugin_create(host, &s_harmonics_plug_desc, BPBXSYN_SYNTH_HARMONICS);
-}
+PLUGIN_TYPE_CONSTRUCTOR(fm, BPBXSYN_SYNTH_FM)
+PLUGIN_TYPE_CONSTRUCTOR(chip, BPBXSYN_SYNTH_CHIP)
+PLUGIN_TYPE_CONSTRUCTOR(harmonics, BPBXSYN_SYNTH_HARMONICS)
+PLUGIN_TYPE_CONSTRUCTOR(spectrum, BPBXSYN_SYNTH_SPECTRUM)
 
 /////////////////////////
 // clap_plugin_factory //
@@ -535,6 +534,10 @@ static struct {
    {
       .desc = &s_harmonics_plug_desc,
       .create = plugin_create_harmonics
+   },
+   {
+      .desc = &s_spectrum_plug_desc,
+      .create = plugin_create_spectrum
    }
 };
 

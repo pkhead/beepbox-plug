@@ -51,6 +51,7 @@ private:
     void drawChipGui1();
     void drawChipGui2();
     void drawHarmonicsGui();
+    void drawSpectrumGui();
 
     void drawFadeWidget(const char *id, ImVec2 size);
     void drawEqWidget(FilterType filter, const char *id, ImVec2 size);
@@ -58,6 +59,7 @@ private:
     void drawEffects();
     void drawModulationPad();
     void drawHarmonicsEditor(const char *id, uint32_t paramId, ImVec2 size);
+    void drawSpectrumEditor(const char *id, uint32_t baseParamId, ImVec2 size);
     void drawEqPage(FilterType targetFilter);
 
     void paramGestureBegin(uint32_t param_id);
@@ -90,6 +92,10 @@ private:
     struct {
         bool activeGestures[BPBXSYN_HARMONICS_CONTROL_COUNT] = {0};
     } harmonicsEditorState;
+
+    struct {
+        bool activeGestures[BPBXSYN_SPECTRUM_CONTROL_COUNT] = {0};
+    } spectrumEditorState;
 
 #ifdef PLUGIN_VST3
     struct {

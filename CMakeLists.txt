@@ -112,6 +112,7 @@ if(BUILD_STANDALONE)
     create_standalone(fm)
     create_standalone(chip)
     create_standalone(harmonics)
+    create_standalone(spectrum)
 endif()
 
 #################
