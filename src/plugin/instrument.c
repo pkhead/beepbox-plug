@@ -643,7 +643,7 @@ void instr_local_id(instr_param_id global_id, instr_module_e *out_module,
 }
 
 
-const char *bool_enum_values[] = { "Off", "On" };
+static const char *bool_enum_values[] = { "Off", "On" };
 bpbxsyn_param_info_s control_param_info[INSTR_CPARAM_COUNT] = {
     {
         .group = "Control",

@@ -422,6 +422,16 @@ void PluginController::drawSpectrumGui() {
         ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() * 1.75f));
 }
 
+void PluginController::drawPwmGui() {
+    ImGui::AlignTextToFramePadding();
+    ImGui::Text("Pulse Width");
+
+    sameLineRightCol();
+    ImGui::SetNextItemWidth(-FLT_MIN);
+    sliderParameter(BPBXSYN_PULSE_WIDTH_PARAM_WIDTH, "##pwm",
+        BPBXSYN_PULSE_WIDTH_WIDTH_MIN, BPBXSYN_PULSE_WIDTH_WIDTH_MAX, "%.0f");
+}
+
 void PluginController::drawEffects() {
     ImGui::AlignTextToFramePadding();
     ImGui::SetCursorPosX((ImGui::GetWindowContentRegionMax().x - ImGui::CalcTextSize("Effects").x) / 2.f);
@@ -2069,6 +2079,10 @@ void PluginController::draw(platform::Window *window) {
                             
                             case BPBXSYN_SYNTH_SPECTRUM:
                                 drawSpectrumGui();
+                                break;
+                            
+                            case BPBXSYN_SYNTH_PULSE_WIDTH:
+                                drawPwmGui();
                                 break;
 
                             default: break;

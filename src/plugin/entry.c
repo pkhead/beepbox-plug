@@ -36,12 +36,14 @@ static const clap_plugin_descriptor_t s_fm_plug_desc =
 static const clap_plugin_descriptor_t s_chip_plug_desc =
    CREATE_INSTRUMENT_PLUGIN("chip", "Chip", "BeepBox chip wave synthesizer");
 
+static const clap_plugin_descriptor_t s_pwm_plug_desc =
+   CREATE_INSTRUMENT_PLUGIN("pwm", "Pulse Width", "BeepBox pulse wave generator");
+
 static const clap_plugin_descriptor_t s_harmonics_plug_desc =
    CREATE_INSTRUMENT_PLUGIN("harmonics", "Harmonics", "BeepBox additive synthesizer");
 
 static const clap_plugin_descriptor_t s_spectrum_plug_desc =
    CREATE_INSTRUMENT_PLUGIN("spectrum", "Spectrum", "BeepBox spectral synthesizer");
-
 
 
 
@@ -512,6 +514,7 @@ clap_plugin_t *clap_plugin_create(const clap_host_t *host, const clap_plugin_des
 
 PLUGIN_TYPE_CONSTRUCTOR(fm, BPBXSYN_SYNTH_FM)
 PLUGIN_TYPE_CONSTRUCTOR(chip, BPBXSYN_SYNTH_CHIP)
+PLUGIN_TYPE_CONSTRUCTOR(pwm, BPBXSYN_SYNTH_PULSE_WIDTH)
 PLUGIN_TYPE_CONSTRUCTOR(harmonics, BPBXSYN_SYNTH_HARMONICS)
 PLUGIN_TYPE_CONSTRUCTOR(spectrum, BPBXSYN_SYNTH_SPECTRUM)
 
@@ -530,6 +533,10 @@ static struct {
    {
       .desc = &s_chip_plug_desc,
       .create = plugin_create_chip,
+   },
+   {
+      .desc = &s_pwm_plug_desc,
+      .create = plugin_create_pwm
    },
    {
       .desc = &s_harmonics_plug_desc,

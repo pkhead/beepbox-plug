@@ -52,6 +52,7 @@ private:
     void drawChipGui2();
     void drawHarmonicsGui();
     void drawSpectrumGui();
+    void drawPwmGui();
 
     void drawFadeWidget(const char *id, ImVec2 size);
     void drawEqWidget(FilterType filter, const char *id, ImVec2 size);
