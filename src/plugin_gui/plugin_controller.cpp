@@ -100,6 +100,11 @@ bool PluginController::updateParams() {
                 params[item.param_value.param_id] = item.param_value.value;
                 didWork = true;
                 break;
+            
+            case GUI_EVENT_RESYNC:
+                sync();
+                didWork = true;
+                break;
 
             default:
                 break;

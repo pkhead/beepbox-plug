@@ -139,8 +139,13 @@ bool plugin_activate(plugin_s *plug, double sample_rate,
     
     if (!s) return false;
 
-    if (plug->gui)
-        gui_sync_state(plug->gui);
+    if (plug->gui) {
+        gui_event_queue_item_s item = (gui_event_queue_item_s) {
+            .type = GUI_EVENT_RESYNC,
+        };
+
+        gui_event_enqueue(plug->gui, item);
+    }
     
     return true;
 }

@@ -25,7 +25,9 @@ typedef enum {
 
     GUI_EVENT_ADD_ENVELOPE,
     GUI_EVENT_REMOVE_ENVELOPE,
-    GUI_EVENT_MODIFY_ENVELOPE
+    GUI_EVENT_MODIFY_ENVELOPE,
+
+    GUI_EVENT_RESYNC
 } gui_event_queue_item_type_e;
 
 typedef struct {
