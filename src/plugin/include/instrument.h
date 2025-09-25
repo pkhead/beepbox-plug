@@ -36,6 +36,8 @@ typedef enum {
 
 // plugin control parameters, stored in instrument/effect instances
 typedef enum {
+    INSTR_CPARAM_SYNTH_TYPE,
+
     INSTR_CPARAM_GAIN,
     INSTR_CPARAM_TEMPO_USE_OVERRIDE,
     INSTR_CPARAM_TEMPO_MULTIPLIER,
@@ -59,8 +61,11 @@ typedef struct {
    int16_t key;
 } voice_s;
 
-typedef struct {
+typedef struct instrument {
     bpbxsyn_synth_type_e type;
+    uint8_t type_index;
+    uint8_t new_type_index;
+
     bpbxsyn_synth_s *synth;
 
     bool use_distortion;
@@ -108,6 +113,9 @@ typedef struct {
     // tracked voices
     voice_s voices[BPBXSYN_SYNTH_MAX_VOICES];
     int8_t active_voice_count;
+
+    const clap_host_t *clap_host;
+    const clap_host_params_t *clap_host_params;
 } instrument_s;
 
 typedef struct {
@@ -126,8 +134,8 @@ void instr_destroy(instrument_s *instr);
 void instr_process(instrument_s *instr, float **output, uint32_t frame_count,
                    uint32_t start_frame, const clap_output_events_t *out_events);
 
-bool instr_activate(instrument_s *instr, double sample_rate,
-                    uint32_t max_frames_count);
+bool instr_activate(instrument_s *instr, bpbxsyn_context_s *ctx,
+                    double sample_rate, uint32_t max_frames_count);
 bool instr_deactivate(instrument_s *instr);
 
 void instr_set_effect_active(instrument_s *instr, bpbxsyn_effect_type_e effect,
@@ -141,13 +149,20 @@ void instr_end_notes(instrument_s *instr, int16_t key, int32_t note_id,
                      int16_t port_index, int16_t channel);
 
 uint32_t instr_params_count(const instrument_s *instr);
-instr_param_id instr_get_param_id(const instrument_s *instr, uint32_t index);
+instr_param_id instr_get_param_id(const instrument_s *instr, uint32_t index,
+                                  bool *is_inactive);
 
 bool instr_set_param(instrument_s *instr, instr_param_id id, double *value);
 bool instr_get_param(const instrument_s *instr, instr_param_id id, double *value);
 
 const bpbxsyn_param_info_s* instr_get_param_info(const instrument_s *instr,
                                                  instr_param_id id);
+
+// calculate type index of a given synth. type index uses different values than the values
+// for the type enums.
+int instr_synth_type_index(bpbxsyn_synth_type_e type);
+
+extern const bpbxsyn_synth_type_e instr_synth_type_values[BPBXSYN_SYNTH_COUNT];
 
 // int instr_global_id(instr_module_e target, instr_param_id local_index);
 #define instr_global_id(module, local_index) \

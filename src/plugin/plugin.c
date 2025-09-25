@@ -91,6 +91,7 @@ bool plugin_init(plugin_s *plug) {
     plug->host_thread_check = (const clap_host_thread_check_t *)plug->host->get_extension(plug->host, CLAP_EXT_THREAD_CHECK);
     plug->host_latency = (const clap_host_latency_t *)plug->host->get_extension(plug->host, CLAP_EXT_LATENCY);
     plug->host_state = (const clap_host_state_t *)plug->host->get_extension(plug->host, CLAP_EXT_STATE);
+    plug->host_params = (const clap_host_params_t *)plug->host->get_extension(plug->host, CLAP_EXT_PARAMS);
     plug->host_track_info = (const clap_host_track_info_t*) plug->host->get_extension(plug->host, CLAP_EXT_TRACK_INFO);
     plug->host_context_menu = (const clap_host_context_menu_t*) plug->host->get_extension(plug->host, CLAP_EXT_CONTEXT_MENU);
 
@@ -108,6 +109,9 @@ bool plugin_init(plugin_s *plug) {
 
     if (!instr_init(&plug->instrument, plug->ctx, plug->instrument.type))
         return false;
+
+    plug->instrument.clap_host = plug->host;
+    plug->instrument.clap_host_params = plug->host_params;
 
     if (plug->host_track_info) {
         plugin_track_info_changed(plug);
@@ -130,7 +134,15 @@ void plugin_destroy(plugin_s *plug) {
 bool plugin_activate(plugin_s *plug, double sample_rate,
                      uint32_t min_frames_count, uint32_t max_frames_count)
 {
-    return instr_activate(&plug->instrument, sample_rate, max_frames_count);
+    bool s = instr_activate(&plug->instrument, plug->ctx, sample_rate,
+                            max_frames_count);
+    
+    if (!s) return false;
+
+    if (plug->gui)
+        gui_sync_state(plug->gui);
+    
+    return true;
 }
 
 bool plugin_deactivate(plugin_s *plug) {
@@ -138,7 +150,8 @@ bool plugin_deactivate(plugin_s *plug) {
     char buf[128];
     snprintf(buf, 128, "%llu bytes allocated", plug->mem_allocated);
 
-    plug->host_log->log(plug->host, CLAP_LOG_DEBUG, buf);
+    if (plug->host_log)
+        plug->host_log->log(plug->host, CLAP_LOG_DEBUG, buf);
     #endif
     
     return instr_deactivate(&plug->instrument);
@@ -394,7 +407,22 @@ uint32_t plugin_params_count(const plugin_s *plug) {
 bool plugin_params_get_info(const plugin_s *plugin, uint32_t param_index,
                             clap_param_info_t *param_info)
 {
-    instr_param_id param_id = instr_get_param_id(&plugin->instrument, param_index);
+    bool is_inactive;
+    instr_param_id param_id = instr_get_param_id(&plugin->instrument,
+                                                 param_index, &is_inactive);
+    
+    if (is_inactive) {
+        param_info->cookie = NULL;
+        param_info->id = param_id;
+        impl_strcpy_s(param_info->name, 256, "-");
+        impl_strcpy_s(param_info->module, 1024, "");
+        param_info->default_value = 0.0;
+        param_info->min_value = 0.0;
+        param_info->max_value = 1.0;
+        param_info->flags = CLAP_PARAM_IS_HIDDEN;
+        return true;
+    }
+
     const bpbxsyn_param_info_s *info =
         instr_get_param_info(&plugin->instrument, param_id);
     if (!info)
@@ -412,7 +440,7 @@ bool plugin_params_get_info(const plugin_s *plugin, uint32_t param_index,
     param_info->default_value = info->default_value;
     param_info->min_value = info->min_value;
     param_info->max_value = info->max_value;
-
+    
     param_info->flags = CLAP_PARAM_IS_AUTOMATABLE;
     if (info->type == BPBXSYN_PARAM_UINT8 || info->type == BPBXSYN_PARAM_INT) {
         param_info->flags |= CLAP_PARAM_IS_STEPPED;
@@ -683,8 +711,18 @@ bool plugin_state_save(const plugin_s *plug, const clap_ostream_t *stream) {
     int write_param_count = 0;
 
     for (uint32_t i = 0; i < param_count; ++i) {
-        uint32_t param_id = instr_get_param_id(&plug->instrument, i);
+        bool is_inactive;
+        uint32_t param_id = instr_get_param_id(&plug->instrument, i,
+                                               &is_inactive);
+        
         if (param_id == INSTR_INVALID_ID) goto error;
+        if (is_inactive) continue;
+
+        // don't write the synth type parameter, because we already do that in
+        // the header
+        if (param_id == instr_global_id(INSTR_MODULE_CONTROL,
+                                        INSTR_CPARAM_SYNTH_TYPE))
+            continue;
 
         // don't write this parameter if associated module is inactive
         // uh, nevermind. i need to disable this so that it passes the
@@ -754,11 +792,32 @@ bool plugin_state_load(plugin_s *plug, const clap_istream_t *stream) {
     ERRCHK(stream_read_prim(stream, &synth_min, sizeof(synth_min)));
     ERRCHK(stream_read_prim(stream, &synth_rev, sizeof(synth_rev)));
 
-    // read and verify instrument type
-    uint8_t file_inst_type;
-    ERRCHK(stream_read_prim(stream, &file_inst_type, sizeof(file_inst_type)));
-    if (file_inst_type != (uint8_t)plug->instrument.type)
+    // read instrument type
+    uint8_t inst_type;
+    ERRCHK(stream_read_prim(stream, &inst_type, sizeof(inst_type)));
+
+    // load new instrument type
+    bpbxsyn_synth_s *new_synth =
+        bpbxsyn_synth_new(plug->ctx, inst_type);
+    
+    if (new_synth) {
+        int type_idx = instr_synth_type_index(inst_type);
+        if (type_idx == -1) {
+            bpbxsyn_synth_destroy(new_synth);
+            goto error;
+        }
+
+        assert(type_idx >= 0 && type_idx <= UINT8_MAX);
+        
+        plug->instrument.new_type_index = (uint8_t)type_idx;
+        plug->instrument.type_index = (uint8_t)type_idx;
+        plug->instrument.type = inst_type;
+
+        bpbxsyn_synth_destroy(plug->instrument.synth);
+        plug->instrument.synth = new_synth;
+    } else {
         goto error;
+    }
 
     uint32_t all_param_count = instr_params_count(&plug->instrument);
     uint32_t param_count;
@@ -773,7 +832,9 @@ bool plugin_state_load(plugin_s *plug, const clap_istream_t *stream) {
         instr_param_id param_id = INSTR_INVALID_ID;
         const bpbxsyn_param_info_s *info = NULL;
         for (uint32_t j = 0; j < all_param_count; ++j) {
-            instr_param_id id = instr_get_param_id(&plug->instrument, j);
+            instr_param_id id = instr_get_param_id(&plug->instrument, j,
+                                                   NULL);
+            
             assert(id != INSTR_INVALID_ID);
             if (id == INSTR_INVALID_ID)
                 goto error;

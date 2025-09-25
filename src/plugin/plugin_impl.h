@@ -17,6 +17,7 @@ typedef struct {
     const clap_host_latency_t *host_latency;
     const clap_host_log_t *host_log;
     const clap_host_thread_check_t *host_thread_check;
+    const clap_host_params_t *host_params;
     const clap_host_state_t *host_state;
     const clap_host_track_info_t *host_track_info;
     const clap_host_context_menu_t *host_context_menu;

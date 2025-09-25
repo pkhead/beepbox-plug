@@ -96,24 +96,16 @@ set_target_properties(${CLAP_TARGET} PROPERTIES
 #######################
 
 if(BUILD_STANDALONE)
-    function(create_standalone INST)
-        set(STANDALONE_INST ${PROJECT_NAME}_standalone_${INST})
-        add_executable(${STANDALONE_INST})
-        target_sources(${STANDALONE_INST} PRIVATE ${CLAP_SOURCES})
-        target_compile_definitions(${STANDALONE_INST} PRIVATE PLUGIN_VERSION="${PROJECT_VERSION}")
-        target_link_libraries(${STANDALONE_INST} PRIVATE ${LIBRARIES} plugin_gui)
-        target_add_standalone_wrapper(TARGET ${STANDALONE_INST}
-            OUTPUT_NAME "BeepBox_${INST}"
-            STATICALLY_LINKED_CLAP_ENTRY True
-            PLUGIN_ID "us.pkhead.beepbox.${INST}"
-        )
-    endfunction()
-
-    create_standalone(fm)
-    create_standalone(chip)
-    create_standalone(pwm)
-    create_standalone(harmonics)
-    create_standalone(spectrum)
+    set(STANDALONE_TARGET ${PROJECT_NAME}_standalone)
+    add_executable(${STANDALONE_TARGET})
+    target_sources(${STANDALONE_TARGET} PRIVATE ${CLAP_SOURCES})
+    target_compile_definitions(${STANDALONE_TARGET} PRIVATE PLUGIN_VERSION="${PROJECT_VERSION}")
+    target_link_libraries(${STANDALONE_TARGET} PRIVATE ${LIBRARIES} plugin_gui)
+    target_add_standalone_wrapper(TARGET ${STANDALONE_TARGET}
+        OUTPUT_NAME "BeepBox"
+        STATICALLY_LINKED_CLAP_ENTRY True
+        PLUGIN_ID "us.pkhead.beepbox"
+    )
 endif()
 
 #################

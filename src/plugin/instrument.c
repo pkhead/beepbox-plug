@@ -51,7 +51,8 @@ static inline bool is_effect(instr_module_e module) {
            && module <= INSTR_LAST_EFFECT_MODULE;
 }
 
-bpbxsyn_param_info_s control_param_info[INSTR_CPARAM_COUNT];
+static const bpbxsyn_param_info_s control_param_info[INSTR_CPARAM_COUNT];
+static const bpbxsyn_param_info_s unused_param_info;
 
 
 
@@ -73,10 +74,36 @@ bpbxsyn_param_info_s control_param_info[INSTR_CPARAM_COUNT];
 
 
 
+
+int instr_synth_type_index(bpbxsyn_synth_type_e type) {
+    int type_idx = -1;
+    for (int i = 0; i < BPBXSYN_SYNTH_COUNT; ++i) {
+        if (instr_synth_type_values[i] == type)
+            type_idx = i;
+    }
+
+    return type_idx;
+}
 
 bool instr_init(instrument_s *instr, bpbxsyn_context_s *ctx, bpbxsyn_synth_type_e type) {
+    // calculate type index. type index uses different values than the values
+    // for the type enums.
+    int type_idx = instr_synth_type_index(type);
+
+    // could not calculate type index for whatever reason, so signal error.
+    // (probably that the type is unimplemented, but this case should be
+    // impossible in v1.0.0 and later)
+    assert(type_idx != -1);
+    if (type_idx == -1) {
+        return false;
+    }
+
+    assert(type_idx >= 0 && type_idx <= UINT8_MAX);
+
     *instr = (instrument_s) {
         .type = type,
+        .type_index = (uint8_t)type_idx,
+        .new_type_index = (uint8_t)type_idx,
         .bpm = 150.0,
         .tempo_multiplier = 1.0,
         .tempo_override = 150.0,
@@ -123,9 +150,25 @@ void instr_destroy(instrument_s *instr) {
     }
 }
 
-bool instr_activate(instrument_s *instr, double sample_rate,
-                    uint32_t max_frames_count)
-{
+bool instr_activate(instrument_s *instr, bpbxsyn_context_s *ctx,
+                    double sample_rate, uint32_t max_frames_count) {
+    assert(instr->clap_host);
+    assert(instr->clap_host_params);
+
+    // load new instrument type when requested
+    if (instr->new_type_index != instr->type_index) {
+        instr->type_index = instr->new_type_index;
+        assert(instr_synth_type_values[instr->type_index] != -1);
+
+        instr->type = instr_synth_type_values[instr->type_index];
+        bpbxsyn_synth_destroy(instr->synth);
+        instr->synth = bpbxsyn_synth_new(ctx, instr->type);
+
+        if (instr->clap_host_params)
+            instr->clap_host_params->rescan(instr->clap_host,
+                                            CLAP_PARAM_RESCAN_ALL);
+    }
+
     instr->sample_rate = sample_rate;
 
     bpbxsyn_synth_set_sample_rate(instr->synth, sample_rate);
@@ -366,9 +409,26 @@ void instr_end_notes(instrument_s *instr, int16_t key, int32_t note_id,
    }
 }
 
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+
+// use the param count of the generator that has the most number of
+// parameters
+#define MAX_SYNTH_PARAM_COUNT ((                                               \
+        MAX(BPBXSYN_CHIP_PARAM_COUNT,                                          \
+        MAX(BPBXSYN_FM_PARAM_COUNT,                                            \
+        MAX(BPBXSYN_NOISE_PARAM_COUNT,                                         \
+        MAX(BPBXSYN_PULSE_WIDTH_PARAM_COUNT,                                   \
+        MAX(BPBXSYN_CUSTOM_CHIP_PARAM_COUNT,                                   \
+        MAX(BPBXSYN_HARMONICS_PARAM_COUNT,                                     \
+        MAX(BPBXSYN_SPECTRUM_PARAM_COUNT,                                      \
+        MAX(BPBXSYN_PICKED_STRING_PARAM_COUNT,                                 \
+            BPBXSYN_SUPERSAW_PARAM_COUNT)                                      \
+        )))))))                                                                \
+    ))
+
 uint32_t instr_params_count(const instrument_s *instr) {
     uint32_t count =
-        bpbxsyn_synth_param_count(instr->type)
+        MAX_SYNTH_PARAM_COUNT
         + INSTR_CPARAM_COUNT
         + BPBXSYN_VOLUME_PARAM_COUNT
         + BPBXSYN_PANNING_PARAM_COUNT
@@ -378,16 +438,12 @@ uint32_t instr_params_count(const instrument_s *instr) {
         + BPBXSYN_CHORUS_PARAM_COUNT
         + BPBXSYN_ECHO_PARAM_COUNT
         + BPBXSYN_REVERB_PARAM_COUNT;
-    // TODO: add reverb for param count
-
-    // for (int i = 0; i < BPBXSYN_EFFECT_COUNT; ++i) {
-    //     count += bpbxsyn_effect_param_count(i);
-    // }
 
     return count;
 }
 
-instr_param_id instr_get_param_id(const instrument_s *instr, uint32_t index) {
+instr_param_id instr_get_param_id(const instrument_s *instr, uint32_t index,
+                                  bool *is_inactive) {
     #define check(module, count) \
         if (index < count) \
             return instr_global_id(module, index); \
@@ -403,7 +459,8 @@ instr_param_id instr_get_param_id(const instrument_s *instr, uint32_t index) {
             return instr_global_id((module), (pindex)); \
         index--
 
-    unsigned int synth_param_count = bpbxsyn_synth_param_count(instr->type);
+    if (is_inactive)
+        *is_inactive = false;
 
     // control parameters
     check_within(INSTR_MODULE_CONTROL, 0, INSTR_CPARAM_ENABLE_DISTORTION);
@@ -417,7 +474,12 @@ instr_param_id instr_get_param_id(const instrument_s *instr, uint32_t index) {
     check_within(INSTR_MODULE_SYNTH, 0, note_effect_start);
 
     // synth params
-    check_within(INSTR_MODULE_SYNTH, BPBXSYN_BASE_PARAM_COUNT, synth_param_count - BPBXSYN_BASE_PARAM_COUNT);
+    if (index < MAX_SYNTH_PARAM_COUNT && 
+        index >= bpbxsyn_synth_param_count(instr->type) - BPBXSYN_BASE_PARAM_COUNT
+    ) {
+        if (is_inactive) *is_inactive = true;
+    }
+    check_within(INSTR_MODULE_SYNTH, BPBXSYN_BASE_PARAM_COUNT, MAX_SYNTH_PARAM_COUNT);
 
     // synth note effect parameters
     check_within(INSTR_MODULE_SYNTH, note_effect_start, BPBXSYN_BASE_PARAM_COUNT - note_effect_start);
@@ -466,6 +528,14 @@ bool instr_set_param(instrument_s *instr, instr_param_id id, double *value) {
 
     switch (module) {
         case INSTR_MODULE_SYNTH: {
+            assert(idx < BPBXSYN_BASE_PARAM_COUNT + MAX_SYNTH_PARAM_COUNT);
+            if (idx >= BPBXSYN_BASE_PARAM_COUNT + MAX_SYNTH_PARAM_COUNT)
+                return false;
+            
+            // unused param, ignore the write
+            if (idx >= bpbxsyn_synth_param_count(instr->type))
+                return true;
+
             const bpbxsyn_param_info_s *info =
                 bpbxsyn_synth_param_info(instr->type, idx);
             assert(info);
@@ -484,6 +554,18 @@ bool instr_set_param(instrument_s *instr, instr_param_id id, double *value) {
         
         case INSTR_MODULE_CONTROL:
             switch (idx) {
+                case INSTR_CPARAM_SYNTH_TYPE:
+                    instr->new_type_index = (int)(*value);
+
+                    // -1 means that instrument type is not implemented yet
+                    if (instr_synth_type_values[instr->new_type_index] == -1) {
+                        instr->new_type_index = instr->type_index;
+                    } else if (instr->clap_host->request_restart) {
+                        instr->clap_host->request_restart(instr->clap_host);
+                    }
+
+                    break;
+                
                 case INSTR_CPARAM_GAIN:
                     instr->gain = *value;
                     break;
@@ -549,10 +631,24 @@ bool instr_get_param(const instrument_s *instr, instr_param_id id, double *value
 
     switch (module) {
         case INSTR_MODULE_SYNTH:
+            assert(idx < BPBXSYN_BASE_PARAM_COUNT + MAX_SYNTH_PARAM_COUNT);
+            if (idx >= BPBXSYN_BASE_PARAM_COUNT + MAX_SYNTH_PARAM_COUNT)
+                return false;
+
+            // unused param
+            if (idx >= bpbxsyn_synth_param_count(instr->type)) {
+                *value = 0.0;
+                return true;
+            }
+
             return !bpbxsyn_synth_get_param_double(instr->synth, idx, value);
         
         case INSTR_MODULE_CONTROL:
             switch (idx) {
+                case INSTR_CPARAM_SYNTH_TYPE:
+                    *value = (double)instr->type_index;
+                    break;
+                
                 case INSTR_CPARAM_GAIN:
                     *value = instr->gain;
                     break;
@@ -612,6 +708,10 @@ const bpbxsyn_param_info_s* instr_get_param_info(const instrument_s *instr,
 
     switch (module) {
         case INSTR_MODULE_SYNTH:
+            assert(idx < BPBXSYN_BASE_PARAM_COUNT + MAX_SYNTH_PARAM_COUNT);
+            if (idx >= bpbxsyn_synth_param_count(instr->type))
+                return &unused_param_info;
+
             return bpbxsyn_synth_param_info(instr->type, idx);
         
         case INSTR_MODULE_CONTROL:
@@ -642,9 +742,43 @@ void instr_local_id(instr_param_id global_id, instr_module_e *out_module,
         *out_module = global_id >> 16;
 }
 
+static const bpbxsyn_param_info_s unused_param_info = {
+    .type = BPBXSYN_PARAM_UINT8,
+    .id = "unused\0\0",
+    .name = "Unused Parameter",
+
+    .min_value = 0.0,
+    .max_value = 1.0,
+    .default_value = 0.0
+};
 
 static const char *bool_enum_values[] = { "Off", "On" };
-bpbxsyn_param_info_s control_param_info[INSTR_CPARAM_COUNT] = {
+const bpbxsyn_synth_type_e instr_synth_type_values[BPBXSYN_SYNTH_COUNT] = {
+    BPBXSYN_SYNTH_CHIP, BPBXSYN_SYNTH_PULSE_WIDTH, /*BPBXSYN_SYNTH_SUPERSAW*/-1,
+    BPBXSYN_SYNTH_HARMONICS, /*BPBXSYN_SYNTH_PICKED_STRING*/-1,
+    BPBXSYN_SYNTH_SPECTRUM, BPBXSYN_SYNTH_FM, /*BPBXSYN_SYNTH_CUSTOM_CHIP*/-1,
+    /*BPBXSYN_SYNTH_NOISE*/-1
+};
+
+static const char *synth_type_enum_values[BPBXSYN_SYNTH_COUNT] = {
+    "chip wave", "pulse width", "supersaw", "harmonics", "picked string",
+    "spectrum", "FM", "custom chip", "noise"
+};
+
+static const bpbxsyn_param_info_s control_param_info[INSTR_CPARAM_COUNT] = {
+    {
+        .group = "Control",
+        .name = "Synth Type",
+        .id = "ctType\0\0",
+        .type = BPBXSYN_PARAM_UINT8,
+
+        .min_value = 0,
+        .max_value = BPBXSYN_SYNTH_COUNT - 1,
+        .default_value = 0,
+
+        .flags = BPBXSYN_PARAM_FLAG_NO_AUTOMATION,
+        .enum_values = synth_type_enum_values
+    },
     {
         .group = "Control",
         .name = "Gain",

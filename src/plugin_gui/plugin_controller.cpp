@@ -64,13 +64,13 @@ PluginController::PluginController(const clap_plugin_t *plugin, const clap_host_
 }
 
 void PluginController::sync() {
-    bpbxsyn_synth_type_e type = bpbxsyn_synth_type(instrument->synth);
+    inst_type = bpbxsyn_synth_type(instrument->synth);
     
     uint32_t param_count = instr_params_count(instrument);
     params.reserve(param_count * 2.0);
 
     for (int i = 0; i < param_count; i++) {
-        instr_param_id id = instr_get_param_id(instrument, i);
+        instr_param_id id = instr_get_param_id(instrument, i, NULL);
         if (id == INSTR_INVALID_ID) {
             log_error("could not initialize parameter #%i because get_info failed", i);
             continue;
@@ -429,7 +429,7 @@ void PluginController::drawPwmGui() {
     sameLineRightCol();
     ImGui::SetNextItemWidth(-FLT_MIN);
     sliderParameter(BPBXSYN_PULSE_WIDTH_PARAM_WIDTH, "##pwm",
-        BPBXSYN_PULSE_WIDTH_WIDTH_MIN, BPBXSYN_PULSE_WIDTH_WIDTH_MAX, "%.0f");
+        BPBXSYN_PULSE_WIDTH_MIN, BPBXSYN_PULSE_WIDTH_MAX, "%.0f");
 }
 
 void PluginController::drawEffects() {
@@ -2004,6 +2004,26 @@ void PluginController::draw(platform::Window *window) {
             switch (currentPage) {
                 case PAGE_MAIN:
                     if (ImGui::Begin("inst", NULL, winFlags)) {
+                        // type
+                        static const char *types[BPBXSYN_SYNTH_COUNT] = {
+                            "chip wave", "pulse width", "supersaw", "harmonics",
+                            "picked string", "spectrum", "FM", "custom chip"
+                        };
+                        
+                        ImGui::AlignTextToFramePadding();
+                        ImGui::Text("Type");
+
+                        sameLineRightCol();
+                        ImGui::SetNextItemWidth(-FLT_MIN);
+                        int curType = params[CPARAM(SYNTH_TYPE)];
+                        if (ImGui::Combo("##gentype", &curType, types,
+                                         BPBXSYN_SYNTH_COUNT)
+                        ) {
+                            paramGestureBegin(CPARAM(SYNTH_TYPE));
+                            paramChange(CPARAM(SYNTH_TYPE), (double)curType);
+                            paramGestureEnd(CPARAM(SYNTH_TYPE));
+                        }
+
                         // volume
                         ImGui::AlignTextToFramePadding();
                         ImGui::Text("Volume");

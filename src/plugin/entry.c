@@ -17,33 +17,23 @@
 #include "system.h"
 #include "plugin_impl.h"
 
-#define CREATE_INSTRUMENT_PLUGIN(inst_id, inst_name, inst_desc) { \
-   .clap_version = CLAP_VERSION_INIT, \
-   .id = "us.pkhead.beepbox." inst_id, \
-   .name = "BeepBox " inst_name, \
-   .vendor = "pkhead", \
-   .url = "https://github.com/pkhead/beepbox-plug", \
-   .manual_url = "", \
-   .support_url = "", \
-   .version = PLUGIN_VERSION, \
-   .description = inst_desc, \
-   .features = (const char *[]){CLAP_PLUGIN_FEATURE_INSTRUMENT, CLAP_PLUGIN_FEATURE_STEREO, NULL}, \
-}
-
-static const clap_plugin_descriptor_t s_fm_plug_desc =
-   CREATE_INSTRUMENT_PLUGIN("fm", "FM", "BeepBox FM synthesizer");
-
-static const clap_plugin_descriptor_t s_chip_plug_desc =
-   CREATE_INSTRUMENT_PLUGIN("chip", "Chip", "BeepBox chip wave synthesizer");
-
-static const clap_plugin_descriptor_t s_pwm_plug_desc =
-   CREATE_INSTRUMENT_PLUGIN("pwm", "Pulse Width", "BeepBox pulse wave generator");
-
-static const clap_plugin_descriptor_t s_harmonics_plug_desc =
-   CREATE_INSTRUMENT_PLUGIN("harmonics", "Harmonics", "BeepBox additive synthesizer");
-
-static const clap_plugin_descriptor_t s_spectrum_plug_desc =
-   CREATE_INSTRUMENT_PLUGIN("spectrum", "Spectrum", "BeepBox spectral synthesizer");
+static const clap_plugin_descriptor_t s_synth_plug_desc = {
+   .clap_version = CLAP_VERSION_INIT,
+   .id = "us.pkhead.beepbox",
+   .name = "BeepBox",
+   .vendor = "pkhead",
+   .url = "https://github.com/pkhead/beepbox-plug",
+   .manual_url = "",
+   .support_url = "",
+   .version = PLUGIN_VERSION,
+   .description = "BeepBox synthesizers",
+   .features = (const char *[]){
+      CLAP_PLUGIN_FEATURE_INSTRUMENT,
+      CLAP_PLUGIN_FEATURE_SYNTHESIZER,
+      CLAP_PLUGIN_FEATURE_STEREO,
+      NULL
+   }
+};
 
 
 
@@ -484,11 +474,11 @@ static const void *plugin_get_extension(const struct clap_plugin *plugin, const 
 
 static void plugin_on_main_thread(const struct clap_plugin *plugin) {}
 
-clap_plugin_t *clap_plugin_create(const clap_host_t *host, const clap_plugin_descriptor_t *desc, bpbxsyn_synth_type_e inst_type) {
+clap_plugin_t *clap_plugin_create(const clap_host_t *host) {
    plugin_s *p = malloc(sizeof(plugin_s));
    *p = (plugin_s) {
       .host = host,
-      .plugin.desc = desc,
+      .plugin.desc = &s_synth_plug_desc,
       .plugin.plugin_data = p,
       .plugin.init = clap_plugin_init,
       .plugin.destroy = clap_plugin_destroy,
@@ -503,20 +493,9 @@ clap_plugin_t *clap_plugin_create(const clap_host_t *host, const clap_plugin_des
    };
 
    // Don't call into the host here
-   plugin_create(p, inst_type);
+   plugin_create(p, BPBXSYN_SYNTH_CHIP);
    return &p->plugin;
 }
-
-#define PLUGIN_TYPE_CONSTRUCTOR(kw, enum)                                      \
-   clap_plugin_t *plugin_create_##kw(const clap_host_t *host) {                \
-      return clap_plugin_create(host, &s_##kw##_plug_desc, enum);              \
-   }
-
-PLUGIN_TYPE_CONSTRUCTOR(fm, BPBXSYN_SYNTH_FM)
-PLUGIN_TYPE_CONSTRUCTOR(chip, BPBXSYN_SYNTH_CHIP)
-PLUGIN_TYPE_CONSTRUCTOR(pwm, BPBXSYN_SYNTH_PULSE_WIDTH)
-PLUGIN_TYPE_CONSTRUCTOR(harmonics, BPBXSYN_SYNTH_HARMONICS)
-PLUGIN_TYPE_CONSTRUCTOR(spectrum, BPBXSYN_SYNTH_SPECTRUM)
 
 /////////////////////////
 // clap_plugin_factory //
@@ -527,25 +506,9 @@ static struct {
    clap_plugin_t *(CLAP_ABI *create)(const clap_host_t *host);
 } s_plugins[] = {
    {
-      .desc = &s_fm_plug_desc,
-      .create = plugin_create_fm,
+      .desc = &s_synth_plug_desc,
+      .create = clap_plugin_create,
    },
-   {
-      .desc = &s_chip_plug_desc,
-      .create = plugin_create_chip,
-   },
-   {
-      .desc = &s_pwm_plug_desc,
-      .create = plugin_create_pwm
-   },
-   {
-      .desc = &s_harmonics_plug_desc,
-      .create = plugin_create_harmonics
-   },
-   {
-      .desc = &s_spectrum_plug_desc,
-      .create = plugin_create_spectrum
-   }
 };
 
 static uint32_t plugin_factory_get_plugin_count(const struct clap_plugin_factory *factory) {
