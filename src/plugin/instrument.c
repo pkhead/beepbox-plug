@@ -835,8 +835,8 @@ const bpbxsyn_synth_type_e instr_synth_type_values[BPBXSYN_SYNTH_COUNT] = {
 };
 
 static const char *synth_type_enum_values[BPBXSYN_SYNTH_COUNT] = {
-    "chip wave", "pulse width", "supersaw", "harmonics", "picked string",
-    "spectrum", "FM", "custom chip", "noise"
+    "Chip Wave", "Pulse Width", "Supersaw", "Harmonics", "Picked String",
+    "Spectrum", "FM", "Custom Chip", "Noise"
 };
 
 static const bpbxsyn_param_info_s control_param_info[INSTR_CPARAM_COUNT] = {
