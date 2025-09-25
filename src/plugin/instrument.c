@@ -501,7 +501,8 @@ void instr_end_notes(instrument_s *instr, int16_t key, int32_t note_id,
 
 uint32_t instr_params_count(const instrument_s *instr) {
     uint32_t count =
-        MAX_SYNTH_PARAM_COUNT
+        BPBXSYN_BASE_PARAM_COUNT
+        + MAX_SYNTH_PARAM_COUNT
         + INSTR_CPARAM_COUNT
         + BPBXSYN_VOLUME_PARAM_COUNT
         + BPBXSYN_PANNING_PARAM_COUNT
