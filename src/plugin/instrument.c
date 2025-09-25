@@ -150,19 +150,92 @@ void instr_destroy(instrument_s *instr) {
     }
 }
 
+bool copy_synth_config(const bpbxsyn_synth_s *src, bpbxsyn_synth_s *dst) {
+    // copy base parameters
+    for (uint32_t i = 0; i < BPBXSYN_BASE_PARAM_COUNT; ++i) {
+        double v;
+        if (bpbxsyn_synth_get_param_double(src, i, &v))
+            return false;
+
+        if (bpbxsyn_synth_set_param_double(dst, i, v))
+            return false;
+    }
+
+    // copy compatible envelope data
+    const bpbxsyn_envelope_s *src_envelopes =
+        bpbxsyn_synth_get_envelope((bpbxsyn_synth_s*)src, 0);
+    
+    // get both src and dst envelope targets. voice effect targets are
+    // not included in the list, so i need to determine if it's a generator
+    // envelope target by seeing if it's in the source target list.
+    int src_env_target_count;
+    const bpbxsyn_envelope_compute_index_e *src_env_targets =
+        bpbxsyn_synth_envelope_targets(bpbxsyn_synth_type(src),
+                                       &src_env_target_count);
+    
+    int dst_env_target_count;
+    const bpbxsyn_envelope_compute_index_e *dst_env_targets =
+        bpbxsyn_synth_envelope_targets(bpbxsyn_synth_type(dst),
+                                       &dst_env_target_count);
+    
+    for (uint8_t i = 0; i < bpbxsyn_synth_envelope_count(src); ++i) {
+        const bpbxsyn_envelope_s *src_envelope = src_envelopes + i;
+        bpbxsyn_envelope_s *dst_envelope = bpbxsyn_synth_add_envelope(dst);
+        *dst_envelope = *src_envelope;
+
+        bool is_src_target = false;
+        bool is_dst_target = false;
+
+        for (int i = 0; i < src_env_target_count; ++i) {
+            if (src_env_targets[i] == src_envelope->index) {
+                is_src_target = true;
+                break;
+            }
+        }
+
+        for (int i = 0; i < dst_env_target_count; ++i) {
+            if (dst_env_targets[i] == src_envelope->index) {
+                is_dst_target = true;
+                break;
+            }
+        }
+
+        if (is_src_target && !is_dst_target) {
+            dst_envelope->index = BPBXSYN_ENV_INDEX_NONE;
+        }
+    }
+
+    return true;
+}
+
 bool instr_activate(instrument_s *instr, bpbxsyn_context_s *ctx,
                     double sample_rate, uint32_t max_frames_count) {
     assert(instr->clap_host);
     assert(instr->clap_host_params);
 
     // load new instrument type when requested
-    if (instr->new_type_index != instr->type_index) {
-        instr->type_index = instr->new_type_index;
-        assert(instr_synth_type_values[instr->type_index] != -1);
+    if (instr->new_type_index != instr->type_index && instr->synth) {
+        bpbxsyn_synth_type_e new_type = instr_synth_type_values[instr->new_type_index];
+        assert(new_type != -1);
+        if (new_type == -1) {
+            instr->type = instr->new_type_index;
+            return false;
+        }
 
-        instr->type = instr_synth_type_values[instr->type_index];
+        bpbxsyn_synth_s *new_synth = bpbxsyn_synth_new(ctx, new_type);
+        if (!new_synth) {
+            instr->type = instr->new_type_index;
+            return false;    
+        }
+
+        if (!copy_synth_config(instr->synth, new_synth))
+            return false;
+
+        instr->type_index = instr->new_type_index;
+        instr->type = new_type;
+        
         bpbxsyn_synth_destroy(instr->synth);
-        instr->synth = bpbxsyn_synth_new(ctx, instr->type);
+        instr->synth = new_synth;
 
         if (instr->clap_host_params)
             instr->clap_host_params->rescan(instr->clap_host,
