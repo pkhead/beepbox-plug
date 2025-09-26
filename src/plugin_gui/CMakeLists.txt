@@ -33,6 +33,12 @@ elseif(APPLE)
         ../pugl/src/mac_stub.m
     )
 
+    find_library(LIB_COCOA Cocoa)
+    find_library(LIB_FOUNDATION Foundation)
+    find_library(LIB_COREVIDEO CoreVideo)
+
+    set(EXTRA_LIBS ${EXTRA_LIBS} ${LIB_COCOA} ${LIB_FOUNDATION} ${LIB_COREVIDEO})
+
     if (${GRAPHICS_BACKEND} STREQUAL "gl")
         set(PUGL_SOURCES ${PUGL_SOURCES} ../pugl/src/mac_gl.m)
     endif()
