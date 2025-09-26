@@ -27,8 +27,10 @@ static inline uint8_t endianness() {
 // https://www.kvraudio.com/forum/viewtopic.php?t=575799
 #if __arm64__
 #define fp_env int
-static inline fp_env disable_denormals() {};
-static inline void enable_denormals(const fp_env *env) {};
+#define disable_denormals() 0
+#define enable_denormals(env)
+// static inline fp_env disable_denormals() { return 0; };
+// static inline void enable_denormals(const fp_env env) {};
 #else
 #if !defined(_WIN32)
 #include <fenv.h>
