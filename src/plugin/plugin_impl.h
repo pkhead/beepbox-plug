@@ -4,6 +4,7 @@
 #include <beepbox_synth.h>
 #include <clap/clap.h>
 #include "include/instrument.h"
+#include "instrument_impl.h"
 #include <plugin_gui.h>
 
 typedef struct {

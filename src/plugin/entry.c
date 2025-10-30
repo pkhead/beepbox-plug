@@ -472,7 +472,10 @@ static const void *plugin_get_extension(const struct clap_plugin *plugin, const 
    return NULL;
 }
 
-static void plugin_on_main_thread(const struct clap_plugin *plugin) {}
+static void plugin_on_main_thread(const struct clap_plugin *plugin) {
+   plugin_s *p = plugin->plugin_data;
+   instr_on_main_thread(&p->instrument);
+}
 
 clap_plugin_t *clap_plugin_create(const clap_host_t *host) {
    plugin_s *p = malloc(sizeof(plugin_s));

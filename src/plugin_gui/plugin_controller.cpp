@@ -57,14 +57,15 @@ PluginController::PluginController(const clap_plugin_t *plugin, const clap_host_
     useCustomColors = false;
     showPanDelay = false;
     currentPage = PAGE_MAIN;
-    inst_type = bpbxsyn_synth_type(instrument->synth);
+    inst_type = bpbxsyn_synth_type(instr_get_synth(instrument));
 
     // initialize copy of plugin state
     sync();
 }
 
 void PluginController::sync() {
-    inst_type = bpbxsyn_synth_type(instrument->synth);
+    bpbxsyn_synth_s *synth = instr_get_synth(instrument);
+    inst_type = bpbxsyn_synth_type(synth);
     
     uint32_t param_count = instr_params_count(instrument);
     params.reserve(param_count * 2.0);
@@ -86,8 +87,8 @@ void PluginController::sync() {
 
     envelopes.clear();
     envelopes.reserve(BPBXSYN_MAX_ENVELOPE_COUNT);
-    envelopes.resize(bpbxsyn_synth_envelope_count(instrument->synth));
-    memcpy(envelopes.data(), bpbxsyn_synth_get_envelope(instrument->synth, 0), sizeof(bpbxsyn_envelope_s) * envelopes.size());
+    envelopes.resize(bpbxsyn_synth_envelope_count(synth));
+    memcpy(envelopes.data(), bpbxsyn_synth_get_envelope(synth, 0), sizeof(bpbxsyn_envelope_s) * envelopes.size());
 }
 
 bool PluginController::updateParams() {

@@ -1,4 +1,5 @@
 #include "include/instrument.h"
+#include "instrument_impl.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -83,6 +84,11 @@ int instr_synth_type_index(bpbxsyn_synth_type_e type) {
     }
 
     return type_idx;
+}
+
+bpbxsyn_synth_s* instr_get_synth(const instrument_s *instr) {
+    assert(instr);
+    return instr->synth;
 }
 
 bool instr_init(instrument_s *instr, bpbxsyn_context_s *ctx, bpbxsyn_synth_type_e type) {
@@ -208,6 +214,17 @@ bool copy_synth_config(const bpbxsyn_synth_s *src, bpbxsyn_synth_s *dst) {
     return true;
 }
 
+void instr_on_main_thread(instrument_s *instr) {
+    assert(instr->clap_host);
+    assert(instr->clap_host_params);
+
+    if (atomic_exchange(&instr->need_param_rescan, false)) {
+        if (instr->clap_host_params)
+            instr->clap_host_params->rescan(instr->clap_host,
+                                            CLAP_PARAM_RESCAN_ALL);
+    }
+}
+
 bool instr_activate(instrument_s *instr, bpbxsyn_context_s *ctx,
                     double sample_rate, uint32_t max_frames_count) {
     assert(instr->clap_host);
@@ -237,9 +254,8 @@ bool instr_activate(instrument_s *instr, bpbxsyn_context_s *ctx,
         bpbxsyn_synth_destroy(instr->synth);
         instr->synth = new_synth;
 
-        if (instr->clap_host_params)
-            instr->clap_host_params->rescan(instr->clap_host,
-                                            CLAP_PARAM_RESCAN_ALL);
+        atomic_store(&instr->need_param_rescan, true);
+        instr->clap_host->request_callback(instr->clap_host);
         
         instr->frames_until_next_tick = 0;
     }
