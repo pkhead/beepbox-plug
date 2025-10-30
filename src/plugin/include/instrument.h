@@ -74,6 +74,15 @@ typedef struct instrument {
     bool use_echo;
     bool use_reverb;
 
+    // when effects are added, they must wait until the next tick to begin
+    // processing. these bools determine whether or not said effect is fully
+    // active or not.
+    bool run_distortion;
+    bool run_bitcrusher;
+    bool run_chorus;
+    bool run_echo;
+    bool run_reverb;
+
     union {
         bpbxsyn_effect_s *effect_modules[INSTR_EFFECT_MODULE_COUNT];
         struct {

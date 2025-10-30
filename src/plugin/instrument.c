@@ -324,18 +324,23 @@ void instr_process(instrument_s *instr, float **output, uint32_t frame_count,
             bpbxsyn_effect_tick(instr->fx.eq, &tick_ctx);
             bpbxsyn_effect_tick(instr->fx.fader, &tick_ctx);
 
+            instr->run_distortion = instr->use_distortion;
             if (instr->use_distortion)
                 bpbxsyn_effect_tick(instr->fx.distortion, &tick_ctx);
 
+            instr->run_bitcrusher = instr->use_bitcrusher;
             if (instr->use_bitcrusher)
                 bpbxsyn_effect_tick(instr->fx.bitcrusher, &tick_ctx);
 
+            instr->run_chorus = instr->use_chorus;
             if (instr->use_chorus)
                 bpbxsyn_effect_tick(instr->fx.chorus, &tick_ctx);
 
+            instr->run_echo = instr->use_echo;
             if (instr->use_echo)
                 bpbxsyn_effect_tick(instr->fx.echo, &tick_ctx);
             
+            instr->run_reverb = instr->use_reverb;
             if (instr->use_reverb)
                 bpbxsyn_effect_tick(instr->fx.reverb, &tick_ctx);
 
@@ -367,9 +372,9 @@ void instr_process(instrument_s *instr, float **output, uint32_t frame_count,
 
         // mono effects first
         // distortion, bitcrusher
-        if (instr->use_distortion)
+        if (instr->run_distortion)
             bpbxsyn_effect_run(instr->fx.distortion, process_block, frames_to_process);
-        if (instr->use_bitcrusher)
+        if (instr->run_bitcrusher)
             bpbxsyn_effect_run(instr->fx.bitcrusher, process_block, frames_to_process);
 
         // eq
@@ -380,13 +385,13 @@ void instr_process(instrument_s *instr, float **output, uint32_t frame_count,
 
         // then, stereo effects
         // chorus, echo and reverb
-        if (instr->use_chorus)
+        if (instr->run_chorus)
             bpbxsyn_effect_run(instr->fx.chorus, process_block, frames_to_process);
 
-        if (instr->use_echo)
+        if (instr->run_echo)
             bpbxsyn_effect_run(instr->fx.echo, process_block, frames_to_process);
         
-        if (instr->use_reverb)
+        if (instr->run_reverb)
             bpbxsyn_effect_run(instr->fx.reverb, process_block, frames_to_process);
 
         // and last, volume control
@@ -418,13 +423,14 @@ void instr_process(instrument_s *instr, float **output, uint32_t frame_count,
 void instr_set_effect_active(instrument_s *instr, bpbxsyn_effect_type_e effect,
                              bool value)
 {
-    #define HANDLE_EFFECT(name) \
-        if (instr->use_##name != value) { \
-            if (!value) { \
-                bpbxsyn_effect_stop(instr->fx.name); \
-            } \
-            instr->use_##name = value; \
-        } \
+    #define HANDLE_EFFECT(name)                                                \
+        if (instr->use_##name != value) {                                      \
+            if (!value) {                                                      \
+                bpbxsyn_effect_stop(instr->fx.name);                           \
+                instr->run_##name = false;                                     \
+            }                                                                  \
+            instr->use_##name = value;                                         \
+        }
 
     switch (effect) {
         case BPBXSYN_EFFECT_DISTORTION:
