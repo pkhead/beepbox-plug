@@ -427,6 +427,28 @@ void PluginController::drawSpectrumGui() {
         ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() * 1.75f));
 }
 
+void PluginController::drawNoiseGui() {
+    ImGui::AlignTextToFramePadding();
+    ImGui::Text("Noise");
+
+    sameLineRightCol();
+    ImGui::SetNextItemWidth(-FLT_MIN);
+    {
+        int p_noise = params[BPBXSYN_NOISE_PARAM_TYPE];
+        const bpbxsyn_param_info_s *p_info =
+            bpbxsyn_synth_param_info(inst_type, BPBXSYN_NOISE_PARAM_TYPE);
+        assert(p_info);
+        const char **noiseNames = p_info->enum_values;
+        if (ImGui::Combo("##wave", &p_noise, noiseNames, BPBXSYN_NOISE_COUNT)) {
+            paramGestureBegin(BPBXSYN_NOISE_PARAM_TYPE);
+            paramChange(BPBXSYN_NOISE_PARAM_TYPE, (double)p_noise);
+            paramGestureEnd(BPBXSYN_NOISE_PARAM_TYPE);
+        }
+
+        paramControls(BPBXSYN_NOISE_PARAM_TYPE);
+    }
+}
+
 void PluginController::drawPwmGui() {
     ImGui::AlignTextToFramePadding();
     ImGui::Text("Pulse Width");
@@ -2063,6 +2085,10 @@ void PluginController::draw(platform::Window *window) {
                         switch (inst_type) {
                             case BPBXSYN_SYNTH_CHIP:
                                 drawChipGui1();
+                                break;
+                            
+                            case BPBXSYN_SYNTH_NOISE:
+                                drawNoiseGui();
                                 break;
 
                             default: break;
