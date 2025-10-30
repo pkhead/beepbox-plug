@@ -122,7 +122,7 @@ if(BUILD_VST3)
     target_compile_definitions(${VST3_TARGET} PRIVATE PLUGIN_VERSION="${PROJECT_VERSION}")
     target_link_libraries(${VST3_TARGET} PRIVATE ${LIBRARIES} plugin_gui_vst3)
     target_add_vst3_wrapper(TARGET ${VST3_TARGET}
-        OUTPUT_NAME "BeepBox"
+        OUTPUT_NAME "BeepBox_vst3"
         SUPPORTS_ALL_NOTE_EXPRESSIONS False
     )
 endif()
