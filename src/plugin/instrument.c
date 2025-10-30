@@ -834,7 +834,7 @@ static const bpbxsyn_param_info_s unused_param_info = {
     .default_value = 0.0
 };
 
-static const char *bool_enum_values[] = { "Off", "On" };
+static const char *bool_enum_values[] = { "off", "on" };
 const bpbxsyn_synth_type_e instr_synth_type_values[BPBXSYN_SYNTH_COUNT] = {
     BPBXSYN_SYNTH_CHIP, BPBXSYN_SYNTH_PULSE_WIDTH, /*BPBXSYN_SYNTH_SUPERSAW*/-1,
     BPBXSYN_SYNTH_HARMONICS, /*BPBXSYN_SYNTH_PICKED_STRING*/-1,
@@ -843,8 +843,8 @@ const bpbxsyn_synth_type_e instr_synth_type_values[BPBXSYN_SYNTH_COUNT] = {
 };
 
 static const char *synth_type_enum_values[BPBXSYN_SYNTH_COUNT] = {
-    "Chip Wave", "Pulse Width", "Supersaw", "Harmonics", "Picked String",
-    "Spectrum", "FM", "Custom Chip", "Noise"
+    "chip wave", "pulse width", "supersaw", "harmonics", "picked string",
+    "spectrum", "FM", "custom chip", "noise"
 };
 
 static const bpbxsyn_param_info_s control_param_info[INSTR_CPARAM_COUNT] = {
