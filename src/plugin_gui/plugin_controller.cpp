@@ -428,7 +428,7 @@ void PluginController::drawSpectrumGui() {
         ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() * 1.75f));
 }
 
-void PluginController::drawNoiseGui() {
+void PluginController::drawNoiseGui1() {
     ImGui::AlignTextToFramePadding();
     ImGui::Text("Noise");
 
@@ -447,6 +447,27 @@ void PluginController::drawNoiseGui() {
         }
 
         paramControls(BPBXSYN_NOISE_PARAM_TYPE);
+    }
+}
+
+void PluginController::drawNoiseGui2() {
+    ImGui::AlignTextToFramePadding();
+    ImGui::Text("Unison");
+
+    sameLineRightCol();
+    ImGui::SetNextItemWidth(-FLT_MIN);
+    {
+        int p_unison = params[BPBXSYN_NOISE_PARAM_UNISON];
+        const bpbxsyn_param_info_s *p_info = bpbxsyn_synth_param_info(inst_type, BPBXSYN_NOISE_PARAM_UNISON);
+        assert(p_info);
+        const char **unisonNames = p_info->enum_values;
+        if (ImGui::Combo("##unison", &p_unison, unisonNames, BPBXSYN_UNISON_COUNT)) {
+            paramGestureBegin(BPBXSYN_NOISE_PARAM_UNISON);
+            paramChange(BPBXSYN_NOISE_PARAM_UNISON, (double)p_unison);
+            paramGestureEnd(BPBXSYN_NOISE_PARAM_UNISON);
+        }
+
+        paramControls(BPBXSYN_NOISE_PARAM_UNISON);
     }
 }
 
@@ -2089,7 +2110,7 @@ void PluginController::draw(platform::Window *window) {
                                 break;
                             
                             case BPBXSYN_SYNTH_NOISE:
-                                drawNoiseGui();
+                                drawNoiseGui1();
                                 break;
 
                             default: break;
@@ -2136,6 +2157,10 @@ void PluginController::draw(platform::Window *window) {
                             
                             case BPBXSYN_SYNTH_PULSE_WIDTH:
                                 drawPwmGui();
+                                break;
+
+                            case BPBXSYN_SYNTH_NOISE:
+                                drawNoiseGui2();
                                 break;
 
                             default: break;

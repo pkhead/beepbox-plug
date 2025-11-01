@@ -52,7 +52,8 @@ private:
     void drawChipGui2();
     void drawHarmonicsGui();
     void drawSpectrumGui();
-    void drawNoiseGui();
+    void drawNoiseGui1();
+    void drawNoiseGui2();
     void drawPwmGui();
 
     void drawFadeWidget(const char *id, ImVec2 size);
