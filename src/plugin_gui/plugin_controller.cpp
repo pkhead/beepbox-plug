@@ -2055,9 +2055,9 @@ void PluginController::draw(platform::Window *window) {
                     if (ImGui::Begin("inst", NULL, winFlags)) {
                         // type
                         static const char *types[BPBXSYN_SYNTH_COUNT] = {
-                            "chip wave", "pulse width", "supersaw (TODO)", "harmonics",
-                            "picked string (TODO)", "spectrum", "FM", "custom chip (TODO)",
-                            "noise (TODO)"
+                            "chip wave", "pulse width", "supersaw (TODO)",
+                            "harmonics", "picked string (TODO)", "spectrum",
+                            "FM", "custom chip (TODO)", "noise"
                         };
                         
                         ImGui::AlignTextToFramePadding();
