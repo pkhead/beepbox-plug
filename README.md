@@ -7,12 +7,12 @@ This plugin library includes (or will include) several synthesizer plugins:
 | | |
 |-|-|
 | Chip | A chiptune synthesizer from preset wavetables |
-| Noise *(planned)* | A generator for several types of noise |
+| Noise | A generator for several types of noise |
 | Custom Chip *(planned)* | A chiptune synthesizer from a configurable wavetable |
 | Pulse Width | Generates pulse waves of a freely configurable duty cycle |
 | Supersaw *(planned)* | Sawtooth/pulse waves with a more powerful unison effect |
 | Harmonics | An additive synthesizer |
-| Picked String *(planned)* | Harmonics + an algorithm based off Karplus-Strong |
+| Picked String *(work-in-progress)* | Harmonics + an algorithm based off Karplus-Strong |
 | Spectrum | A noise-based spectral synthesizer |
 | FM | A four-operator FM synthesizer |
 | FM6 *(planned)* | A six-operator FM synthesizer |
@@ -39,8 +39,7 @@ The project's source code is located within three subdirectories of the `src` fo
 - Instruments:
     - Custom chip
     - FM6
-    - Noise
-    - Picked string
+    - Picked string (wip)
     - Supersaw
 
 # Building
