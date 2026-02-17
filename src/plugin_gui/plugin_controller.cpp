@@ -481,6 +481,40 @@ void PluginController::drawPwmGui() {
         BPBXSYN_PULSE_WIDTH_MIN, BPBXSYN_PULSE_WIDTH_MAX, "%.0f");
 }
 
+void PluginController::drawPickedStringGui() {
+    ImGui::AlignTextToFramePadding();
+    ImGui::Text("Harmonics");
+
+    sameLineRightCol();
+    drawHarmonicsEditor("harmonicsctl", BPBXSYN_PICKED_STRING_PARAM_CONTROL_FIRST, ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() * 1.75f));
+
+    ImGui::AlignTextToFramePadding();
+    ImGui::Text("Sustain");
+
+    sameLineRightCol();
+    ImGui::SetNextItemWidth(-FLT_MIN);
+    sliderParameter(BPBXSYN_PICKED_STRING_PARAM_SUSTAIN, "##sus", 0.f, BPBXSYN_PICKED_STRING_SUSTAIN_MAX, "%.0f");
+
+    ImGui::AlignTextToFramePadding();
+    ImGui::Text("Unison");
+
+    sameLineRightCol();
+    ImGui::SetNextItemWidth(-FLT_MIN);
+    {
+        int p_unison = params[BPBXSYN_PICKED_STRING_PARAM_UNISON];
+        const bpbxsyn_param_info_s *p_info = bpbxsyn_synth_param_info(inst_type, BPBXSYN_PICKED_STRING_PARAM_UNISON);
+        assert(p_info);
+        const char **unisonNames = p_info->enum_values;
+        if (ImGui::Combo("##unison", &p_unison, unisonNames, BPBXSYN_UNISON_COUNT)) {
+            paramGestureBegin(BPBXSYN_PICKED_STRING_PARAM_UNISON);
+            paramChange(BPBXSYN_PICKED_STRING_PARAM_UNISON, (double)p_unison);
+            paramGestureEnd(BPBXSYN_PICKED_STRING_PARAM_UNISON);
+        }
+
+        paramControls(BPBXSYN_PICKED_STRING_PARAM_UNISON);
+    }
+}
+
 void PluginController::drawEffects() {
     ImGui::AlignTextToFramePadding();
     ImGui::SetCursorPosX((ImGui::GetWindowContentRegionMax().x - ImGui::CalcTextSize("Effects").x) / 2.f);
@@ -2161,6 +2195,10 @@ void PluginController::draw(platform::Window *window) {
 
                             case BPBXSYN_SYNTH_NOISE:
                                 drawNoiseGui2();
+                                break;
+
+                            case BPBXSYN_SYNTH_PICKED_STRING:
+                                drawPickedStringGui();
                                 break;
 
                             default: break;

@@ -853,7 +853,7 @@ static const bpbxsyn_param_info_s unused_param_info = {
 static const char *bool_enum_values[] = { "off", "on" };
 const bpbxsyn_synth_type_e instr_synth_type_values[BPBXSYN_SYNTH_COUNT] = {
     BPBXSYN_SYNTH_CHIP, BPBXSYN_SYNTH_PULSE_WIDTH, /*BPBXSYN_SYNTH_SUPERSAW*/-1,
-    BPBXSYN_SYNTH_HARMONICS, /*BPBXSYN_SYNTH_PICKED_STRING*/-1,
+    BPBXSYN_SYNTH_HARMONICS, BPBXSYN_SYNTH_PICKED_STRING,
     BPBXSYN_SYNTH_SPECTRUM, BPBXSYN_SYNTH_FM, /*BPBXSYN_SYNTH_CUSTOM_CHIP*/-1,
     BPBXSYN_SYNTH_NOISE
 };
