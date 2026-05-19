@@ -1,5 +1,7 @@
 src/cbeepsynth/TODO.txt
 
+- figure out how to get this to compile correctly with GCC/msys2 ucrt64/windows
+  (I think GCC is better at compiler optimizations and vectorization.)
 - standalone plugins for effects:
 	- BeepBox Distortion (M)
 	- BeepBox Bitcrusher (M)
