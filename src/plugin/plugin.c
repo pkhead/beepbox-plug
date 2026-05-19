@@ -103,6 +103,8 @@ bool plugin_init(plugin_s *plug) {
     };
 
     plug->ctx = bpbxsyn_context_new(&alloc);
+    #else
+    plug->ctx = bpbxsyn_context_new(NULL);
     #endif
 
     if (!plug->ctx) return false;
@@ -147,6 +149,7 @@ bool plugin_activate(plugin_s *plug, double sample_rate,
         gui_event_enqueue(plug->gui, item);
     }
     
+    plug->is_active = true;
     return true;
 }
 
@@ -159,7 +162,9 @@ bool plugin_deactivate(plugin_s *plug) {
         plug->host_log->log(plug->host, CLAP_LOG_DEBUG, buf);
     #endif
     
-    return instr_deactivate(&plug->instrument);
+    bool s = instr_deactivate(&plug->instrument);
+    plug->is_active = false;
+    return s;
 }
 
 void plugin_process_gui_events(plugin_s *plug,
@@ -346,6 +351,51 @@ void plugin_process_event(plugin_s *plug, const clap_event_header_t *hdr,
     }
 }
 
+void plugin_process_internal_event(plugin_s *plug,
+                                   const internal_event_queue_item_s *ev,
+                                   event_send_flags_e param_send_flags,
+                                   const clap_output_events_t *out_events)
+{
+    switch (ev->type) {
+    case INTERNAL_PLUGIN_EVENT_SET_PARAMETER:
+        plugin_params_set_value(plug,
+                                ev->set_parameter.id, ev->set_parameter.value,
+                                param_send_flags, out_events);
+        break;
+    
+    case INTERNAL_PLUGIN_EVENT_RESIZE_ENVELOPES:
+        bpbxsyn_synth_clear_envelopes(plug->instrument.synth);
+        for (uint8_t i = 0; i < ev->resize_envelopes.envelope_count; ++i) {
+            bpbxsyn_synth_add_envelope(plug->instrument.synth);
+        }
+        break;
+
+    case INTERNAL_PLUGIN_EVENT_MODIFY_ENVELOPE: {
+        bpbxsyn_envelope_s *env =
+            bpbxsyn_synth_get_envelope(plug->instrument.synth,
+                                        ev->modify_envelope.envelope_index);
+        
+        env->index = ev->modify_envelope.compute_index;
+        env->curve_preset = ev->modify_envelope.curve_preset;
+        break;
+    }
+
+    case INTERNAL_PLUGIN_EVENT_GUI_RESYNC:
+        if (plug->gui) {
+            gui_event_queue_item_s item = (gui_event_queue_item_s) {
+                .type = GUI_EVENT_RESYNC,
+            };
+            gui_event_enqueue(plug->gui, item);
+        }
+
+        break;
+    }
+}
+
+static inline bool plugin_waiting_for_synth_change(plugin_s *plug) {
+    return plug->instrument.new_type_index != plug->instrument.type_index;
+}
+
 clap_process_status plugin_process(plugin_s *plug,
                                    const clap_process_t *process)
 {
@@ -354,8 +404,16 @@ clap_process_status plugin_process(plugin_s *plug,
     if (plug->gui)
         plugin_process_gui_events(plug, process->out_events);
 
-    if (process->transport) {
+    if (process->transport)
         plugin_process_transport(plug, process->transport);
+
+    // process internal events sent from main (i.e. from state loading)
+    // but do not process internal events while waiting for a synth type change
+    // to finalize.
+    for (internal_event_queue_item_s ev;
+        !plugin_waiting_for_synth_change(plug) && plugin_dequeue_event(plug, &ev);) {
+        plugin_process_internal_event(plug, &ev, SEND_TO_HOST,
+                                      process->out_events);
     }
 
     const uint32_t nframes = process->frames_count;
@@ -405,8 +463,44 @@ clap_process_status plugin_process(plugin_s *plug,
     }
 }
 
+bool plugin_enqueue_event(plugin_s *plug, const internal_event_queue_item_s *event) {
+    internal_event_queue_s *queue = &plug->event_queue;
+
+    const unsigned int queue_end =
+        queue->read_ptr == 0
+            ? PLUGIN_EVENT_QUEUE_CAPACITY
+            : (queue->read_ptr - 1);
+    
+    if (queue->write_ptr == queue_end) {
+        if (plug->host_log)
+            plug->host_log->log(plug->host, CLAP_LOG_WARNING,
+                                "plugin_enqueue_event: event queue is full; event dropped");
+        return false;
+    }
+    
+    memcpy((void *)&queue->data[queue->write_ptr], event,
+           sizeof(internal_event_queue_item_s));
+    queue->write_ptr = (queue->write_ptr + 1) % PLUGIN_EVENT_QUEUE_CAPACITY;
+
+    return true;
+}
+
+bool plugin_dequeue_event(plugin_s *plug, internal_event_queue_item_s *event) {
+    internal_event_queue_s *queue = &plug->event_queue;
+    
+    // is empty?
+    if (queue->write_ptr == queue->read_ptr)
+        return false;
+
+    volatile internal_event_queue_item_s *item = &queue->data[queue->read_ptr];
+    memcpy(event, (const void *)item, sizeof(internal_event_queue_item_s));
+    queue->read_ptr = (queue->read_ptr + 1) % PLUGIN_EVENT_QUEUE_CAPACITY;
+    
+    return true;
+}
+
 uint32_t plugin_params_count(const plugin_s *plug) {
-    return instr_params_count(&plug->instrument);
+    return instr_params_count();
 }
 
 bool plugin_params_get_info(const plugin_s *plugin, uint32_t param_index,
@@ -709,7 +803,7 @@ bool plugin_state_save(const plugin_s *plug, const clap_ostream_t *stream) {
     ERRCHK(stream_write_prim(stream, &type, sizeof(type)));
     
     // write instrument parameter data
-    uint32_t param_count = instr_params_count(&plug->instrument);
+    uint32_t param_count = instr_params_count();
     
     // first, get list of parameter ids to write
     instr_param_id *param_ids = malloc(param_count * sizeof(uint32_t));
@@ -784,6 +878,10 @@ bool plugin_state_save(const plugin_s *plug, const clap_ostream_t *stream) {
 }
 
 bool plugin_state_load(plugin_s *plug, const clap_istream_t *stream) {
+    bool is_active = plug->is_active;
+    bool eq_s; // enqueue success?
+    bool retval = true;
+
     // read versions; do strict version checking for now.
     uint32_t save_version;
     ERRCHK(stream_read_prim(stream, &save_version, sizeof(save_version)));
@@ -802,29 +900,44 @@ bool plugin_state_load(plugin_s *plug, const clap_istream_t *stream) {
     ERRCHK(stream_read_prim(stream, &inst_type, sizeof(inst_type)));
 
     // load new instrument type
-    bpbxsyn_synth_s *new_synth =
-        bpbxsyn_synth_new(plug->ctx, inst_type);
-    
-    if (new_synth) {
-        int type_idx = instr_synth_type_index(inst_type);
-        if (type_idx == -1) {
-            bpbxsyn_synth_destroy(new_synth);
+    if (is_active) {
+        int type_index = instr_synth_type_index(inst_type);
+        if (type_index == -1) goto error;
+
+        eq_s = plugin_enqueue_event(plug, &(internal_event_queue_item_s) {
+            .type = INTERNAL_PLUGIN_EVENT_SET_PARAMETER,
+            .set_parameter = {
+                .id = instr_global_id(INSTR_MODULE_CONTROL, INSTR_CPARAM_SYNTH_TYPE),
+                .value = (double) type_index
+            }
+        });
+
+        if (!eq_s) goto error;
+    } else {
+        bpbxsyn_synth_s *new_synth =
+            bpbxsyn_synth_new(plug->ctx, inst_type);
+        
+        if (new_synth) {
+            int type_idx = instr_synth_type_index(inst_type);
+            if (type_idx == -1) {
+                bpbxsyn_synth_destroy(new_synth);
+                goto error;
+            }
+
+            assert(type_idx >= 0 && type_idx <= UINT8_MAX);
+            
+            plug->instrument.new_type_index = (uint8_t)type_idx;
+            plug->instrument.type_index = (uint8_t)type_idx;
+            plug->instrument.type = inst_type;
+
+            bpbxsyn_synth_destroy(plug->instrument.synth);
+            plug->instrument.synth = new_synth;
+        } else {
             goto error;
         }
-
-        assert(type_idx >= 0 && type_idx <= UINT8_MAX);
-        
-        plug->instrument.new_type_index = (uint8_t)type_idx;
-        plug->instrument.type_index = (uint8_t)type_idx;
-        plug->instrument.type = inst_type;
-
-        bpbxsyn_synth_destroy(plug->instrument.synth);
-        plug->instrument.synth = new_synth;
-    } else {
-        goto error;
     }
 
-    uint32_t all_param_count = instr_params_count(&plug->instrument);
+    uint32_t all_param_count = instr_params_count();
     uint32_t param_count;
     ERRCHK(stream_read_prim(stream, &param_count, sizeof(param_count)));
 
@@ -837,14 +950,15 @@ bool plugin_state_load(plugin_s *plug, const clap_istream_t *stream) {
         instr_param_id param_id = INSTR_INVALID_ID;
         const bpbxsyn_param_info_s *info = NULL;
         for (uint32_t j = 0; j < all_param_count; ++j) {
-            instr_param_id id = instr_get_param_id(&plug->instrument, j,
-                                                   NULL);
+            instr_param_id id =
+                instr_get_param_id_with_type(inst_type, j, NULL);
             
             assert(id != INSTR_INVALID_ID);
             if (id == INSTR_INVALID_ID)
                 goto error;
             
-            const bpbxsyn_param_info_s *vinfo = instr_get_param_info(&plug->instrument, id);
+            const bpbxsyn_param_info_s *vinfo =
+                instr_get_param_info_with_type(inst_type, id);
             if (!vinfo)
                 goto error;
             
@@ -860,25 +974,73 @@ bool plugin_state_load(plugin_s *plug, const clap_istream_t *stream) {
         // read value
         double value;
         ERRCHK(stream_read_prim(stream, &value, sizeof(value)));
-        if (!instr_set_param(&plug->instrument, param_id, &value))
-            goto error;
+        
+        if (is_active) {
+            eq_s = plugin_enqueue_event(plug, &(internal_event_queue_item_s) {
+                .type = INTERNAL_PLUGIN_EVENT_SET_PARAMETER,
+                .set_parameter = {
+                    .id = param_id,
+                    .value = value
+                }
+            });
+            if (!eq_s) goto error;
+        } else {
+            if (!instr_set_param(&plug->instrument, param_id, &value))
+                goto error;
+        }
     }
 
     // read envelopes
     uint8_t envelope_count;
     ERRCHK(stream_read_prim(stream, &envelope_count, sizeof(envelope_count)));
 
-    bpbxsyn_synth_clear_envelopes(plug->instrument.synth);
-    for (uint8_t i = 0; i < envelope_count; ++i) {
-        bpbxsyn_envelope_s *env = bpbxsyn_synth_add_envelope(plug->instrument.synth);
-        ERRCHK(stream_read_prim(stream, &env->index, sizeof(env->index)));
-        ERRCHK(stream_read_prim(stream, &env->curve_preset, sizeof(env->curve_preset)));
+    if (is_active) {
+        // send envelope resize message
+        eq_s = plugin_enqueue_event(plug, &(internal_event_queue_item_s) {
+            .type = INTERNAL_PLUGIN_EVENT_RESIZE_ENVELOPES,
+            .resize_envelopes.envelope_count = envelope_count
+        });
+        if (!eq_s) goto error;
+
+        // send envelope modify message for each active envelope
+        for (uint8_t i = 0; i < envelope_count; ++i) {
+            internal_event_queue_item_s ev = (internal_event_queue_item_s) {
+                .type = INTERNAL_PLUGIN_EVENT_MODIFY_ENVELOPE,
+                .modify_envelope = {
+                    .envelope_index = i,
+                }
+            };
+
+            ERRCHK(stream_read_prim(stream, &ev.modify_envelope.compute_index,
+                                    membersize(bpbxsyn_envelope_s, index)));
+            ERRCHK(stream_read_prim(stream, &ev.modify_envelope.curve_preset,
+                                    membersize(bpbxsyn_envelope_s, curve_preset)));
+            
+            eq_s = plugin_enqueue_event(plug, &ev);
+            if (!eq_s) goto error;
+        }
+    } else {
+        bpbxsyn_synth_clear_envelopes(plug->instrument.synth);
+        for (uint8_t i = 0; i < envelope_count; ++i) {
+            bpbxsyn_envelope_s *env = bpbxsyn_synth_add_envelope(plug->instrument.synth);
+            ERRCHK(stream_read_prim(stream, &env->index, sizeof(env->index)));
+            ERRCHK(stream_read_prim(stream, &env->curve_preset, sizeof(env->curve_preset)));
+        }
     }
 
-    if (plug->gui) gui_sync_state(plug->gui);
-    return true;
-
+    goto end;
     error:
+        retval = false;
+    end:;
+    // sync gui
+    if (is_active) {
+        eq_s = plugin_enqueue_event(plug, &(internal_event_queue_item_s) {
+            .type = INTERNAL_PLUGIN_EVENT_GUI_RESYNC
+        });
+        if (!eq_s) return false;
+    } else {
         if (plug->gui) gui_sync_state(plug->gui);
-        return false;
+    }
+
+    return retval;
 }

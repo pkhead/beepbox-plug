@@ -523,8 +523,8 @@ void instr_end_notes(instrument_s *instr, int16_t key, int32_t note_id,
         )))))))                                                                \
     ))
 
-uint32_t instr_params_count(const instrument_s *instr) {
-    uint32_t count =
+uint32_t instr_params_count(void) {
+    return
         BPBXSYN_BASE_PARAM_COUNT
         + MAX_SYNTH_PARAM_COUNT
         + INSTR_CPARAM_COUNT
@@ -536,12 +536,11 @@ uint32_t instr_params_count(const instrument_s *instr) {
         + BPBXSYN_CHORUS_PARAM_COUNT
         + BPBXSYN_ECHO_PARAM_COUNT
         + BPBXSYN_REVERB_PARAM_COUNT;
-
-    return count;
 }
 
-instr_param_id instr_get_param_id(const instrument_s *instr, uint32_t index,
-                                  bool *is_inactive) {
+instr_param_id instr_get_param_id_with_type(bpbxsyn_synth_type_e synth_type,
+                                            uint32_t index,
+                                            bool *is_inactive) {
     #define check(module, count) \
         if (index < count) \
             return instr_global_id(module, index); \
@@ -573,7 +572,7 @@ instr_param_id instr_get_param_id(const instrument_s *instr, uint32_t index,
 
     // synth params
     if (index < MAX_SYNTH_PARAM_COUNT && 
-        index >= bpbxsyn_synth_param_count(instr->type) - BPBXSYN_BASE_PARAM_COUNT
+        index >= bpbxsyn_synth_param_count(synth_type) - BPBXSYN_BASE_PARAM_COUNT
     ) {
         if (is_inactive) *is_inactive = true;
     }
@@ -608,6 +607,11 @@ instr_param_id instr_get_param_id(const instrument_s *instr, uint32_t index,
     return INSTR_INVALID_ID;
 
     #undef check
+}
+
+instr_param_id instr_get_param_id(const instrument_s *instr, uint32_t index,
+                                  bool *is_inactive) {
+    return instr_get_param_id_with_type(instr->type, index, is_inactive);
 }
 
 bool instr_set_param(instrument_s *instr, instr_param_id id, double *value) {
@@ -655,11 +659,13 @@ bool instr_set_param(instrument_s *instr, instr_param_id id, double *value) {
                 case INSTR_CPARAM_SYNTH_TYPE:
                     instr->new_type_index = (int)(*value);
 
-                    // -1 means that instrument type is not implemented yet
-                    if (instr_synth_type_values[instr->new_type_index] == -1) {
-                        instr->new_type_index = instr->type_index;
-                    } else if (instr->clap_host->request_restart) {
-                        instr->clap_host->request_restart(instr->clap_host);
+                    if (instr->new_type_index != instr->type_index) {
+                        // -1 means that instrument type is not implemented yet
+                        if (instr_synth_type_values[instr->new_type_index] == -1) {
+                            instr->new_type_index = instr->type_index;
+                        } else if (instr->clap_host->request_restart) {
+                            instr->clap_host->request_restart(instr->clap_host);
+                        }
                     }
 
                     break;
@@ -794,8 +800,8 @@ bool instr_get_param(const instrument_s *instr, instr_param_id id, double *value
     }
 }
 
-const bpbxsyn_param_info_s* instr_get_param_info(const instrument_s *instr,
-                                                 instr_param_id id)
+const bpbxsyn_param_info_s* instr_get_param_info_with_type(
+    bpbxsyn_synth_type_e synth_type, instr_param_id id)
 {
     assert(id != INSTR_INVALID_ID);
     if (id == INSTR_INVALID_ID) return NULL;
@@ -807,10 +813,10 @@ const bpbxsyn_param_info_s* instr_get_param_info(const instrument_s *instr,
     switch (module) {
         case INSTR_MODULE_SYNTH:
             assert(idx < BPBXSYN_BASE_PARAM_COUNT + MAX_SYNTH_PARAM_COUNT);
-            if (idx >= bpbxsyn_synth_param_count(instr->type))
+            if (idx >= bpbxsyn_synth_param_count(synth_type))
                 return &unused_param_info;
 
-            return bpbxsyn_synth_param_info(instr->type, idx);
+            return bpbxsyn_synth_param_info(synth_type, idx);
         
         case INSTR_MODULE_CONTROL:
             return &control_param_info[idx];
@@ -822,6 +828,11 @@ const bpbxsyn_param_info_s* instr_get_param_info(const instrument_s *instr,
             
             return false;
     }
+}
+
+const bpbxsyn_param_info_s* instr_get_param_info(const instrument_s *instr,
+                                                 instr_param_id id) {
+    return instr_get_param_info_with_type(instr->type, id);
 }
 
 // int instr_global_id(instr_module_e module, instr_param_id local_index) {

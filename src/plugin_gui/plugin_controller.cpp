@@ -67,7 +67,7 @@ void PluginController::sync() {
     bpbxsyn_synth_s *synth = instr_get_synth(instrument);
     inst_type = bpbxsyn_synth_type(synth);
     
-    uint32_t param_count = instr_params_count(instrument);
+    uint32_t param_count = instr_params_count();
     params.reserve(param_count * 2.0);
 
     for (int i = 0; i < param_count; i++) {

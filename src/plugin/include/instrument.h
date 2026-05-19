@@ -75,13 +75,18 @@ void instr_begin_note(instrument_s *instr, int16_t key, double velocity,
 void instr_end_notes(instrument_s *instr, int16_t key, int32_t note_id,
                      int16_t port_index, int16_t channel);
 
-uint32_t instr_params_count(const instrument_s *instr);
+uint32_t instr_params_count(void);
+instr_param_id instr_get_param_id_with_type(bpbxsyn_synth_type_e synth_type,
+                                            uint32_t index,
+                                            bool *is_inactive);
 instr_param_id instr_get_param_id(const instrument_s *instr, uint32_t index,
                                   bool *is_inactive);
 
 bool instr_set_param(instrument_s *instr, instr_param_id id, double *value);
 bool instr_get_param(const instrument_s *instr, instr_param_id id, double *value);
 
+const bpbxsyn_param_info_s* instr_get_param_info_with_type(
+    bpbxsyn_synth_type_e synth_type, instr_param_id id);
 const bpbxsyn_param_info_s* instr_get_param_info(const instrument_s *instr,
                                                  instr_param_id id);
 

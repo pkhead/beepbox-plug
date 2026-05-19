@@ -7,9 +7,48 @@
 #include "instrument_impl.h"
 #include <plugin_gui.h>
 
+#define PLUGIN_EVENT_QUEUE_CAPACITY 512
+
+typedef enum {
+    INTERNAL_PLUGIN_EVENT_SET_PARAMETER,
+    INTERNAL_PLUGIN_EVENT_RESIZE_ENVELOPES,
+    INTERNAL_PLUGIN_EVENT_MODIFY_ENVELOPE,
+    INTERNAL_PLUGIN_EVENT_GUI_RESYNC,
+} internal_plugin_event_e;
+
+typedef struct internal_event_queue_item {
+    uint8_t type;
+    union {
+        struct {
+            instr_param_id id;
+            double value;
+        } set_parameter;
+
+        struct {
+            uint8_t envelope_count;
+        } resize_envelopes;
+
+        struct {
+            uint8_t envelope_index;
+            bpbxsyn_envelope_compute_index_e compute_index;
+            uint8_t curve_preset;
+        } modify_envelope;
+    };
+} internal_event_queue_item_s;
+
+typedef struct internal_event_queue {
+    // write_ptr == read_ptr : empty
+    // write_ptr == read_ptr - 1 : full
+    volatile unsigned int write_ptr;
+    volatile unsigned int read_ptr;
+
+    volatile internal_event_queue_item_s data[PLUGIN_EVENT_QUEUE_CAPACITY];
+} internal_event_queue_s;
+
 typedef struct {
     clap_plugin_t plugin;
     plugin_gui_s *gui;
+    volatile bool is_active;
 
     bool has_track_color;
     clap_color_t track_color;
@@ -25,6 +64,10 @@ typedef struct {
 
     bpbxsyn_context_s *ctx;
     instrument_s instrument;
+
+    // main->audio CLAP event queue
+    // (used when loading state)
+    internal_event_queue_s event_queue;
 
     #ifndef _NDEBUG
     size_t mem_allocated;
@@ -54,6 +97,10 @@ void plugin_process_gui_events(plugin_s *plug,
 void plugin_process_transport(plugin_s *plug, const clap_event_transport_t *ev);
 void plugin_process_event(plugin_s *plug, const clap_event_header_t *hdr,
                           const clap_output_events_t *out_events);
+void plugin_process_internal_event(plugin_s *plug,
+                                   const internal_event_queue_item_s *ev,
+                                   event_send_flags_e param_send_flags,
+                                   const clap_output_events_t *out_events);
 
 clap_process_status plugin_process(plugin_s *plug,
                                    const clap_process_t *process);
@@ -75,5 +122,8 @@ bool plugin_params_text_to_value(const plugin_s *plugin, clap_id param_id,
 
 bool plugin_state_save(const plugin_s *plugin, const clap_ostream_t *stream);
 bool plugin_state_load(plugin_s *plugin, const clap_istream_t *stream);
+
+bool plugin_enqueue_event(plugin_s *plugin, const internal_event_queue_item_s *event);
+bool plugin_dequeue_event(plugin_s *plugin, internal_event_queue_item_s *event);
 
 #endif
