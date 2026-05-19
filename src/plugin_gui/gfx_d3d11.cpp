@@ -7,14 +7,13 @@
 #include <pugl/stub.h>
 
 #define WIN32_LEAN_AND_MEAN
+#ifndef NOMINMAX
 #define NOMINMAX
+#endif
 #include <windows.h>
 #include <windowsx.h>
 #include <d3d11.h>
 #include <dxgi1_2.h>
-
-#pragma comment (lib, "d3d11.lib")
-#pragma comment (lib, "dxgi.lib")
 
 struct gfx::WindowData {
     IDXGISwapChain1 *swapchain;

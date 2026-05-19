@@ -75,6 +75,8 @@ add_library(${PROJECT_NAME} STATIC
 if (${GRAPHICS_BACKEND} STREQUAL "d3d11")
     target_compile_definitions(${PROJECT_NAME} PRIVATE GFX_D3D11)
     target_sources(${PROJECT_NAME} PRIVATE gfx_d3d11.cpp)
+
+    set(EXTRA_LIBS ${EXTRA_LIBS} d3d11.lib dxgi.lib d3dcompiler.lib)
 elseif (${GRAPHICS_BACKEND} STREQUAL "gl")
     target_compile_definitions(${PROJECT_NAME} PRIVATE GFX_OPENGL)
     target_sources(${PROJECT_NAME} PRIVATE gfx_gl.cpp)
