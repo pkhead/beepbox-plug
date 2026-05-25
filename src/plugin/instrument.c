@@ -156,7 +156,74 @@ void instr_destroy(instrument_s *instr) {
     }
 }
 
+static bool get_synth_unison(const bpbxsyn_synth_s *syn, int *value) {
+    bool s;
+    switch (bpbxsyn_synth_type(syn)) {
+        case BPBXSYN_SYNTH_CHIP:
+            if (!value) return true;
+            s = bpbxsyn_synth_get_param_int(syn,
+                                            BPBXSYN_CHIP_PARAM_UNISON,
+                                            value);
+            break;
+        case BPBXSYN_SYNTH_HARMONICS:
+            if (!value) return true;
+            s = bpbxsyn_synth_get_param_int(syn,
+                                            BPBXSYN_HARMONICS_PARAM_UNISON,
+                                            value);
+            break;
+        case BPBXSYN_SYNTH_PICKED_STRING:
+            if (!value) return true;
+            s = bpbxsyn_synth_get_param_int(syn,
+                                            BPBXSYN_PICKED_STRING_PARAM_UNISON,
+                                            value);
+            break;
+        case BPBXSYN_SYNTH_NOISE:
+            if (!value) return true;
+            s = bpbxsyn_synth_get_param_int(syn,
+                                            BPBXSYN_NOISE_PARAM_UNISON,
+                                            value);
+            break;
+        
+        default: return false;
+    }
+
+    return s == 0;
+}
+
+static bool set_synth_unison(bpbxsyn_synth_s *syn, int value) {
+    bool s;
+    switch (bpbxsyn_synth_type(syn)) {
+        case BPBXSYN_SYNTH_CHIP:
+            s = bpbxsyn_synth_set_param_int(syn,
+                                            BPBXSYN_CHIP_PARAM_UNISON,
+                                            value);
+            break;
+        case BPBXSYN_SYNTH_HARMONICS:
+            s = bpbxsyn_synth_set_param_int(syn,
+                                            BPBXSYN_HARMONICS_PARAM_UNISON,
+                                            value);
+            break;
+        case BPBXSYN_SYNTH_PICKED_STRING:
+            s = bpbxsyn_synth_set_param_int(syn,
+                                            BPBXSYN_PICKED_STRING_PARAM_UNISON,
+                                            value);
+            break;
+        case BPBXSYN_SYNTH_NOISE:
+            s = bpbxsyn_synth_set_param_int(syn,
+                                            BPBXSYN_NOISE_PARAM_UNISON,
+                                            value);
+            break;
+        
+        default: return false;
+    }
+
+    return s == 0;
+}
+
 bool copy_synth_config(const bpbxsyn_synth_s *src, bpbxsyn_synth_s *dst) {
+    bpbxsyn_synth_type_e src_type = bpbxsyn_synth_type(src);
+    bpbxsyn_synth_type_e dst_type = bpbxsyn_synth_type(dst);
+
     // copy base parameters
     for (uint32_t i = 0; i < BPBXSYN_BASE_PARAM_COUNT; ++i) {
         double v;
@@ -165,6 +232,49 @@ bool copy_synth_config(const bpbxsyn_synth_s *src, bpbxsyn_synth_s *dst) {
 
         if (bpbxsyn_synth_set_param_double(dst, i, v))
             return false;
+    }
+    
+    // retain unison parameter
+    int src_unison;
+    if (get_synth_unison(src, &src_unison) && get_synth_unison(dst, NULL))
+        set_synth_unison(dst, src_unison);
+
+    // retain harmonics data between harmonic and picked string instrument types
+    if ((src_type == BPBXSYN_SYNTH_HARMONICS && dst_type == BPBXSYN_SYNTH_PICKED_STRING))
+    {
+        for (int i = 0; i < BPBXSYN_HARMONICS_CONTROL_COUNT; ++i)
+        {
+            int v;
+            int s = bpbxsyn_synth_get_param_int(
+                src, BPBXSYN_HARMONICS_PARAM_CONTROL_FIRST + i, &v);
+
+            assert(s == 0);
+            if (s != 0) return false;
+            
+            s = bpbxsyn_synth_set_param_int(
+                dst, BPBXSYN_PICKED_STRING_PARAM_CONTROL_FIRST + i, v);
+            
+            assert(s == 0);
+            if (s != 0) return false;
+        }
+    }
+    else if ((src_type == BPBXSYN_SYNTH_PICKED_STRING && dst_type == BPBXSYN_SYNTH_HARMONICS))
+    {
+        for (int i = 0; i < BPBXSYN_HARMONICS_CONTROL_COUNT; ++i)
+        {
+            int v;
+            int s = bpbxsyn_synth_get_param_int(
+                src, BPBXSYN_PICKED_STRING_PARAM_CONTROL_FIRST + i, &v);
+
+            assert(s == 0);
+            if (s != 0) return false;
+            
+            s = bpbxsyn_synth_set_param_int(
+                dst, BPBXSYN_HARMONICS_PARAM_CONTROL_FIRST + i, v);
+            
+            assert(s == 0);
+            if (s != 0) return false;
+        }
     }
 
     // copy compatible envelope data
@@ -176,13 +286,11 @@ bool copy_synth_config(const bpbxsyn_synth_s *src, bpbxsyn_synth_s *dst) {
     // envelope target by seeing if it's in the source target list.
     int src_env_target_count;
     const bpbxsyn_envelope_compute_index_e *src_env_targets =
-        bpbxsyn_synth_envelope_targets(bpbxsyn_synth_type(src),
-                                       &src_env_target_count);
+        bpbxsyn_synth_envelope_targets(src_type, &src_env_target_count);
     
     int dst_env_target_count;
     const bpbxsyn_envelope_compute_index_e *dst_env_targets =
-        bpbxsyn_synth_envelope_targets(bpbxsyn_synth_type(dst),
-                                       &dst_env_target_count);
+        bpbxsyn_synth_envelope_targets(dst_type,  &dst_env_target_count);
     
     for (uint8_t i = 0; i < bpbxsyn_synth_envelope_count(src); ++i) {
         const bpbxsyn_envelope_s *src_envelope = src_envelopes + i;
