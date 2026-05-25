@@ -2,16 +2,18 @@ src/cbeepsynth/TODO.txt
 
 - figure out how to get this to compile correctly with GCC/msys2 ucrt64/windows
   (I think GCC is better at compiler optimizations and vectorization.)
+  (okay, turns out it wasn't broken, i just forgot to make it statically link
+   the C++ runtime. but standalone just freezes on launch. how come?)
 - standalone plugins for effects:
-	- BeepBox Distortion (M)
+	- BeepBox Distortion (M)  (for mono)
+	- BeepBox Distortion (S)  (for stereo)
 	- BeepBox Bitcrusher (M)
+	- BeepBox Bitcrusher (S)
 	- BeepBox Chorus
 	- BeepBox Echo
 	- BeepBox Reverb
 	- BeepBox Compressor/Limiter
 
-	- BeepBox Stereo Distortion
-	- BeepBox Stereo Bitcrusher
 
 	or, perhaps:
 	- "BeepBox Mono Effects", which includes:
