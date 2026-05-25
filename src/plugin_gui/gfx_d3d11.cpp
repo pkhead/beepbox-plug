@@ -29,7 +29,7 @@ void gfx::setupWorld() {
     HRESULT s = D3D11CreateDevice(
         NULL,
         D3D_DRIVER_TYPE_HARDWARE,
-        NULL, NULL, NULL, NULL, D3D11_SDK_VERSION,
+        NULL, 0, NULL, 0, D3D11_SDK_VERSION,
         &s_device, &featureLevel, &s_devcon
     );
     assert(s == S_OK);
