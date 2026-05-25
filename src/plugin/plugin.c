@@ -102,9 +102,9 @@ bool plugin_init(plugin_s *plug) {
         .userdata = plug
     };
 
-    plug->ctx = bpbxsyn_context_new(&alloc);
+    plug->ctx = bpbxsyn_context_new(&alloc, 0xdeadbeef);
     #else
-    plug->ctx = bpbxsyn_context_new(NULL);
+    plug->ctx = bpbxsyn_context_new(NULL, 0xdeadbeef);
     #endif
 
     if (!plug->ctx) return false;
