@@ -4,6 +4,12 @@ src/cbeepsynth/TODO.txt
   (I think GCC is better at compiler optimizations and vectorization.)
   (okay, turns out it wasn't broken, i just forgot to make it statically link
    the C++ runtime. but standalone just freezes on launch. how come?)
+- annoying that I have to allocate a bpbxsyn_context for each plugin instance,
+  because that is where the logging function is located. but also I think it
+  doesn't really make sense for individual synths/effects in the bbsyn API to
+  have a logging function. maybe just don't hook up the library to the plugin's
+  logging system? it's not like it logs out anything useful anyway, aside from
+  allocation errors that should never happen.
 - standalone plugins for effects:
 	- BeepBox Distortion (M)  (for mono)
 	- BeepBox Distortion (S)  (for stereo)
