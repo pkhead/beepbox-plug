@@ -10,6 +10,9 @@ src/cbeepsynth/TODO.txt
   have a logging function. maybe just don't hook up the library to the plugin's
   logging system? it's not like it logs out anything useful anyway, aside from
   allocation errors that should never happen.
+- apparently, win32 standalone wrapper calls deinit before plugin_destroy.
+  update clap-wrapper? maybe there's a fix there? if not, fix it yourself and
+  submit a PR.
 - standalone plugins for effects:
 	- BeepBox Distortion (M)  (for mono)
 	- BeepBox Distortion (S)  (for stereo)
@@ -33,61 +36,6 @@ BUGS:
   providing playback information (not likely) or my code being faulty. need to
   check with bitwig studio.
   (...does it? )
-
-FM6 CONCURRENCY WRT CODE GENERATION:
-  Problem: Because of W^X, in order to generate the machine code specialized for
-  a certain routing configuration, I need to invoke the OS to change the
-  permissions of the page to be writable, write the generated machine code into
-  it, and then invoke the OS to change the permissions to executable. Therefore,
-  this must be done on a thread that is not the audio thread. Fortunately, CLAP
-  lets me request to run a method in the main thread from the audio thread
-  (host->request_callback).
-
-  Now the problem becomes figuring out how to send the routing configuration to
-  the main thread in a thread-safe manner. @blaqat_lite on Discord suggested to
-  me the following solution:
-  https://discord.com/channels/235138363131166728/1464488527629914197/1508518227825655850
-
-  1. You have three buffers, and three pointers to any of the three buffers.
-     These pointers shall be named A, M, and T. A shall only be accessed by the
-	 audio thread, M by the auxillary thread, and T by both.
-
-	 You will also have an pointer, MC, which points to the location in memory
-	 where the runtime-generated machine code is stored, as well as S, which
-	 is a pointer to a buffer which stores the configuration used to generate
-	 MC. You will also have an atomic boolean, FL. If set, the audio thread
-	 should use the slower, generalized FM6 code path instead of running *MC.
-  2. On every run in the audio thread, if FL is set, it will run the generalized
-     FM routing code path. Otherwise, the audio thread will execute *MC, unless
-	 it is invalidated. *MC is invalidated if the current routing configuration
-	 is different than *S, or if MC is NULL.
-  3. If the machine code is invalidated, it will write the routing configuration
-     to *A, and then swap A and T with an compare-and-exchange:
-	 `A = T.exchange(A)`. It will also set FL and request execution of the
-	 auxillary thread to the host.
-  4. Once the auxillary thread is active, it will swap M and T with the same
-     method that the audio thread uses to swap A and T. Then, it should be safe
-	 to read the routing configuration from *M.
-  5. The auxillary thread will then update *S with the configuration it read,
-     and then write the generated machine code to *MC. Once done, the main
-	 thread will unset FL.
-  
-  Within bbsyn, there will be an optional define named
-  BBSYN_PLATFORM_WRITE_XOR_EXECUTE. This being defined means that the platform
-  cannot have a page that is both writable and executable, requiring the above
-  procedure be used. Otherwise, there is no need to have multiple threads; code
-  generation will be done directly within the audio process. This should be
-  defined by default when compiling on Windows or a POSIX-compatible platform.
-
-  There will also be a define BBSYN_NO_JIT which disables using dynamically-
-  generated machine code altogether. Compiling bbsyn on an unsupported
-  architecture (i.e., not x86-64 or AArch64) will also achieve the same effect.
-  Additionally, if bbsyn knows it will not be compiling on Windows or a
-  POSIX-compatible platform, bbsyn will use the regular memory allocator to
-  allocate the buffer for machine code.
-
-  TODO: obtaining an auxillary thread to call that function is up to the user
-        of bbsyn to implement. need to figure out the API for this.
 
 CUSTOM SAMPLES:
   There will be a list in bbsyn_context that contains the data for custom

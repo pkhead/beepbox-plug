@@ -1,7 +1,7 @@
 # About
 This is a CLAP plugin library, with VST3 and standalone versions supported by [clap-wrapper](https://github.com/free-audio/clap-wrapper), which includes ports of [BeepBox](https://beepbox.co) synthesizers, with additions/enhancements from several community-made mods.
 
-[BeepBox](https://beepbox.co) is a website created by John Nesky originally for creating chiptunes. Over time, though, BeepBox has increased in scope and capability in no small part due to the modding community that surrounds it.
+[BeepBox](https://beepbox.co) is a website created by John Nesky originally for creating chiptunes. Over time, BeepBox has increased in scope and capability in no small part due to the modding community that surrounds it.
 
 This plugin library includes (or will include) several synthesizer plugins:
 | | |
@@ -43,9 +43,9 @@ The project's source code is located within three subdirectories of the `src` fo
 
 # Building
 Requirements:
-- C11-compliant compiler (for synth/plugin code)
+- C11(+threads, +mutex)-compliant compiler (for synth/plugin code)
 - C++17-compliant compiler (for GUI)
-- CMake + build system (Ninja, Makefile, MSVC, e.t.c.)
+- CMake + build system (Ninja, Makefile, MSBuild, e.t.c.)
 
 Checkout the repository with
 ```bash
