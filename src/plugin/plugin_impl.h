@@ -6,6 +6,7 @@
 #include "include/instrument.h"
 #include "instrument_impl.h"
 #include <plugin_gui.h>
+#include <threads.h>
 
 #define PLUGIN_EVENT_QUEUE_CAPACITY 512
 
@@ -64,6 +65,7 @@ typedef struct {
 
     bpbxsyn_context_s *ctx;
     instrument_s instrument;
+    bool has_mcalloc_ref;
 
     // main->audio CLAP event queue
     // (used when loading state)
@@ -79,6 +81,12 @@ typedef enum {
     SEND_TO_HOST = 2,
     NO_RECURSION = 4,
 } event_send_flags_e;
+
+struct g_bb_mcalloc {
+    bpbxsyn_mcode_allocator_s data;
+    mtx_t mutex;
+    size_t ref_count;
+} extern g_bb_mcalloc;
 
 void plugin_static_init(void);
 void plugin_static_deinit(void);

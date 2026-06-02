@@ -9,6 +9,8 @@
 #include "system.h"
 #include "util.h"
 
+struct g_bb_mcalloc g_bb_mcalloc;
+
 static void plugin_track_info_changed(plugin_s *plug) {
     clap_track_info_t track_info;
 
@@ -95,17 +97,36 @@ bool plugin_init(plugin_s *plug) {
     plug->host_track_info = (const clap_host_track_info_t*) plug->host->get_extension(plug->host, CLAP_EXT_TRACK_INFO);
     plug->host_context_menu = (const clap_host_context_menu_t*) plug->host->get_extension(plug->host, CLAP_EXT_CONTEXT_MENU);
 
+    bpbxsyn_allocator_s alloc = (bpbxsyn_allocator_s){0};
+
     #ifndef _NDEBUG
-    bpbxsyn_allocator_s alloc = (bpbxsyn_allocator_s) {
-        .alloc = testalloc,
-        .free = testfree,
-        .userdata = plug
-    };
+    alloc.alloc = testalloc;
+    alloc.free = testfree;
+    alloc.userdata = plug;
+    #endif
+
+    mtx_lock(&g_bb_mcalloc.mutex);
+    if (g_bb_mcalloc.ref_count++ == 0) {
+        if (bpbxsyn_mcode_allocator_new(1, &g_bb_mcalloc.data)
+            == BPBXSYN_MCALLOC_OK)
+        {
+            plug->has_mcalloc_ref = true;
+        } else {
+            --g_bb_mcalloc.ref_count;
+            if (plug->host_log)
+                plug->host_log->log(plug->host, CLAP_LOG_WARNING,
+                                    "could not create mcode allocator");
+        }    
+    }
+    mtx_unlock(&g_bb_mcalloc.mutex);
+
+    if (plug->has_mcalloc_ref) {
+        alloc.mc_alloc = g_bb_mcalloc.data.alloc;
+        alloc.mc_free = g_bb_mcalloc.data.free;
+        alloc.mc_userdata = g_bb_mcalloc.data.userdata;
+    }
 
     plug->ctx = bpbxsyn_context_new(&alloc, 0xdeadbeef);
-    #else
-    plug->ctx = bpbxsyn_context_new(NULL, 0xdeadbeef);
-    #endif
 
     if (!plug->ctx) return false;
 
@@ -131,6 +152,16 @@ void plugin_destroy(plugin_s *plug) {
     instr_destroy(&plug->instrument);
     bpbxsyn_context_destroy(plug->ctx);
     plug->ctx = NULL;
+
+    if (plug->has_mcalloc_ref) {
+        mtx_lock(&g_bb_mcalloc.mutex);
+
+        if (--g_bb_mcalloc.ref_count == 0)
+            bpbxsyn_mcode_allocator_destroy(&g_bb_mcalloc.data);
+        plug->has_mcalloc_ref = false;
+        
+        mtx_unlock(&g_bb_mcalloc.mutex);
+    }
 }
 
 bool plugin_activate(plugin_s *plug, double sample_rate,

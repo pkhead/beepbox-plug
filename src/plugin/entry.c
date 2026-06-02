@@ -550,11 +550,16 @@ static const clap_plugin_factory_t s_plugin_factory = {
 
 static bool entry_init(const char *plugin_path) {
    // perform the plugin initialization
+   g_bb_mcalloc = (struct g_bb_mcalloc){};
+   if (mtx_init(&g_bb_mcalloc.mutex, mtx_plain) == thrd_error)
+      return false;
+
    return true;
 }
 
 static void entry_deinit(void) {
    // perform the plugin de-initialization
+   mtx_destroy(&g_bb_mcalloc.mutex);
 }
 
 #ifdef CLAP_HAS_THREAD
