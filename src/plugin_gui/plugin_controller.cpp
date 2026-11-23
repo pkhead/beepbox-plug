@@ -912,7 +912,6 @@ void PluginController::drawEnvelopes() {
         ImGui::SameLine();
         if (ImGui::BeginCombo("##curve", curveNames[env.curve_preset])) {
             for (int i = 0; i < BPBXSYN_ENVELOPE_CURVE_PRESET_COUNT; i++) {
-                if (i == 1) continue; // skip note size...
                 bool isSelected = env.curve_preset == i;
                 if (ImGui::Selectable(curveNames[i], isSelected)) {
                     env.curve_preset = i;
