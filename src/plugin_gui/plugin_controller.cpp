@@ -535,12 +535,16 @@ void PluginController::drawCustomChipGui1() {
         ImVec2(loadPresetBtnPos.x, loadPresetBtnPos.y + ImGui::GetFontSize()),
         ImGuiCond_Appearing);
     if (ImGui::BeginPopup("CustomChipPopup")) {
-        ImGui::Selectable("rounded");
-        ImGui::Selectable("triangle");
-        ImGui::Selectable("square");
-        ImGui::Selectable("1/4 pulse");
-        ImGui::Selectable("1/8 pulse");
-        ImGui::Selectable("sawtooth");
+        const char *const *waveformNames = bpbxsyn_get_chip_waveform_names();
+
+        const char *name;
+        for (int i = 0; (name = waveformNames[i]); ++i) {
+            ImGui::PushID(i);
+            if (ImGui::Selectable(name)) {
+                applyCustomChipPreset(i);
+            }
+            ImGui::PopID();
+        }
 
         ImGui::EndPopup();
     }
@@ -2698,4 +2702,51 @@ void PluginController::updateColors() {
         style.Colors[ImGuiCol_HeaderHovered] = buttonBase.toImVec4(204.f / 255.f);
         style.Colors[ImGuiCol_HeaderActive] = buttonBase;
     }
+}
+
+void PluginController::applyCustomChipPreset(int presetIndex) {
+    bpbxsyn_waveform_data_s waveformData;
+    bpbxsyn_get_chip_waveform(bb_context, presetIndex, true, &waveformData);
+    
+    float waveArray[64];
+    float *samples = waveformData.samples;
+    
+    double maxValue = DBL_TRUE_MIN;
+    double minValue = DBL_MAX;
+    double arrayPoint = 0.0;
+    double arrayStep = (waveformData.length - 1) / 64.0;
+    
+    for (int i = 0; i < 64; ++i) {
+        // Compute derivative to get original wave.
+        int arrayPointInt = (int)arrayPoint;
+        waveArray[i] = (float)((samples[arrayPointInt] - samples[(arrayPointInt + 1)]) / arrayStep);
+
+        if ((double)waveArray[i] < minValue)
+            minValue = (double)waveArray[i];
+
+        if ((double)waveArray[i] > maxValue)
+            maxValue = (double)waveArray[i];
+
+        // Scale an any-size array to 64 elements.
+        arrayPoint += arrayStep;
+    }
+
+    for (int i = 0; i < 64; ++i) {
+        float v = waveArray[i];
+
+        // Change array range from Min~Max to 0~(Max-Min)
+        v -= minValue;
+        // Divide by (Max-Min) to get a range of 0~1,
+        v /= (maxValue - minValue);
+        //then multiply by 48 to get 0~48,
+        v *= 48.0;
+        //then subtract 24 to get - 24~24
+        v -= 24.0;
+        //need to force integers
+        v = ceilf(v);
+
+        chipWave[i] = (std::int8_t)v;
+    }
+
+    isExstateDirty = true;
 }

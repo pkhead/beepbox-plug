@@ -89,6 +89,8 @@ private:
     void filterRemovePole(FilterType filter, int control_idx);
     void filterInsertPole(FilterType filter, int control_idx, bpbxsyn_filter_type_e type, double freq, double gain);
 
+    void applyCustomChipPreset(int presetIndex);
+
     int fadeDragMode;
     double fadeDragInit;
 
