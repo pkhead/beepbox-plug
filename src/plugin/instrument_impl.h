@@ -15,11 +15,11 @@ typedef struct {
 } voice_s;
 
 typedef struct instrument {
-    bpbxsyn_synth_type_e type;
+    bbxs_synth_type_e type;
     uint8_t type_index;
     uint8_t new_type_index;
 
-    bpbxsyn_synth_s *synth;
+    bbxs_synth_s *synth;
 
     bool use_distortion;
     bool use_bitcrusher;
@@ -37,16 +37,16 @@ typedef struct instrument {
     bool run_reverb;
 
     union {
-        bpbxsyn_effect_s *effect_modules[INSTR_EFFECT_MODULE_COUNT];
+        bbxs_effect_s *effect_modules[INSTR_EFFECT_MODULE_COUNT];
         struct {
-            bpbxsyn_effect_s *panning;
-            bpbxsyn_effect_s *distortion;
-            bpbxsyn_effect_s *bitcrusher;
-            bpbxsyn_effect_s *chorus;
-            bpbxsyn_effect_s *echo;
-            bpbxsyn_effect_s *reverb;
-            bpbxsyn_effect_s *eq;
-            bpbxsyn_effect_s *fader;
+            bbxs_effect_s *panning;
+            bbxs_effect_s *distortion;
+            bbxs_effect_s *bitcrusher;
+            bbxs_effect_s *chorus;
+            bbxs_effect_s *echo;
+            bbxs_effect_s *reverb;
+            bbxs_effect_s *eq;
+            bbxs_effect_s *fader;
         } fx;
     };
 
@@ -74,13 +74,13 @@ typedef struct instrument {
     double linear_gain;
 
     // tracked voices
-    voice_s voices[BPBXSYN_SYNTH_MAX_VOICES];
+    voice_s voices[BBXS_SYNTH_MAX_VOICES];
     int8_t active_voice_count;
 
     const clap_host_t *clap_host;
     const clap_host_params_t *clap_host_params;
 } instrument_s;
 
-extern const bpbxsyn_synth_type_e instr_synth_type_values[BPBXSYN_SYNTH_COUNT];
+extern const bbxs_synth_type_e instr_synth_type_values[BBXS_SYNTH_COUNT];
 
 #endif

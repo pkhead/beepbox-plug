@@ -30,27 +30,27 @@ static void plugin_track_info_changed(plugin_s *plug) {
     }
 }
 
-static void bpbx_log_cb(bpbxsyn_log_severity_e severity, const char *msg, void *userdata) {
+static void bpbx_log_cb(bbxs_log_severity_e severity, const char *msg, void *userdata) {
    plugin_s *plug = (plugin_s*)userdata;
    clap_log_severity clap_sev = CLAP_LOG_INFO;
    switch (severity) {
-      case BPBXSYN_LOG_DEBUG:
+      case BBXS_LOG_DEBUG:
          clap_sev = CLAP_LOG_DEBUG;
          break;
 
-      case BPBXSYN_LOG_INFO:
+      case BBXS_LOG_INFO:
          clap_sev = CLAP_LOG_INFO;
          break;
 
-      case BPBXSYN_LOG_WARNING:
+      case BBXS_LOG_WARNING:
          clap_sev = CLAP_LOG_WARNING;
          break;
 
-      case BPBXSYN_LOG_ERROR:
+      case BBXS_LOG_ERROR:
          clap_sev = CLAP_LOG_ERROR;
          break;
 
-      case BPBXSYN_LOG_FATAL:
+      case BBXS_LOG_FATAL:
          clap_sev = CLAP_LOG_FATAL;
          break;
    }
@@ -58,7 +58,7 @@ static void bpbx_log_cb(bpbxsyn_log_severity_e severity, const char *msg, void *
    plug->host_log->log(plug->host, clap_sev, msg);
 }
 
-void plugin_create(plugin_s *plug, bpbxsyn_synth_type_e type) {
+void plugin_create(plugin_s *plug, bbxs_synth_type_e type) {
     plug->has_track_color = false;
     plug->instrument.type = type; // store type temporarily
 }
@@ -96,15 +96,15 @@ bool plugin_init(plugin_s *plug) {
     plug->host_context_menu = (const clap_host_context_menu_t*) plug->host->get_extension(plug->host, CLAP_EXT_CONTEXT_MENU);
 
     #ifndef _NDEBUG
-    bpbxsyn_allocator_s alloc = (bpbxsyn_allocator_s) {
+    bbxs_allocator_s alloc = (bbxs_allocator_s) {
         .alloc = testalloc,
         .free = testfree,
         .userdata = plug
     };
 
-    plug->ctx = bpbxsyn_context_new(&alloc, 0xdeadbeef);
+    plug->ctx = bbxs_context_new(&alloc, 0xdeadbeef);
     #else
-    plug->ctx = bpbxsyn_context_new(NULL, 0xdeadbeef);
+    plug->ctx = bbxs_context_new(NULL, 0xdeadbeef);
     #endif
 
     if (!plug->ctx) return false;
@@ -121,7 +121,7 @@ bool plugin_init(plugin_s *plug) {
     
     if (plug->host_log) {
         gui_set_log_func(plug->host_log->log, plug->host);
-        bpbxsyn_set_log_func(plug->ctx, bpbx_log_cb, plug);
+        bbxs_set_log_func(plug->ctx, bpbx_log_cb, plug);
     }
 
     return true;
@@ -129,7 +129,7 @@ bool plugin_init(plugin_s *plug) {
 
 void plugin_destroy(plugin_s *plug) {
     instr_destroy(&plug->instrument);
-    bpbxsyn_context_destroy(plug->ctx);
+    bbxs_context_destroy(plug->ctx);
     plug->ctx = NULL;
 }
 
@@ -211,21 +211,21 @@ void plugin_process_gui_events(plugin_s *plug,
             }
 
             case GUI_EVENT_ADD_ENVELOPE:
-                bpbxsyn_synth_add_envelope(plug->instrument.synth);
+                bbxs_synth_add_envelope(plug->instrument.synth);
                 break;
 
             case GUI_EVENT_MODIFY_ENVELOPE:
-                *bpbxsyn_synth_get_envelope(plug->instrument.synth, item.modify_envelope.index)
+                *bbxs_synth_get_envelope(plug->instrument.synth, item.modify_envelope.index)
                     = item.modify_envelope.envelope;
                 break;
             
             case GUI_EVENT_REMOVE_ENVELOPE:
-                bpbxsyn_synth_remove_envelope(plug->instrument.synth, item.envelope_removal.index);
+                bbxs_synth_remove_envelope(plug->instrument.synth, item.envelope_removal.index);
                 break;
 
             case GUI_EVENT_UPDATE_EXSTATE:
                 void *data = gui_get_exstate_data(item.exstate);
-                bpbxsyn_synth_set_exstate(plug->instrument.synth, data);
+                bbxs_synth_set_exstate(plug->instrument.synth, data);
                 gui_free_exstate(item.exstate);
                 break;
 
@@ -255,7 +255,7 @@ void plugin_process_transport(plugin_s *plug, const clap_event_transport_t *ev) 
         }
 
         if (is_playing)
-            bpbxsyn_synth_begin_transport(plug->instrument.synth,
+            bbxs_synth_begin_transport(plug->instrument.synth,
                                           plug->instrument.cur_beat,
                                           plug->instrument.bpm);
     }
@@ -370,15 +370,15 @@ void plugin_process_internal_event(plugin_s *plug,
         break;
     
     case INTERNAL_PLUGIN_EVENT_RESIZE_ENVELOPES:
-        bpbxsyn_synth_clear_envelopes(plug->instrument.synth);
+        bbxs_synth_clear_envelopes(plug->instrument.synth);
         for (uint8_t i = 0; i < ev->resize_envelopes.envelope_count; ++i) {
-            bpbxsyn_synth_add_envelope(plug->instrument.synth);
+            bbxs_synth_add_envelope(plug->instrument.synth);
         }
         break;
 
     case INTERNAL_PLUGIN_EVENT_MODIFY_ENVELOPE: {
-        bpbxsyn_envelope_s *env =
-            bpbxsyn_synth_get_envelope(plug->instrument.synth,
+        bbxs_envelope_s *env =
+            bbxs_synth_get_envelope(plug->instrument.synth,
                                         ev->modify_envelope.envelope_index);
         
         env->index = ev->modify_envelope.compute_index;
@@ -528,7 +528,7 @@ bool plugin_params_get_info(const plugin_s *plugin, uint32_t param_index,
         return true;
     }
 
-    const bpbxsyn_param_info_s *info =
+    const bbxs_param_info_s *info =
         instr_get_param_info(&plugin->instrument, param_id);
     if (!info)
         return false;
@@ -547,7 +547,7 @@ bool plugin_params_get_info(const plugin_s *plugin, uint32_t param_index,
     param_info->max_value = info->max_value;
     
     param_info->flags = CLAP_PARAM_IS_AUTOMATABLE;
-    if (info->type == BPBXSYN_PARAM_UINT8 || info->type == BPBXSYN_PARAM_INT) {
+    if (info->type == BBXS_PARAM_UINT8 || info->type == BBXS_PARAM_INT) {
         param_info->flags |= CLAP_PARAM_IS_STEPPED;
 
         if (info->enum_values) param_info->flags |= CLAP_PARAM_IS_ENUM;
@@ -609,38 +609,38 @@ bool plugin_params_set_value(plugin_s *plug, clap_id id, double value,
    // parameters changed...
    if (!(send_flags & NO_RECURSION)) {
       switch (id) {
-         case BPBXSYN_PARAM_VIBRATO_PRESET:
-            if ((int)value != BPBXSYN_VIBRATO_PRESET_CUSTOM) {
-               bpbxsyn_vibrato_params_s params;
-               bpbxsyn_vibrato_preset_params((int)value, &params);
+         case BBXS_PARAM_VIBRATO_PRESET:
+            if ((int)value != BBXS_VIBRATO_PRESET_CUSTOM) {
+               bbxs_vibrato_params_s params;
+               bbxs_vibrato_preset_params((int)value, &params);
 
                event_send_flags_e flags = SEND_TO_GUI | SEND_TO_HOST | NO_RECURSION;
                plugin_params_set_value(plug,
-                    instr_synth_param(BPBXSYN_PARAM_VIBRATO_DEPTH),
+                    instr_synth_param(BBXS_PARAM_VIBRATO_DEPTH),
                     params.depth, flags, out_events);
                plugin_params_set_value(plug,
-                    instr_synth_param(BPBXSYN_PARAM_VIBRATO_SPEED),
+                    instr_synth_param(BBXS_PARAM_VIBRATO_SPEED),
                     params.speed, flags, out_events);
                plugin_params_set_value(plug,
-                    instr_synth_param(BPBXSYN_PARAM_VIBRATO_DELAY),
+                    instr_synth_param(BBXS_PARAM_VIBRATO_DELAY),
                     (double)params.delay, flags, out_events);
                plugin_params_set_value(plug,
-                    instr_synth_param(BPBXSYN_PARAM_VIBRATO_TYPE),
+                    instr_synth_param(BBXS_PARAM_VIBRATO_TYPE),
                     (double)params.type, flags, out_events);
             }
             break;
 
-         case BPBXSYN_PARAM_VIBRATO_DEPTH:
-         case BPBXSYN_PARAM_VIBRATO_SPEED:
-         case BPBXSYN_PARAM_VIBRATO_DELAY:
-         case BPBXSYN_PARAM_VIBRATO_TYPE: {
+         case BBXS_PARAM_VIBRATO_DEPTH:
+         case BBXS_PARAM_VIBRATO_SPEED:
+         case BBXS_PARAM_VIBRATO_DELAY:
+         case BBXS_PARAM_VIBRATO_TYPE: {
             double vibrato_preset;
             bool s = instr_get_param(&plug->instrument,
-                instr_synth_param(BPBXSYN_PARAM_VIBRATO_PRESET), &vibrato_preset);
+                instr_synth_param(BBXS_PARAM_VIBRATO_PRESET), &vibrato_preset);
             
-            if (!s && (int)vibrato_preset != BPBXSYN_VIBRATO_PRESET_CUSTOM)
-                plugin_params_set_value(plug, BPBXSYN_PARAM_VIBRATO_PRESET,
-                    (double)BPBXSYN_VIBRATO_PRESET_CUSTOM,
+            if (!s && (int)vibrato_preset != BBXS_VIBRATO_PRESET_CUSTOM)
+                plugin_params_set_value(plug, BBXS_PARAM_VIBRATO_PRESET,
+                    (double)BBXS_VIBRATO_PRESET_CUSTOM,
                     SEND_TO_GUI | SEND_TO_HOST | NO_RECURSION, out_events);
 
             break;
@@ -655,13 +655,13 @@ bool plugin_params_value_to_text(const plugin_s *plug, clap_id param_id,
                                  double value, char *out_buf,
                                  uint32_t out_buf_capacity)
 {
-    const bpbxsyn_param_info_s *info = instr_get_param_info(&plug->instrument, param_id);
+    const bbxs_param_info_s *info = instr_get_param_info(&plug->instrument, param_id);
     if (!info)
         return false;
 
     switch (info->type) {
-        case BPBXSYN_PARAM_UINT8:
-        case BPBXSYN_PARAM_INT: {
+        case BBXS_PARAM_UINT8:
+        case BBXS_PARAM_INT: {
             if (info->enum_values) {
                 snprintf(out_buf, out_buf_capacity, "%s", info->enum_values[(int)value]);
             } else {
@@ -671,7 +671,7 @@ bool plugin_params_value_to_text(const plugin_s *plug, clap_id param_id,
             break;
         }
 
-        case BPBXSYN_PARAM_DOUBLE: {
+        case BBXS_PARAM_DOUBLE: {
             snprintf(out_buf, out_buf_capacity, "%.1f", value);
             break;
         }
@@ -687,13 +687,13 @@ bool plugin_params_text_to_value(const plugin_s *plug, clap_id param_id,
                                  const char *param_value_text,
                                  double *out_value)
 {
-    const bpbxsyn_param_info_s *info = instr_get_param_info(&plug->instrument, param_id);
+    const bbxs_param_info_s *info = instr_get_param_info(&plug->instrument, param_id);
     if (!info)
         return false;
 
     switch (info->type) {
-        case BPBXSYN_PARAM_UINT8:
-        case BPBXSYN_PARAM_INT:
+        case BBXS_PARAM_UINT8:
+        case BBXS_PARAM_INT:
             if (info->enum_values) {
                 int end_value = (int)info->max_value;
                 for (int i = (int)info->min_value; i <= end_value; ++i) {
@@ -711,7 +711,7 @@ bool plugin_params_text_to_value(const plugin_s *plug, clap_id param_id,
 
             break;
 
-        case BPBXSYN_PARAM_DOUBLE: {
+        case BBXS_PARAM_DOUBLE: {
             *out_value = atof(param_value_text);
             break;
         }
@@ -829,7 +829,7 @@ bool plugin_state_save(const plugin_s *plug, const clap_ostream_t *stream) {
 
     // write synth version
     uint32_t synth_maj, synth_min, synth_rev;
-    bpbxsyn_version(&synth_maj, &synth_min, &synth_rev);
+    bbxs_version(&synth_maj, &synth_min, &synth_rev);
     ERRCHK(stream_write_prim(stream, &synth_maj, sizeof(synth_maj)));
     ERRCHK(stream_write_prim(stream, &synth_min, sizeof(synth_min)));
     ERRCHK(stream_write_prim(stream, &synth_rev, sizeof(synth_rev)));
@@ -878,7 +878,7 @@ bool plugin_state_save(const plugin_s *plug, const clap_ostream_t *stream) {
         uint32_t param_id = param_ids[i];
 
         // get param info
-        const bpbxsyn_param_info_s *info = instr_get_param_info(&plug->instrument, param_id);
+        const bbxs_param_info_s *info = instr_get_param_info(&plug->instrument, param_id);
         if (!info)
             goto error;
 
@@ -897,11 +897,11 @@ bool plugin_state_save(const plugin_s *plug, const clap_ostream_t *stream) {
     param_ids = NULL;
 
     // write envelope data
-    uint8_t envelope_count = bpbxsyn_synth_envelope_count(plug->instrument.synth);
+    uint8_t envelope_count = bbxs_synth_envelope_count(plug->instrument.synth);
     ERRCHK(stream_write_prim(stream, &envelope_count, sizeof(envelope_count)));
 
     for (uint8_t i = 0; i < envelope_count; ++i) {
-        const bpbxsyn_envelope_s *env = bpbxsyn_synth_get_envelope(plug->instrument.synth, i);
+        const bbxs_envelope_s *env = bbxs_synth_get_envelope(plug->instrument.synth, i);
         if (env == NULL) goto error;
 
         ERRCHK(stream_write_prim(stream, &env->index, sizeof(env->index)));
@@ -909,12 +909,12 @@ bool plugin_state_save(const plugin_s *plug, const clap_ostream_t *stream) {
     }
 
     // write exstate data
-    size_t exstate_sz = bpbxsyn_synth_get_exstate_size(type);
+    size_t exstate_sz = bbxs_synth_get_exstate_size(type);
     bool has_exstate = exstate_sz != 0;
     ERRCHK(stream_write_prim(stream, &has_exstate, 1));
 
     if (has_exstate) {
-        int stat = bpbxsyn_synth_serialize_exstate(plug->instrument.synth,
+        int stat = bbxs_synth_serialize_exstate(plug->instrument.synth,
                                                    bbsyn_stream_writer,
                                                    (void *)stream);
         if (stat) goto error;
@@ -967,13 +967,13 @@ bool plugin_state_load(plugin_s *plug, const clap_istream_t *stream) {
 
         if (!eq_s) goto error;
     } else {
-        bpbxsyn_synth_s *new_synth =
-            bpbxsyn_synth_new(plug->ctx, inst_type);
+        bbxs_synth_s *new_synth =
+            bbxs_synth_new(plug->ctx, inst_type);
         
         if (new_synth) {
             int type_idx = instr_synth_type_index(inst_type);
             if (type_idx == -1) {
-                bpbxsyn_synth_destroy(new_synth);
+                bbxs_synth_destroy(new_synth);
                 goto error;
             }
 
@@ -983,7 +983,7 @@ bool plugin_state_load(plugin_s *plug, const clap_istream_t *stream) {
             plug->instrument.type_index = (uint8_t)type_idx;
             plug->instrument.type = inst_type;
 
-            bpbxsyn_synth_destroy(plug->instrument.synth);
+            bbxs_synth_destroy(plug->instrument.synth);
             plug->instrument.synth = new_synth;
         } else {
             goto error;
@@ -1001,7 +1001,7 @@ bool plugin_state_load(plugin_s *plug, const clap_istream_t *stream) {
 
         // get id of parameter with this string id
         instr_param_id param_id = INSTR_INVALID_ID;
-        const bpbxsyn_param_info_s *info = NULL;
+        const bbxs_param_info_s *info = NULL;
         for (uint32_t j = 0; j < all_param_count; ++j) {
             instr_param_id id =
                 instr_get_param_id_with_type(inst_type, j, NULL);
@@ -1010,7 +1010,7 @@ bool plugin_state_load(plugin_s *plug, const clap_istream_t *stream) {
             if (id == INSTR_INVALID_ID)
                 goto error;
             
-            const bpbxsyn_param_info_s *vinfo =
+            const bbxs_param_info_s *vinfo =
                 instr_get_param_info_with_type(inst_type, id);
             if (!vinfo)
                 goto error;
@@ -1065,17 +1065,17 @@ bool plugin_state_load(plugin_s *plug, const clap_istream_t *stream) {
             };
 
             READCHK(stream, &ev.modify_envelope.compute_index,
-                    membersize(bpbxsyn_envelope_s, index));
+                    membersize(bbxs_envelope_s, index));
             READCHK(stream, &ev.modify_envelope.curve_preset,
-                    membersize(bpbxsyn_envelope_s, curve_preset));
+                    membersize(bbxs_envelope_s, curve_preset));
             
             eq_s = plugin_enqueue_event(plug, &ev);
             if (!eq_s) goto error;
         }
     } else {
-        bpbxsyn_synth_clear_envelopes(plug->instrument.synth);
+        bbxs_synth_clear_envelopes(plug->instrument.synth);
         for (uint8_t i = 0; i < envelope_count; ++i) {
-            bpbxsyn_envelope_s *env = bpbxsyn_synth_add_envelope(plug->instrument.synth);
+            bbxs_envelope_s *env = bbxs_synth_add_envelope(plug->instrument.synth);
             READCHK(stream, &env->index, sizeof(env->index));
             READCHK(stream, &env->curve_preset, sizeof(env->curve_preset));
         }
@@ -1086,7 +1086,7 @@ bool plugin_state_load(plugin_s *plug, const clap_istream_t *stream) {
     READCHK(stream, &has_exstate, 1);
 
     if (has_exstate) {
-        int stat = bpbxsyn_synth_deserialize_exstate(plug->instrument.synth,
+        int stat = bbxs_synth_deserialize_exstate(plug->instrument.synth,
                                                      bbsyn_stream_reader,
                                                      (void *)stream);
         if (stat) goto error;

@@ -28,16 +28,16 @@ private:
     const clap_plugin_t *const plugin;
     const clap_host_t *const host;
     instrument_s *const instrument;
-    bpbxsyn_context *const bb_context;
+    bbxs_context *const bb_context;
 
     Page currentPage;
 
     bool showAbout;
-    bpbxsyn_synth_type_e inst_type;
+    bbxs_synth_type_e inst_type;
     std::vector<double> params;
     std::unordered_map<clap_id, int> paramIndexMap;
     std::int8_t chipWave[64];
-    std::vector<bpbxsyn_envelope_s> envelopes;
+    std::vector<bbxs_envelope_s> envelopes;
 
     std::vector<gui_event_queue_item_s> guiToPluginOverflow;
     std::vector<gui_event_exstate_s *> allocatedExstates;
@@ -87,7 +87,7 @@ private:
     void drawEqPage(FilterType targetFilter);
 
     void filterRemovePole(FilterType filter, int control_idx);
-    void filterInsertPole(FilterType filter, int control_idx, bpbxsyn_filter_type_e type, double freq, double gain);
+    void filterInsertPole(FilterType filter, int control_idx, bbxs_filter_type_e type, double freq, double gain);
 
     void applyCustomChipPreset(int presetIndex);
 
@@ -104,7 +104,7 @@ private:
         ImVec2 initialDragPos;
         std::vector<int> activeGestures;
 
-        bpbxsyn_filter_type_e draggingPoleType;
+        bbxs_filter_type_e draggingPoleType;
         bool draggingPoleExists;
         bool hasPoleBeenRemoved = false; // if the pole was ever removed during the drag
         bool poleIsNewlyAdded = false;
@@ -112,11 +112,11 @@ private:
     } eqWidgetDragState;
 
     struct {
-        bool activeGestures[BPBXSYN_HARMONICS_CONTROL_COUNT] = {0};
+        bool activeGestures[BBXS_HARMONICS_CONTROL_COUNT] = {0};
     } harmonicsEditorState;
 
     struct {
-        bool activeGestures[BPBXSYN_SPECTRUM_CONTROL_COUNT] = {0};
+        bool activeGestures[BBXS_SPECTRUM_CONTROL_COUNT] = {0};
     } spectrumEditorState;
 
 #ifdef PLUGIN_VST3
@@ -131,7 +131,7 @@ public:
     void *pluginUserdata;
 
     PluginController(const clap_plugin_t *plugin, const clap_host_t *host,
-                     instrument_s *instrument, bpbxsyn_context_s *bb_context);
+                     instrument_s *instrument, bbxs_context_s *bb_context);
 
     void graphicsInit();
     void graphicsClose();

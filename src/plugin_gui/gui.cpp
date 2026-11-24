@@ -19,7 +19,7 @@ typedef struct plugin_gui_s {
     PluginController control;
 
     plugin_gui_s(const clap_plugin_t *plugin, const clap_host_t *host,
-                 instrument_s *inst, bpbxsyn_context_s *bb_context)
+                 instrument_s *inst, bbxs_context_s *bb_context)
                  : control(plugin, host, inst, bb_context) {} 
 } plugin_gui_s;
 

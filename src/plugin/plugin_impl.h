@@ -30,7 +30,7 @@ typedef struct internal_event_queue_item {
 
         struct {
             uint8_t envelope_index;
-            bpbxsyn_envelope_compute_index_e compute_index;
+            bbxs_envelope_compute_index_e compute_index;
             uint8_t curve_preset;
         } modify_envelope;
     };
@@ -62,7 +62,7 @@ typedef struct {
     const clap_host_track_info_t *host_track_info;
     const clap_host_context_menu_t *host_context_menu;
 
-    bpbxsyn_context_s *ctx;
+    bbxs_context_s *ctx;
     instrument_s instrument;
 
     // main->audio CLAP event queue
@@ -83,7 +83,7 @@ typedef enum {
 void plugin_static_init(void);
 void plugin_static_deinit(void);
 
-void plugin_create(plugin_s *plug, bpbxsyn_synth_type_e type);
+void plugin_create(plugin_s *plug, bbxs_synth_type_e type);
 bool plugin_init(plugin_s *plug);
 void plugin_destroy(plugin_s *plug);
 

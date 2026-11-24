@@ -54,18 +54,18 @@ typedef enum {
 
 typedef struct instrument instrument_s;
 
-bool instr_init(instrument_s *instr, bpbxsyn_context_s *ctx, bpbxsyn_synth_type_e type);
+bool instr_init(instrument_s *instr, bbxs_context_s *ctx, bbxs_synth_type_e type);
 void instr_destroy(instrument_s *instr);
 void instr_process(instrument_s *instr, float **output, uint32_t frame_count,
                    uint32_t start_frame, const clap_output_events_t *out_events);
 void instr_on_main_thread(instrument_s *instr);
-bpbxsyn_synth_s* instr_get_synth(const instrument_s *instr);
+bbxs_synth_s* instr_get_synth(const instrument_s *instr);
 
-bool instr_activate(instrument_s *instr, bpbxsyn_context_s *ctx,
+bool instr_activate(instrument_s *instr, bbxs_context_s *ctx,
                     double sample_rate, uint32_t max_frames_count);
 bool instr_deactivate(instrument_s *instr);
 
-void instr_set_effect_active(instrument_s *instr, bpbxsyn_effect_type_e effect,
+void instr_set_effect_active(instrument_s *instr, bbxs_effect_type_e effect,
                              bool value);
 // bool instr_is_module_active(const instrument_s *instr, instr_module_e module);
 
@@ -76,7 +76,7 @@ void instr_end_notes(instrument_s *instr, int16_t key, int32_t note_id,
                      int16_t port_index, int16_t channel);
 
 uint32_t instr_params_count(void);
-instr_param_id instr_get_param_id_with_type(bpbxsyn_synth_type_e synth_type,
+instr_param_id instr_get_param_id_with_type(bbxs_synth_type_e synth_type,
                                             uint32_t index,
                                             bool *is_inactive);
 instr_param_id instr_get_param_id(const instrument_s *instr, uint32_t index,
@@ -85,16 +85,16 @@ instr_param_id instr_get_param_id(const instrument_s *instr, uint32_t index,
 bool instr_set_param(instrument_s *instr, instr_param_id id, double *value);
 bool instr_get_param(const instrument_s *instr, instr_param_id id, double *value);
 
-const bpbxsyn_param_info_s* instr_get_param_info_with_type(
-    bpbxsyn_synth_type_e synth_type, instr_param_id id);
-const bpbxsyn_param_info_s* instr_get_param_info(const instrument_s *instr,
+const bbxs_param_info_s* instr_get_param_info_with_type(
+    bbxs_synth_type_e synth_type, instr_param_id id);
+const bbxs_param_info_s* instr_get_param_info(const instrument_s *instr,
                                                  instr_param_id id);
 
 // calculate type index of a given synth. type index uses different values than the values
 // for the type enums.
-int instr_synth_type_index(bpbxsyn_synth_type_e type);
+int instr_synth_type_index(bbxs_synth_type_e type);
 
-extern const bpbxsyn_synth_type_e instr_synth_type_values[BPBXSYN_SYNTH_COUNT];
+extern const bbxs_synth_type_e instr_synth_type_values[BBXS_SYNTH_COUNT];
 
 // int instr_global_id(instr_module_e target, instr_param_id local_index);
 #define instr_global_id(module, local_index) \

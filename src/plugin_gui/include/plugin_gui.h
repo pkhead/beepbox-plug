@@ -53,7 +53,7 @@ typedef struct {
 
         struct {
             uint32_t index;
-            bpbxsyn_envelope_s envelope;
+            bbxs_envelope_s envelope;
         } modify_envelope;
 
         struct {
@@ -75,7 +75,7 @@ typedef struct {
     const clap_plugin_t *plugin;
     const clap_host_t *host;
     instrument_s *instrument;
-    bpbxsyn_context_s *bb_context;
+    bbxs_context_s *bb_context;
 
     show_context_menu_f show_context_menu;
     void *userdata;

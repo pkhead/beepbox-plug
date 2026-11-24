@@ -386,27 +386,27 @@ static const clap_plugin_track_info_t s_plugin_track_info = {
 // clap_plugin //
 /////////////////
 
-static void bpbx_log_cb(bpbxsyn_log_severity_e severity, const char *msg, void *userdata) {
+static void bpbx_log_cb(bbxs_log_severity_e severity, const char *msg, void *userdata) {
    plugin_s *plug = (plugin_s*)userdata;
    clap_log_severity clap_sev = CLAP_LOG_INFO;
    switch (severity) {
-      case BPBXSYN_LOG_DEBUG:
+      case BBXS_LOG_DEBUG:
          clap_sev = CLAP_LOG_DEBUG;
          break;
 
-      case BPBXSYN_LOG_INFO:
+      case BBXS_LOG_INFO:
          clap_sev = CLAP_LOG_INFO;
          break;
 
-      case BPBXSYN_LOG_WARNING:
+      case BBXS_LOG_WARNING:
          clap_sev = CLAP_LOG_WARNING;
          break;
 
-      case BPBXSYN_LOG_ERROR:
+      case BBXS_LOG_ERROR:
          clap_sev = CLAP_LOG_ERROR;
          break;
 
-      case BPBXSYN_LOG_FATAL:
+      case BBXS_LOG_FATAL:
          clap_sev = CLAP_LOG_FATAL;
          break;
    }
@@ -498,7 +498,7 @@ clap_plugin_t *clap_plugin_create(const clap_host_t *host) {
    };
 
    // Don't call into the host here
-   plugin_create(p, BPBXSYN_SYNTH_CHIP);
+   plugin_create(p, BBXS_SYNTH_CHIP);
    return &p->plugin;
 }
 
