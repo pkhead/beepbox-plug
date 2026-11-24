@@ -89,6 +89,11 @@ void PluginController::sync() {
     envelopes.reserve(BPBXSYN_MAX_ENVELOPE_COUNT);
     envelopes.resize(bpbxsyn_synth_envelope_count(synth));
     memcpy(envelopes.data(), bpbxsyn_synth_get_envelope(synth, 0), sizeof(bpbxsyn_envelope_s) * envelopes.size());
+
+    if (inst_type == BPBXSYN_SYNTH_CUSTOM_CHIP) {
+        assert(bpbxsyn_synth_get_exstate_size(inst_type) == sizeof(chipWave));
+        bpbxsyn_synth_get_exstate(synth, (void *)chipWave);
+    }
 }
 
 bool PluginController::updateParams() {
@@ -393,7 +398,13 @@ void PluginController::drawChipGui2() {
 
 void PluginController::drawCustomChipGui1() {
     ImGui::AlignTextToFramePadding();
-    ImGui::Text("Wave (TODO)");
+
+    float padX = ImGui::CalcTextSize("MMMM").x;
+    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + padX);
+
+    drawWaveEditor(
+        "##wave", chipWave, (int)(sizeof(chipWave) / sizeof(*chipWave)),
+        ImVec2(ImGui::GetContentRegionAvail().x - padX, ImGui::GetFrameHeight() * 4.0f));
 }
 
 void PluginController::drawCustomChipGui2() {
@@ -1869,6 +1880,88 @@ void PluginController::drawSpectrumEditor(const char *id, uint32_t baseParamId,
     }
 
     drawList->PopClipRect();
+}
+
+void PluginController::drawWaveEditor(const char *id, int8_t *wave, int waveLength, ImVec2 uiSize) {
+    ImDrawList *drawList = ImGui::GetWindowDrawList();
+    ImVec2 uiOrigin = ImGui::GetCursorScreenPos();
+    uiOrigin = ImVec2(floorf(uiOrigin.x), floorf(uiOrigin.y));
+
+    ImVec2 uiEnd = ImVec2(uiOrigin.x + uiSize.x, uiOrigin.y + uiSize.y);
+    uiEnd = ImVec2(floorf(uiEnd.x), floorf(uiEnd.y));
+
+    uiSize = ImVec2(uiEnd.x - uiOrigin.x, uiEnd.y - uiOrigin.y);
+    ImGui::InvisibleButton(id, uiSize, ImGuiButtonFlags_MouseButtonLeft);
+
+    const int smpRange = BPBXSYN_CUSTOM_CHIP_SAMPLE_RANGE;
+
+    // draw border
+    drawList->AddRect(ImVec2(uiOrigin.x - 1, uiOrigin.y - 1),
+                      ImVec2(uiEnd.x + 1, uiEnd.y + 1),
+                      ImGui::GetColorU32(ImGuiCol_Border));
+    // draw center line
+    float centerY = floorf((uiOrigin.y + uiEnd.y) / 2.0f + 0.5);
+    drawList->AddLine(ImVec2(uiOrigin.x - 1, centerY),
+                      ImVec2(uiEnd.x + 1, centerY),
+                      ImGui::GetColorU32(ImGuiCol_Border));
+
+    // draw wave
+    auto calcPosXFrac = [&](int x) {
+        return (float)x / waveLength;
+    };
+    auto calcPosYFrac = [&](int y) {
+        return ((float)y + smpRange) / (smpRange * 2);
+    };
+
+    ImU32 dotColor = ImGui::GetColorU32(ImGuiCol_ButtonActive);
+
+    float heightOfs = (calcPosYFrac(smpRange*2) - calcPosYFrac(smpRange*2-1)) * uiSize.y;
+    for (int i = 0; i < waveLength; ++i) {
+        int smp = wave[i];
+
+        // calculate rect X bounds
+        float minX = calcPosXFrac(i) * uiSize.x;
+        float maxX = calcPosXFrac(i+1) * uiSize.x;
+        minX = floorf(minX);
+        maxX = ceilf(maxX);
+
+        // calculate rect Y bounds
+        float minY = calcPosYFrac(smp) * (uiSize.y - heightOfs);
+        float maxY = calcPosYFrac(smp+1) * (uiSize.y - heightOfs);
+        minY = floorf(minY);
+        maxY = ceilf(maxY);
+
+        minX += uiOrigin.x;
+        maxX += uiOrigin.x;
+        minY += uiOrigin.y;
+        maxY += uiOrigin.y;
+
+        assert(maxX > minX);
+        assert(maxY > minY);
+
+        // draw the rectangle
+        drawList->AddRectFilled(ImVec2(minX, minY), ImVec2(maxX, maxY), dotColor);
+    }
+
+    // mouse input
+    if (ImGui::IsItemActive()) {
+        ImVec2 mousePos = ImGui::GetMousePos();
+        mousePos.x = mousePos.x - uiOrigin.x;
+        mousePos.y = mousePos.y - uiOrigin.y;
+
+        int posX = (int)((mousePos.x / uiSize.x) * waveLength + 0.5);
+        int posY = (int)((mousePos.y / uiSize.y) * (smpRange * 2) + 0.5);
+
+        if (posX >= 0 && posX < waveLength) {
+            posY = clamp(posY, 0, smpRange * 2);
+            int8_t newVal = (int8_t)(posY - smpRange);
+
+            if (wave[posX] != newVal) {
+                wave[posX] = newVal;
+                log_debug("Change exstate");
+            }
+        }
+    }
 }
 
 void PluginController::drawModulationPad() {

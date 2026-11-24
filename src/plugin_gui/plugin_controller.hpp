@@ -32,6 +32,7 @@ private:
     bool showAbout;
     bpbxsyn_synth_type_e inst_type;
     std::unordered_map<clap_id, double> params;
+    std::int8_t chipWave[64];
     
     float uiRightCol;
     void sameLineRightCol();
@@ -66,6 +67,7 @@ private:
     void drawModulationPad();
     void drawHarmonicsEditor(const char *id, uint32_t paramId, ImVec2 size);
     void drawSpectrumEditor(const char *id, uint32_t baseParamId, ImVec2 size);
+    void drawWaveEditor(const char *id, int8_t *wave, int waveLength, ImVec2 size);
     void drawEqPage(FilterType targetFilter);
 
     void paramGestureBegin(uint32_t param_id);
