@@ -87,28 +87,35 @@ public:
     EventQueue operator=(EventQueue&) = delete;
     ~EventQueue() noexcept { delete[] data; }
 
-    void enqueue(const T &item) {
-        uint32_t ptr = write_ptr.load();
-        data[ptr] = item;
-        ptr = (ptr + 1) & MASK;
-        write_ptr.store(ptr);
+    bool enqueue(const T &item) {
+        size_t read = read_ptr.load(std::memory_order_relaxed);
+        size_t write = write_ptr.load(std::memory_order_relaxed);
+
+        if (((write + 1) & MASK) == read)
+            return false;
+
+        data[write] = item;
+        write = (write + 1) & MASK;
+        write_ptr.store(write, std::memory_order_release);
+
+        return true;
     }
 
     bool dequeue(T &item) {
-        size_t read = read_ptr.load();
-        size_t write = write_ptr.load();
+        size_t read = read_ptr.load(std::memory_order_relaxed);
+        size_t write = write_ptr.load(std::memory_order_acquire);
         if (read == write) return false;
 
         item = data[read];
         read = (read + 1) & MASK;
-        read_ptr.store(read);
+        read_ptr.store(read, std::memory_order_relaxed);
 
         return true;
     }
 
     size_t items_queued() const {
-        size_t read = read_ptr.load();
-        size_t write = write_ptr.load();
+        size_t read = read_ptr.load(std::memory_order_relaxed);
+        size_t write = write_ptr.load(std::memory_order_relaxed);
 
         if (write >= read) {
             return write - read;
