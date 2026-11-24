@@ -391,6 +391,33 @@ void PluginController::drawChipGui2() {
     }
 }
 
+void PluginController::drawCustomChipGui1() {
+    ImGui::AlignTextToFramePadding();
+    ImGui::Text("Wave (TODO)");
+}
+
+void PluginController::drawCustomChipGui2() {
+    ImGui::AlignTextToFramePadding();
+    ImGui::Text("Unison");
+
+    sameLineRightCol();
+    ImGui::SetNextItemWidth(-FLT_MIN);
+    {
+        const int unison_pid = BPBXSYN_CUSTOM_CHIP_PARAM_UNISON;
+        int p_unison = params[unison_pid];
+        const bpbxsyn_param_info_s *p_info = bpbxsyn_synth_param_info(inst_type, unison_pid);
+        assert(p_info);
+        const char **unisonNames = p_info->enum_values;
+        if (ImGui::Combo("##unison", &p_unison, unisonNames, BPBXSYN_UNISON_COUNT)) {
+            paramGestureBegin(unison_pid);
+            paramChange(unison_pid, (double)p_unison);
+            paramGestureEnd(unison_pid);
+        }
+
+        paramControls(unison_pid);
+    }
+}
+
 void PluginController::drawHarmonicsGui() {
     ImGui::AlignTextToFramePadding();
     ImGui::Text("Harmonics");
@@ -2090,7 +2117,7 @@ void PluginController::draw(platform::Window *window) {
                         static const char *types[BPBXSYN_SYNTH_COUNT] = {
                             "chip wave", "pulse width", "supersaw (TODO)",
                             "harmonics", "picked string", "spectrum", "FM",
-                            "custom chip (TODO)", "noise"
+                            "custom chip", "noise"
                         };
                         
                         ImGui::AlignTextToFramePadding();
@@ -2136,10 +2163,14 @@ void PluginController::draw(platform::Window *window) {
                             sliderParameter(PARAM(PANNING, BPBXSYN_PANNING_PARAM_PAN_DELAY), "##panDelay", 0.f, BPBXSYN_PAN_DELAY_MAX, "%.0f");
                         }
 
-                        // why are some uis separated like this
+                        // a bit annoying that some uis separated like this
                         switch (inst_type) {
                             case BPBXSYN_SYNTH_CHIP:
                                 drawChipGui1();
+                                break;
+
+                            case BPBXSYN_SYNTH_CUSTOM_CHIP:
+                                drawCustomChipGui1();
                                 break;
                             
                             case BPBXSYN_SYNTH_NOISE:
@@ -2198,6 +2229,10 @@ void PluginController::draw(platform::Window *window) {
 
                             case BPBXSYN_SYNTH_PICKED_STRING:
                                 drawPickedStringGui();
+                                break;
+
+                            case BPBXSYN_SYNTH_CUSTOM_CHIP:
+                                drawCustomChipGui2();
                                 break;
 
                             default: break;

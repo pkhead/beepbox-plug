@@ -50,6 +50,8 @@ private:
     void drawFmGui();
     void drawChipGui1();
     void drawChipGui2();
+    void drawCustomChipGui1();
+    void drawCustomChipGui2();
     void drawHarmonicsGui();
     void drawSpectrumGui();
     void drawNoiseGui1();
