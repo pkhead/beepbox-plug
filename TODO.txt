@@ -27,6 +27,11 @@ src/cbeepsynth/TODO.txt
 	- "BeepBox Stereo Effects", which includes:
 		- chorus, echo, reverb, limiter
 		- and mono effects applied individually per channel
+- synth config simply just copies over param whose IDs are the same. but this
+  means that all unison and harmonics parameters need to have the same ID
+  (currently they don't). so go do that.
+- maybe rewrite entire plugin to be in C++
+  (better MSVC support and makes project simpler...)
 
 BUGS:
 - vibrato starts from wrong beat in fl studio. Could either clap-wrapper not
