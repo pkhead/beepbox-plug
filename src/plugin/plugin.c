@@ -789,17 +789,20 @@ static int64_t stream_read_prim(const clap_istream_t *stream, void *data, size_t
 }
 
 #define STATE_SAVE_VER 0
-#define ERRCHK(v) if ((v) == -1) goto error
 
+#define ERRCHK(v) if ((v) == -1) goto error
 bool plugin_state_save(const plugin_s *plug, const clap_ostream_t *stream) {
+    // declarations of temporary allocations
+    instr_param_id *param_ids = NULL;
+    uint8_t *exstate = NULL;
+
     // write save format revision (single number)
     uint32_t save_version = STATE_SAVE_VER;
     ERRCHK(stream_write_prim(stream, &save_version, sizeof(save_version)));
 
     // write synth version
-    uint32_t synth_maj = BPBXSYN_VERSION_MAJOR;
-    uint32_t synth_min = BPBXSYN_VERSION_MINOR;
-    uint32_t synth_rev = BPBXSYN_VERSION_REVISION;
+    uint32_t synth_maj, synth_min, synth_rev;
+    bpbxsyn_version(&synth_maj, &synth_min, &synth_rev);
     ERRCHK(stream_write_prim(stream, &synth_maj, sizeof(synth_maj)));
     ERRCHK(stream_write_prim(stream, &synth_min, sizeof(synth_min)));
     ERRCHK(stream_write_prim(stream, &synth_rev, sizeof(synth_rev)));
@@ -812,7 +815,7 @@ bool plugin_state_save(const plugin_s *plug, const clap_ostream_t *stream) {
     uint32_t param_count = instr_params_count();
     
     // first, get list of parameter ids to write
-    instr_param_id *param_ids = malloc(param_count * sizeof(uint32_t));
+    param_ids = malloc(param_count * sizeof(uint32_t));
     int write_param_count = 0;
 
     for (uint32_t i = 0; i < param_count; ++i) {
@@ -864,6 +867,7 @@ bool plugin_state_save(const plugin_s *plug, const clap_ostream_t *stream) {
     }
 
     free(param_ids);
+    param_ids = NULL;
 
     // write envelope data
     uint8_t envelope_count = bpbxsyn_synth_envelope_count(plug->instrument.synth);
@@ -877,11 +881,36 @@ bool plugin_state_save(const plugin_s *plug, const clap_ostream_t *stream) {
         ERRCHK(stream_write_prim(stream, &env->curve_preset, sizeof(env->curve_preset)));
     }
 
+    // write exstate data
+    size_t exstate_sz = bpbxsyn_synth_get_exstate_size(type);
+    assert(exstate_sz <= UINT32_MAX);
+    if (exstate_sz > UINT32_MAX) goto error;
+
+    uint32_t exstate_sz32 = (uint32_t)exstate_sz;
+    ERRCHK(stream_write_prim(stream, &exstate_sz32, sizeof(uint32_t)));
+
+    if (exstate_sz != 0) {
+        exstate = malloc(exstate_sz);
+        if (!exstate) goto error;
+
+        bpbxsyn_synth_get_exstate(plug->instrument.synth, exstate);
+        // TODO: exstate data is endian-dependent... should i care?
+        stream->write(stream, exstate, exstate_sz);
+
+        free(exstate);
+        exstate = NULL;
+    }
+
     return true;
     error:
         free(param_ids);
+        free(exstate);
         return false;
 }
+
+#define READCHK(STREAM, ADDR, SIZE)\
+    if (stream_read_prim(STREAM, ADDR, SIZE) != SIZE)\
+        goto error
 
 bool plugin_state_load(plugin_s *plug, const clap_istream_t *stream) {
     bool is_active = plug->is_active;
@@ -890,20 +919,20 @@ bool plugin_state_load(plugin_s *plug, const clap_istream_t *stream) {
 
     // read versions; do strict version checking for now.
     uint32_t save_version;
-    ERRCHK(stream_read_prim(stream, &save_version, sizeof(save_version)));
+    READCHK(stream, &save_version, sizeof(save_version));
     if (save_version != STATE_SAVE_VER) return false;
 
     // read and skip synth version
     uint32_t synth_maj;
     uint32_t synth_min;
     uint32_t synth_rev;
-    ERRCHK(stream_read_prim(stream, &synth_maj, sizeof(synth_maj)));
-    ERRCHK(stream_read_prim(stream, &synth_min, sizeof(synth_min)));
-    ERRCHK(stream_read_prim(stream, &synth_rev, sizeof(synth_rev)));
+    READCHK(stream, &synth_maj, sizeof(synth_maj));
+    READCHK(stream, &synth_min, sizeof(synth_min));
+    READCHK(stream, &synth_rev, sizeof(synth_rev));
 
     // read instrument type
     uint8_t inst_type;
-    ERRCHK(stream_read_prim(stream, &inst_type, sizeof(inst_type)));
+    READCHK(stream, &inst_type, sizeof(inst_type));
 
     // load new instrument type
     if (is_active) {
@@ -945,12 +974,12 @@ bool plugin_state_load(plugin_s *plug, const clap_istream_t *stream) {
 
     uint32_t all_param_count = instr_params_count();
     uint32_t param_count;
-    ERRCHK(stream_read_prim(stream, &param_count, sizeof(param_count)));
+    READCHK(stream, &param_count, sizeof(param_count));
 
     for (uint32_t i = 0; i < param_count; ++i) {
         // read string id
         char p_id[8];
-        ERRCHK(stream_read_prim(stream, p_id, sizeof(p_id)));
+        READCHK(stream, p_id, sizeof(p_id));
 
         // get id of parameter with this string id
         instr_param_id param_id = INSTR_INVALID_ID;
@@ -979,7 +1008,7 @@ bool plugin_state_load(plugin_s *plug, const clap_istream_t *stream) {
 
         // read value
         double value;
-        ERRCHK(stream_read_prim(stream, &value, sizeof(value)));
+        READCHK(stream, &value, sizeof(value));
         
         if (is_active) {
             eq_s = plugin_enqueue_event(plug, &(internal_event_queue_item_s) {
@@ -998,7 +1027,7 @@ bool plugin_state_load(plugin_s *plug, const clap_istream_t *stream) {
 
     // read envelopes
     uint8_t envelope_count;
-    ERRCHK(stream_read_prim(stream, &envelope_count, sizeof(envelope_count)));
+    READCHK(stream, &envelope_count, sizeof(envelope_count));
 
     if (is_active) {
         // send envelope resize message
@@ -1017,10 +1046,10 @@ bool plugin_state_load(plugin_s *plug, const clap_istream_t *stream) {
                 }
             };
 
-            ERRCHK(stream_read_prim(stream, &ev.modify_envelope.compute_index,
-                                    membersize(bpbxsyn_envelope_s, index)));
-            ERRCHK(stream_read_prim(stream, &ev.modify_envelope.curve_preset,
-                                    membersize(bpbxsyn_envelope_s, curve_preset)));
+            READCHK(stream, &ev.modify_envelope.compute_index,
+                    membersize(bpbxsyn_envelope_s, index));
+            READCHK(stream, &ev.modify_envelope.curve_preset,
+                    membersize(bpbxsyn_envelope_s, curve_preset));
             
             eq_s = plugin_enqueue_event(plug, &ev);
             if (!eq_s) goto error;
@@ -1029,9 +1058,31 @@ bool plugin_state_load(plugin_s *plug, const clap_istream_t *stream) {
         bpbxsyn_synth_clear_envelopes(plug->instrument.synth);
         for (uint8_t i = 0; i < envelope_count; ++i) {
             bpbxsyn_envelope_s *env = bpbxsyn_synth_add_envelope(plug->instrument.synth);
-            ERRCHK(stream_read_prim(stream, &env->index, sizeof(env->index)));
-            ERRCHK(stream_read_prim(stream, &env->curve_preset, sizeof(env->curve_preset)));
+            READCHK(stream, &env->index, sizeof(env->index));
+            READCHK(stream, &env->curve_preset, sizeof(env->curve_preset));
         }
+    }
+
+    // read exstate data
+    uint32_t exstate_sz32;
+    READCHK(stream, &exstate_sz32, sizeof(exstate_sz32));
+    size_t exstate_sz = (size_t)exstate_sz32;
+
+    if (exstate_sz != 0) {
+        if (exstate_sz != bpbxsyn_synth_get_exstate_size(plug->instrument.type))
+            goto error;
+
+        void *exstate = malloc(exstate_sz);
+        if (!exstate) goto error;
+
+        int64_t err = stream->read(stream, exstate, exstate_sz);
+        if (err != exstate_sz) {
+            free(exstate);
+            goto error;
+        }
+
+        bpbxsyn_synth_set_exstate(plug->instrument.synth, exstate);
+        free(exstate);
     }
 
     goto end;
