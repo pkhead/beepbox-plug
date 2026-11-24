@@ -493,9 +493,47 @@ void PluginController::drawCustomChipGui1() {
     float padX = ImGui::CalcTextSize("MMMM").x;
     ImGui::SetCursorPosX(ImGui::GetCursorPosX() + padX);
 
+    float waveWidth = ImGui::GetContentRegionAvail().x - padX;
     drawWaveEditor(
         "##wave", chipWave, (int)(sizeof(chipWave) / sizeof(*chipWave)),
-        ImGui::GetContentRegionAvail().x - padX);
+        waveWidth);
+    
+    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + padX);
+    float centerX = ImGui::GetCursorPosX() + waveWidth / 2.f;
+
+    ImGuiStyle &style = ImGui::GetStyle();
+
+    const char *loadPresetTxt = "Load Preset";
+
+    float contentWidth =
+        ImGui::CalcTextSize(loadPresetTxt).x + style.FramePadding.x * 2
+        + style.ItemSpacing.x
+        + ImGui::CalcTextSize("+").x + style.FramePadding.x * 2;
+
+    ImGui::SetCursorPosX(centerX - contentWidth / 2.f);
+
+    ImVec2 loadPresetBtnPos = ImGui::GetCursorScreenPos();
+    if (ImGui::SmallButton(loadPresetTxt)) {
+        ImGui::OpenPopup("CustomChipPopup");
+    }
+    ImGui::SameLine();
+    if (ImGui::SmallButton("+")) {
+        currentPage = PAGE_CUSTOM_CHIP;
+    }
+
+    ImGui::SetNextWindowPos(
+        ImVec2(loadPresetBtnPos.x, loadPresetBtnPos.y + ImGui::GetFontSize()),
+        ImGuiCond_Appearing);
+    if (ImGui::BeginPopup("CustomChipPopup")) {
+        ImGui::Selectable("rounded");
+        ImGui::Selectable("triangle");
+        ImGui::Selectable("square");
+        ImGui::Selectable("1/4 pulse");
+        ImGui::Selectable("1/8 pulse");
+        ImGui::Selectable("sawtooth");
+
+        ImGui::EndPopup();
+    }
 }
 
 void PluginController::drawCustomChipGui2() {
@@ -1973,8 +2011,11 @@ void PluginController::drawSpectrumEditor(const char *id, uint32_t baseParamId,
     drawList->PopClipRect();
 }
 
-void PluginController::drawWaveEditor(const char *id, int8_t *wave, int waveLength, float uiWidth) {
-    ImVec2 uiSize(uiWidth, uiWidth * 0.4f);
+void PluginController::drawWaveEditor(const char *id, int8_t *wave,
+                                      int waveLength, float uiWidth,
+                                      float uiHeightScale)
+{
+    ImVec2 uiSize(uiWidth, uiWidth * 0.4f * uiHeightScale);
 
     ImDrawList *drawList = ImGui::GetWindowDrawList();
     ImVec2 uiOrigin = ImGui::GetCursorScreenPos();
@@ -2438,6 +2479,15 @@ void PluginController::draw(platform::Window *window) {
             case PAGE_EQ:
                 if (ImGui::Begin("eq", NULL, winFlags)) {
                     drawEqPage(FILTER_EQ);
+                }
+                ImGui::End();
+                break;
+            
+            case PAGE_CUSTOM_CHIP:
+                if (ImGui::Begin("chip", NULL, winFlags)) {
+                    drawWaveEditor("##bigWaveEditor", chipWave, 64,
+                                   ImGui::GetContentRegionAvail().x,
+                                   2.f);
                 }
                 ImGui::End();
                 break;

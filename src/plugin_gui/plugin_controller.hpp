@@ -16,7 +16,8 @@ private:
     enum Page {
         PAGE_MAIN,
         PAGE_EQ,
-        PAGE_NOTE_FILTER
+        PAGE_NOTE_FILTER,
+        PAGE_CUSTOM_CHIP,
     };
 
     enum FilterType {
@@ -79,7 +80,7 @@ private:
     void drawModulationPad();
     void drawHarmonicsEditor(const char *id, uint32_t paramId, ImVec2 size);
     void drawSpectrumEditor(const char *id, uint32_t baseParamId, ImVec2 size);
-    void drawWaveEditor(const char *id, int8_t *wave, int waveLength, float uiWidth);
+    void drawWaveEditor(const char *id, int8_t *wave, int waveLength, float uiWidth, float uiHeightScale = 1.f);
     void drawEqPage(FilterType targetFilter);
 
     void filterRemovePole(FilterType filter, int control_idx);
