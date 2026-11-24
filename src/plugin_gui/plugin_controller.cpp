@@ -208,6 +208,12 @@ void PluginController::vertSliderParameter(uint32_t paramId, const char *id, ImV
     paramControls(paramId);
 }
 
+void PluginController::centeredText(const char *text) {
+    ImGui::AlignTextToFramePadding();
+    ImGui::SetCursorPosX((ImGui::GetWindowContentRegionMax().x - ImGui::CalcTextSize(text).x) / 2.f);
+    ImGui::Text("%s", text);
+}
+
 void PluginController::sendToPlugin(const gui_event_queue_item_s &item) {
     if (!gui_to_plugin.enqueue(item)) {
         if (guiToPluginOverflow.size() >= 512) {
@@ -683,9 +689,7 @@ void PluginController::drawPickedStringGui() {
 }
 
 void PluginController::drawEffects() {
-    ImGui::AlignTextToFramePadding();
-    ImGui::SetCursorPosX((ImGui::GetWindowContentRegionMax().x - ImGui::CalcTextSize("Effects").x) / 2.f);
-    ImGui::Text("Effects");
+    centeredText("Effects");
 
     ImGui::SameLine();
     // why do i need to subtract one pixel
@@ -978,11 +982,9 @@ void PluginController::drawEffects() {
 }
 
 void PluginController::drawEnvelopes() {
-    ImGuiStyle &style = ImGui::GetStyle();
+    centeredText("Envelopes");
 
-    ImGui::AlignTextToFramePadding();
-    ImGui::SetCursorPosX((ImGui::GetWindowContentRegionMax().x - ImGui::CalcTextSize("Envelopes").x) / 2.f);
-    ImGui::Text("Envelopes");
+    ImGuiStyle &style = ImGui::GetStyle();
 
     if (envelopes.size() < BPBXSYN_MAX_ENVELOPE_COUNT) {
         ImGui::SameLine();
@@ -2098,9 +2100,7 @@ void PluginController::drawWaveEditor(const char *id, int8_t *wave,
 }
 
 void PluginController::drawModulationPad() {
-    ImGui::AlignTextToFramePadding();
-    ImGui::SetCursorPosX((ImGui::GetWindowContentRegionMax().x - ImGui::CalcTextSize("Modulation").x) / 2.f);
-    ImGui::Text("Modulation");
+    centeredText("Modulation");
 
     ImDrawList *drawList = ImGui::GetWindowDrawList();
 
@@ -2247,6 +2247,8 @@ void PluginController::sameLineRightCol() {
 
 void PluginController::draw(platform::Window *window) {
     updateColors();
+
+    ImGui::GetStyle().SeparatorTextAlign = ImVec2(0.5, 0.5);
 
     // imgui
     if (ImGui::BeginMainMenuBar()) {
@@ -2471,6 +2473,7 @@ void PluginController::draw(platform::Window *window) {
 
             case PAGE_NOTE_FILTER:
                 if (ImGui::Begin("eq", NULL, winFlags)) {
+                    ImGui::SeparatorText("Edit Note Filter");
                     drawEqPage(FILTER_NOTE);
                 }
                 ImGui::End();
@@ -2478,6 +2481,7 @@ void PluginController::draw(platform::Window *window) {
             
             case PAGE_EQ:
                 if (ImGui::Begin("eq", NULL, winFlags)) {
+                    ImGui::SeparatorText("Edit EQ Filter");
                     drawEqPage(FILTER_EQ);
                 }
                 ImGui::End();
@@ -2485,6 +2489,7 @@ void PluginController::draw(platform::Window *window) {
             
             case PAGE_CUSTOM_CHIP:
                 if (ImGui::Begin("chip", NULL, winFlags)) {
+                    ImGui::SeparatorText("Edit Custom Chip Wave");
                     drawWaveEditor("##bigWaveEditor", chipWave, 64,
                                    ImGui::GetContentRegionAvail().x,
                                    2.f);

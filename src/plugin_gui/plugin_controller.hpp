@@ -59,6 +59,7 @@ private:
     void paramControls(uint32_t paramId);
     void sliderParameter(uint32_t paramId, const char *id, float v_min, float v_max, const char *fmt = "%.3f", bool normalized = false);
     void vertSliderParameter(uint32_t paramId, const char *id, ImVec2 size, float v_min, float v_max, const char *fmt = "%.3f", bool normalized = false);
+    void centeredText(const char *text);
 
     void drawAbout(ImGuiWindowFlags winFlags);
     void drawFmGui();
