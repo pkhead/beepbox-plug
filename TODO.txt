@@ -33,13 +33,23 @@ src/cbeepsynth/TODO.txt
 - maybe rewrite entire plugin to be in C++
   (better MSVC support and makes project simpler...)
 - "monophonic" control option
-- TODO: save exstate as part of instrument state
+
+[v] [INST] [Ctrl] [Prst] [Pref] [About]
+---------------------------------------
+          Instrument Settings
+    Type        [ FM            v ]
+
+preferences:
+- theming
+- layout (e.g. more horizontal layout where InstSettings, Effects, Envelopes,
+  and Modulation are on separate columns)
 
 BUGS:
 - vibrato starts from wrong beat in fl studio. Could either clap-wrapper not
   providing playback information (not likely) or my code being faulty. need to
   check with bitwig studio.
   (...does it? )
+- "arpeggio" chord type seems to be buggy
 
 FM6 CONCURRENCY WRT CODE GENERATION:
   Problem: Because of W^X, in order to generate the machine code specialized for
