@@ -223,6 +223,12 @@ void plugin_process_gui_events(plugin_s *plug,
                 bpbxsyn_synth_remove_envelope(plug->instrument.synth, item.envelope_removal.index);
                 break;
 
+            case GUI_EVENT_UPDATE_EXSTATE:
+                void *data = gui_get_exstate_data(item.exstate);
+                bpbxsyn_synth_set_exstate(plug->instrument.synth, data);
+                gui_free_exstate(item.exstate);
+                break;
+
             default:
                 break;
         }

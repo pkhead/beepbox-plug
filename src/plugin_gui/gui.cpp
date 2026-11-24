@@ -7,6 +7,7 @@
 #include "platform.hpp"
 #include "plugin_controller.hpp"
 #include "gfx.hpp"
+#include "exstate_alloc.hpp"
 
 #define GUI_DEFAULT_WIDTH 240
 #define GUI_DEFAULT_HEIGHT 360
@@ -399,4 +400,12 @@ void gui_update_color(plugin_gui_s *gui, clap_color_t color) {
             (float)color.blue / 255.f
         );
     }
+}
+
+void *gui_get_exstate_data(const gui_event_exstate_s *alloc) {
+    return (void *)alloc->data;
+}
+
+void gui_free_exstate(gui_event_exstate_s *alloc) {
+    alloc->free.store(true, std::memory_order_seq_cst);
 }

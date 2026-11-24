@@ -5,10 +5,10 @@
 #include <cbeepsynth/synth/include/beepbox_synth.h>
 #include <clap/clap.h>
 #include <vector>
-#include <algorithm>
 #include "plugin_controller.hpp"
 #include "util.hpp"
 #include "log.hpp"
+#include "exstate_alloc.hpp"
 
 #ifdef PLUGIN_VST3
 #include "resource/vst_logo.hpp"
@@ -103,9 +103,13 @@ void PluginController::sync() {
     envelopes.resize(bpbxsyn_synth_envelope_count(synth));
     memcpy(envelopes.data(), bpbxsyn_synth_get_envelope(synth, 0), sizeof(bpbxsyn_envelope_s) * envelopes.size());
 
-    if (inst_type == BPBXSYN_SYNTH_CUSTOM_CHIP) {
+    switch (inst_type) {
+    case BPBXSYN_SYNTH_CUSTOM_CHIP:
         assert(bpbxsyn_synth_get_exstate_size(inst_type) == sizeof(chipWave));
         bpbxsyn_synth_get_exstate(synth, (void *)chipWave);
+        break;
+
+    default: break;
     }
 }
 
@@ -250,7 +254,17 @@ void PluginController::paramGestureEnd(uint32_t param_id) {
 #endif
 }
 
-void PluginController::event(platform::Event ev, platform::Window *window) {
+bool PluginController::idle() {
+    // free all discarded exstates
+    for (int i = allocatedExstates.size() - 1; i >= 0; --i) {
+        gui_event_exstate_s *alloc = allocatedExstates[i];
+        if (alloc->free.load(std::memory_order_seq_cst)) {
+            free(alloc);
+            allocatedExstates.erase(allocatedExstates.begin() + i);
+        }
+    }
+
+    // flush gui_to_plugin overflow queue
     while (guiToPluginOverflow.size() != 0) {
         gui_event_queue_item_s &item = guiToPluginOverflow.back();
         if (!gui_to_plugin.enqueue(item))
@@ -259,11 +273,54 @@ void PluginController::event(platform::Event ev, platform::Window *window) {
         guiToPluginOverflow.pop_back();
     }
 
-    bool forceRefresh = needRefresh.exchange(false, std::memory_order_acquire);
-    if (updateParams() || forceRefresh) {
-        if (ev.type == platform::Event::Idle)
-            platform::requestRedraw(window);
+    // flush plugin_to_gui input queue
+    bool wantRefresh = updateParams();
+    return wantRefresh;
+}
+
+void PluginController::postDraw() {
+    // submit exstate changes to plugin
+    if (isExstateDirty) {
+        isExstateDirty = false;
+
+        size_t exstateSz = bpbxsyn_synth_get_exstate_size(inst_type);
+        if (exstateSz > 0) {
+            gui_event_exstate_s *alloc = NULL;
+            alloc = (gui_event_exstate_s *)malloc(sizeof(gui_event_exstate_s) + exstateSz);
+            new (alloc) (gui_event_exstate_s);
+
+            allocatedExstates.push_back(alloc);
+
+            switch (inst_type) {
+            case BPBXSYN_SYNTH_CUSTOM_CHIP: {
+                assert(sizeof(chipWave) == exstateSz);
+                memcpy(alloc->data, chipWave, sizeof(chipWave));
+                break;
+            }
+
+            default: assert(false);
+            }
+
+            gui_event_queue_item_s msg = {};
+            msg.type = GUI_EVENT_UPDATE_EXSTATE;
+            msg.exstate = alloc;
+            sendToPlugin(msg);
+        }
     }
+}
+
+void PluginController::event(platform::Event ev, platform::Window *window) {
+    bool wantRefresh = false;
+
+    // can't use logical OR here because it short-circuits; i want both
+    // expressions to unconditionally evaluate
+    if (idle())
+        wantRefresh = true;
+    if (needRefresh.exchange(false, std::memory_order_acquire))
+        wantRefresh = true;
+
+    if (wantRefresh && ev.type == platform::Event::Idle)
+        platform::requestRedraw(window);
 }
 
 void PluginController::drawAbout(ImGuiWindowFlags winFlags) {
@@ -1992,6 +2049,7 @@ void PluginController::drawWaveEditor(const char *id, int8_t *wave, int waveLeng
 
             if (wave[posX] != newVal) {
                 wave[posX] = newVal;
+                isExstateDirty = true;
             }
         }
     }
@@ -2384,6 +2442,8 @@ void PluginController::draw(platform::Window *window) {
                 break;
         }
     }
+
+    postDraw();
 }
 
 // https://stackoverflow.com/questions/3018313/algorithm-to-convert-rgb-to-hsv-and-hsv-to-rgb-in-range-0-255-for-both

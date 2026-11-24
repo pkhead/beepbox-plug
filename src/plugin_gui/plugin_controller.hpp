@@ -37,6 +37,9 @@ private:
     std::vector<bpbxsyn_envelope_s> envelopes;
 
     std::vector<gui_event_queue_item_s> guiToPluginOverflow;
+    std::vector<gui_event_exstate_s *> allocatedExstates;
+
+    bool isExstateDirty;
     
     float uiRightCol;
     void sameLineRightCol();
@@ -48,6 +51,9 @@ private:
 
     bool updateParams();
     void updateColors(); // update style based on custom colors
+
+    bool idle();
+    void postDraw();
 
     void paramControls(uint32_t paramId);
     void sliderParameter(uint32_t paramId, const char *id, float v_min, float v_max, const char *fmt = "%.3f", bool normalized = false);

@@ -27,8 +27,12 @@ typedef enum {
     GUI_EVENT_REMOVE_ENVELOPE,
     GUI_EVENT_MODIFY_ENVELOPE,
 
+    GUI_EVENT_UPDATE_EXSTATE,
+
     GUI_EVENT_RESYNC
 } gui_event_queue_item_type_e;
+
+typedef struct gui_event_exstate gui_event_exstate_s;
 
 typedef struct {
     gui_event_queue_item_type_e type;
@@ -56,6 +60,8 @@ typedef struct {
             uint8_t module_index;
             bool active_state;
         } update_module;
+
+        gui_event_exstate_s *exstate;
     };
 } gui_event_queue_item_s;
 
@@ -94,6 +100,9 @@ bool gui_show(plugin_gui_s *iface);
 bool gui_hide(plugin_gui_s *iface);
 
 void gui_set_log_func(void (*log_func)(const clap_host_t *host, clap_log_severity severity, const char *msg), const clap_host_t *host);
+
+void *gui_get_exstate_data(const gui_event_exstate_s *alloc);
+void gui_free_exstate(gui_event_exstate_s *alloc);
 
 #ifdef __cplusplus
 }
