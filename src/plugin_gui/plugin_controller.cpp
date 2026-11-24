@@ -1654,7 +1654,7 @@ void PluginController::drawEqWidget(FilterType filter, const char *id, ImVec2 si
     }
 
     // draw hovered/active pole info
-    if (ImGui::IsItemHovered() || ImGui::IsItemActive()) {
+    if ((ImGui::IsItemHovered() || ImGui::IsItemActive()) && hoveredPoleIndex != -1) {
         char textBuf[64];
         const char *poleTypeStr;
         bool insertion = poleInsertionType != BPBXSYN_FILTER_TYPE_OFF;
@@ -2006,7 +2006,7 @@ void PluginController::drawWaveEditor(const char *id, int8_t *wave, int waveLeng
 
     ImU32 dotColor = ImGui::GetColorU32(ImGuiCol_ButtonActive);
 
-    float heightOfs = (calcPosYFrac(smpRange*2) - calcPosYFrac(smpRange*2-1)) * uiSize.y;
+    float heightOfs = 4.0f;
     for (int i = 0; i < waveLength; ++i) {
         int smp = wave[i];
 
@@ -2018,9 +2018,8 @@ void PluginController::drawWaveEditor(const char *id, int8_t *wave, int waveLeng
 
         // calculate rect Y bounds
         float minY = calcPosYFrac(smp) * (uiSize.y - heightOfs);
-        float maxY = calcPosYFrac(smp+1) * (uiSize.y - heightOfs);
         minY = floorf(minY);
-        maxY = ceilf(maxY);
+        float maxY = minY + 4.0f;
 
         minX += uiOrigin.x;
         maxX += uiOrigin.x;
