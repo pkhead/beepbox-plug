@@ -21,7 +21,12 @@ typedef struct plugin_gui_s {
 } plugin_gui_s;
 
 void gui_event_enqueue(plugin_gui_s *iface, gui_event_queue_item_s item) {
-    iface->control.plugin_to_gui.enqueue(item);
+    if (item.type == GUI_EVENT_PARAM_CHANGE) {
+        iface->control.setParam(item.param_value.param_id, item.param_value.value);
+        iface->control.needRefresh.store(true, std::memory_order_release);
+    } else {
+        iface->control.plugin_to_gui.enqueue(item);
+    }
 }
 
 bool gui_event_dequeue(plugin_gui_s *iface, gui_event_queue_item_s *item) {
@@ -276,6 +281,9 @@ void eventHandler(platform::Event ev, platform::Window *window) {
 
         case platform::Event::Unrealize:
             closeGraphics(window);
+            break;
+
+        case platform::Event::Idle:
             break;
     }
 

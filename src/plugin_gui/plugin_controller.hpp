@@ -31,18 +31,24 @@ private:
 
     bool showAbout;
     bpbxsyn_synth_type_e inst_type;
-    std::unordered_map<clap_id, double> params;
+    std::vector<double> params;
+    std::unordered_map<clap_id, int> paramIndexMap;
     std::int8_t chipWave[64];
+    std::vector<bpbxsyn_envelope_s> envelopes;
+
+    std::vector<gui_event_queue_item_s> guiToPluginOverflow;
     
     float uiRightCol;
     void sameLineRightCol();
 
-    std::vector<bpbxsyn_envelope_s> envelopes;
+    void sendToPlugin(const gui_event_queue_item_s &item);
+    void paramGestureBegin(uint32_t param_id);
+    void paramChange(uint32_t param_id, double value);
+    void paramGestureEnd(uint32_t param_id);
 
     bool updateParams();
     void updateColors(); // update style based on custom colors
 
-    void queueCheck();
     void paramControls(uint32_t paramId);
     void sliderParameter(uint32_t paramId, const char *id, float v_min, float v_max, const char *fmt = "%.3f", bool normalized = false);
     void vertSliderParameter(uint32_t paramId, const char *id, ImVec2 size, float v_min, float v_max, const char *fmt = "%.3f", bool normalized = false);
@@ -69,10 +75,6 @@ private:
     void drawSpectrumEditor(const char *id, uint32_t baseParamId, ImVec2 size);
     void drawWaveEditor(const char *id, int8_t *wave, int waveLength, ImVec2 size);
     void drawEqPage(FilterType targetFilter);
-
-    void paramGestureBegin(uint32_t param_id);
-    void paramChange(uint32_t param_id, double value);
-    void paramGestureEnd(uint32_t param_id);
 
     void filterRemovePole(FilterType filter, int control_idx);
     void filterInsertPole(FilterType filter, int control_idx, bpbxsyn_filter_type_e type, double freq, double gain);
@@ -124,9 +126,13 @@ public:
     void sync();
     void event(platform::Event ev, platform::Window *window);
     void draw(platform::Window *window);
+
+    void setParam(clap_id id, double value);
+    double getParam(clap_id id) const;
     
     bool useCustomColors;
     Color customColor;
+    std::atomic_bool needRefresh;
 
     EventQueue<gui_event_queue_item_s, GUI_EVENT_QUEUE_SIZE> gui_to_plugin;
     EventQueue<gui_event_queue_item_s, GUI_EVENT_QUEUE_SIZE> plugin_to_gui;

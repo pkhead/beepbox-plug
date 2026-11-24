@@ -20,6 +20,7 @@
 
 #define CPARAM(local_idx) instr_global_id(INSTR_MODULE_CONTROL, INSTR_CPARAM_##local_idx)
 #define PARAM(module, local_idx) instr_global_id(INSTR_MODULE_##module, local_idx)
+#define GET_CPARAM(local_idx) getParam(CPARAM(local_idx))
 
 void PluginController::graphicsInit() {
     #ifdef PLUGIN_VST3
@@ -59,6 +60,17 @@ PluginController::PluginController(const clap_plugin_t *plugin, const clap_host_
     currentPage = PAGE_MAIN;
     inst_type = bpbxsyn_synth_type(instr_get_synth(instrument));
 
+    // initialize param array
+    uint32_t param_count = (int) instr_params_count();
+    params.resize(param_count);
+
+    // create clap_id -> param array index hashmap
+    for (uint32_t i = 0; i < param_count; ++i) {
+        bool is_inactive;
+        instr_param_id id = instr_get_param_id_with_type(inst_type, i, &is_inactive);
+        paramIndexMap[id] = i;
+    }
+
     // initialize copy of plugin state
     sync();
 }
@@ -80,9 +92,10 @@ void PluginController::sync() {
         double param_value;
         if (!instr_get_param(instrument, id, &param_value)) {
             log_error("could not initialize parameter #%i because get_value failed", i);
+            continue;
         }
 
-        params[id] = param_value;
+        params[i] = param_value;
     }
 
     envelopes.clear();
@@ -96,14 +109,24 @@ void PluginController::sync() {
     }
 }
 
+void PluginController::setParam(clap_id id, double value) {
+    params[paramIndexMap[id]] = value;
+}
+
+double PluginController::getParam(clap_id id) const {
+    return params[paramIndexMap.at(id)];
+}
+
 bool PluginController::updateParams() {
+    log_debug("call updateParams");
+
     bool didWork = false;
     gui_event_queue_item_s item;
 
     while (plugin_to_gui.dequeue(item)) {
         switch (item.type) {
             case GUI_EVENT_PARAM_CHANGE:
-                params[item.param_value.param_id] = item.param_value.value;
+                setParam(item.param_value.param_id, item.param_value.value);
                 didWork = true;
                 break;
             
@@ -128,7 +151,7 @@ void PluginController::paramControls(uint32_t paramId) {
 }
 
 void PluginController::sliderParameter(uint32_t paramId, const char *id, float v_min, float v_max, const char *fmt, bool normalized) {
-    double v = params[paramId];
+    double v = getParam(paramId);
     float floatV = (float)v;
     if (normalized) {
         floatV = (v_max - v_min) * floatV + v_min;
@@ -156,7 +179,7 @@ void PluginController::sliderParameter(uint32_t paramId, const char *id, float v
 }
 
 void PluginController::vertSliderParameter(uint32_t paramId, const char *id, ImVec2 size, float v_min, float v_max, const char *fmt, bool normalized) {
-    double v = params[paramId];
+    double v = getParam(paramId);
     float floatV = (float)v;
     if (normalized) {
         floatV = (v_max - v_min) * floatV + v_min;
@@ -183,7 +206,12 @@ void PluginController::vertSliderParameter(uint32_t paramId, const char *id, ImV
     paramControls(paramId);
 }
 
-void PluginController::queueCheck() {
+void PluginController::sendToPlugin(const gui_event_queue_item_s &item) {
+    if (!gui_to_plugin.enqueue(item)) {
+        log_debug("gui_to_plugin overflow");
+        guiToPluginOverflow.push_back(item);
+    }
+    
     // request process in case plugin is sleeping
     if (host->request_process)
         host->request_process(host);
@@ -194,9 +222,18 @@ void PluginController::paramGestureBegin(uint32_t param_id) {
     item.type = GUI_EVENT_PARAM_GESTURE_BEGIN;
     item.gesture.param_id = param_id;
 
-    gui_to_plugin.enqueue(item);
-    queueCheck();
+    // TODO: if queue is full then poll every few ms (using the pre-existing
+    //       PUGL timer) checking if the queue has opened up in order to send
+    //       the data
+    // TODO: if the plugin_to_gui queue is full (which could be likely) uhhh how tf
+    //       ok maybe don't use the queue maybe there's an atomic flag to be set
+    //       from the plugin indicating that the GUI needs to sync. there will
+    //       also be a bool array indicating which parameters were dirty.
+    // TODO: actually gui->plugin message queue is unnecessary, just have an
+    //       array of atomic parameter values written to only by main thread and
+    //       read from only by audio thread.
 
+    sendToPlugin(item);
 #ifndef _NDEBUG
     log_debug("paramGestureBegin %i", param_id);
 #endif
@@ -208,10 +245,8 @@ void PluginController::paramChange(uint32_t param_id, double value) {
     item.param_value.param_id = param_id;
     item.param_value.value = value;
 
-    gui_to_plugin.enqueue(item);
-    queueCheck();
-
-    params[param_id] = value;
+    sendToPlugin(item);
+    setParam(param_id, value);
 }
 
 void PluginController::paramGestureEnd(uint32_t param_id) {
@@ -219,17 +254,31 @@ void PluginController::paramGestureEnd(uint32_t param_id) {
     item.type = GUI_EVENT_PARAM_GESTURE_END;
     item.gesture.param_id = param_id;
 
-    gui_to_plugin.enqueue(item);
-    queueCheck();
-
+    sendToPlugin(item);
 #ifndef _NDEBUG
     log_debug("paramGestureEnd %i", param_id);
 #endif
 }
 
 void PluginController::event(platform::Event ev, platform::Window *window) {
-    if (updateParams())
-        platform::requestRedraw(window);
+    while (guiToPluginOverflow.size() != 0) {
+        gui_event_queue_item_s &item = guiToPluginOverflow.back();
+        if (!gui_to_plugin.enqueue(item)) {
+            log_warn("gui_to_plugin queue still full...");
+            break;
+        }
+        guiToPluginOverflow.pop_back();
+
+        if (guiToPluginOverflow.size() == 0) {
+            log_warn("gui_to_plugin queue: emptied overflow buffer :)");
+        }
+    }
+
+    bool forceRefresh = needRefresh.exchange(false, std::memory_order_acquire);
+    if (updateParams() || forceRefresh) {
+        if (ev.type == platform::Event::Idle)
+            platform::requestRedraw(window);
+    }
 }
 
 void PluginController::drawAbout(ImGuiWindowFlags winFlags) {
@@ -264,14 +313,14 @@ void PluginController::drawFmGui() {
         "1.", "2.", "3.", "4."
     };
 
-    int p_algo = (int) params[BPBXSYN_FM_PARAM_ALGORITHM];
+    int p_algo = (int) getParam(BPBXSYN_FM_PARAM_ALGORITHM);
     int p_freq[4] = {
-        (int) params[BPBXSYN_FM_PARAM_FREQ1],
-        (int) params[BPBXSYN_FM_PARAM_FREQ2],
-        (int) params[BPBXSYN_FM_PARAM_FREQ3],
-        (int) params[BPBXSYN_FM_PARAM_FREQ4],
+        (int) getParam(BPBXSYN_FM_PARAM_FREQ1),
+        (int) getParam(BPBXSYN_FM_PARAM_FREQ2),
+        (int) getParam(BPBXSYN_FM_PARAM_FREQ3),
+        (int) getParam(BPBXSYN_FM_PARAM_FREQ4),
     };
-    int p_fdbkType = (int) params[BPBXSYN_FM_PARAM_FEEDBACK_TYPE];
+    int p_fdbkType = (int) getParam(BPBXSYN_FM_PARAM_FEEDBACK_TYPE);
 
     // algorithm
     ImGui::AlignTextToFramePadding();
@@ -361,7 +410,7 @@ void PluginController::drawChipGui1() {
     sameLineRightCol();
     ImGui::SetNextItemWidth(-FLT_MIN);
     {
-        int p_wave = params[BPBXSYN_CHIP_PARAM_WAVEFORM];
+        int p_wave = getParam(BPBXSYN_CHIP_PARAM_WAVEFORM);
         const bpbxsyn_param_info_s *p_info = bpbxsyn_synth_param_info(inst_type, BPBXSYN_CHIP_PARAM_WAVEFORM);
         assert(p_info);
         const char **waveNames = p_info->enum_values;
@@ -382,7 +431,7 @@ void PluginController::drawChipGui2() {
     sameLineRightCol();
     ImGui::SetNextItemWidth(-FLT_MIN);
     {
-        int p_unison = params[BPBXSYN_CHIP_PARAM_UNISON];
+        int p_unison = getParam(BPBXSYN_CHIP_PARAM_UNISON);
         const bpbxsyn_param_info_s *p_info = bpbxsyn_synth_param_info(inst_type, BPBXSYN_CHIP_PARAM_UNISON);
         assert(p_info);
         const char **unisonNames = p_info->enum_values;
@@ -415,7 +464,7 @@ void PluginController::drawCustomChipGui2() {
     ImGui::SetNextItemWidth(-FLT_MIN);
     {
         const int unison_pid = BPBXSYN_CUSTOM_CHIP_PARAM_UNISON;
-        int p_unison = params[unison_pid];
+        int p_unison = getParam(unison_pid);
         const bpbxsyn_param_info_s *p_info = bpbxsyn_synth_param_info(inst_type, unison_pid);
         assert(p_info);
         const char **unisonNames = p_info->enum_values;
@@ -442,7 +491,7 @@ void PluginController::drawHarmonicsGui() {
     sameLineRightCol();
     ImGui::SetNextItemWidth(-FLT_MIN);
     {
-        int p_unison = params[BPBXSYN_HARMONICS_PARAM_UNISON];
+        int p_unison = getParam(BPBXSYN_HARMONICS_PARAM_UNISON);
         const bpbxsyn_param_info_s *p_info = bpbxsyn_synth_param_info(inst_type, BPBXSYN_HARMONICS_PARAM_UNISON);
         assert(p_info);
         const char **unisonNames = p_info->enum_values;
@@ -473,7 +522,7 @@ void PluginController::drawNoiseGui1() {
     sameLineRightCol();
     ImGui::SetNextItemWidth(-FLT_MIN);
     {
-        int p_noise = params[BPBXSYN_NOISE_PARAM_TYPE];
+        int p_noise = getParam(BPBXSYN_NOISE_PARAM_TYPE);
         const bpbxsyn_param_info_s *p_info =
             bpbxsyn_synth_param_info(inst_type, BPBXSYN_NOISE_PARAM_TYPE);
         assert(p_info);
@@ -495,7 +544,7 @@ void PluginController::drawNoiseGui2() {
     sameLineRightCol();
     ImGui::SetNextItemWidth(-FLT_MIN);
     {
-        int p_unison = params[BPBXSYN_NOISE_PARAM_UNISON];
+        int p_unison = getParam(BPBXSYN_NOISE_PARAM_UNISON);
         const bpbxsyn_param_info_s *p_info = bpbxsyn_synth_param_info(inst_type, BPBXSYN_NOISE_PARAM_UNISON);
         assert(p_info);
         const char **unisonNames = p_info->enum_values;
@@ -539,7 +588,7 @@ void PluginController::drawPickedStringGui() {
     sameLineRightCol();
     ImGui::SetNextItemWidth(-FLT_MIN);
     {
-        int p_unison = params[BPBXSYN_PICKED_STRING_PARAM_UNISON];
+        int p_unison = getParam(BPBXSYN_PICKED_STRING_PARAM_UNISON);
         const bpbxsyn_param_info_s *p_info = bpbxsyn_synth_param_info(inst_type, BPBXSYN_PICKED_STRING_PARAM_UNISON);
         assert(p_info);
         const char **unisonNames = p_info->enum_values;
@@ -572,7 +621,7 @@ void PluginController::drawEffects() {
 
         for (int i = 0; i < 6; i++) {
             unsigned int toggle_param = bpbxsyn_synth_effect_toggle_param((bpbxsyn_synthfx_type_e) i);
-            bool is_active = params[toggle_param] != 0.0;
+            bool is_active = getParam(toggle_param) != 0.0;
 
             if (ImGui::Selectable(effectNames[i], is_active)) {
                 paramGestureBegin(toggle_param);
@@ -583,40 +632,40 @@ void PluginController::drawEffects() {
             }
         }
 
-        if (ImGui::Selectable("distortion", params[CPARAM(ENABLE_DISTORTION)] != 0.0)) {
-            bool e = params[CPARAM(ENABLE_DISTORTION)] != 0.0;
+        if (ImGui::Selectable("distortion", GET_CPARAM(ENABLE_DISTORTION) != 0.0)) {
+            bool e = GET_CPARAM(ENABLE_DISTORTION) != 0.0;
 
             paramGestureBegin(CPARAM(ENABLE_DISTORTION));
             paramChange(CPARAM(ENABLE_DISTORTION), (!e) ? 1.0 : 0.0);
             paramGestureEnd(CPARAM(ENABLE_DISTORTION));
         }
 
-        if (ImGui::Selectable("bitcrusher", params[CPARAM(ENABLE_BITCRUSHER)] != 0.0)) {
-            bool e = params[CPARAM(ENABLE_BITCRUSHER)] != 0.0;
+        if (ImGui::Selectable("bitcrusher", GET_CPARAM(ENABLE_BITCRUSHER) != 0.0)) {
+            bool e = GET_CPARAM(ENABLE_BITCRUSHER) != 0.0;
 
             paramGestureBegin(CPARAM(ENABLE_BITCRUSHER));
             paramChange(CPARAM(ENABLE_BITCRUSHER), (!e) ? 1.0 : 0.0);
             paramGestureEnd(CPARAM(ENABLE_BITCRUSHER));
         }
 
-        if (ImGui::Selectable("chorus", params[CPARAM(ENABLE_CHORUS)] != 0.0)) {
-            bool e = params[CPARAM(ENABLE_CHORUS)] != 0.0;
+        if (ImGui::Selectable("chorus", GET_CPARAM(ENABLE_CHORUS) != 0.0)) {
+            bool e = GET_CPARAM(ENABLE_CHORUS) != 0.0;
 
             paramGestureBegin(CPARAM(ENABLE_CHORUS));
             paramChange(CPARAM(ENABLE_CHORUS), (!e) ? 1.0 : 0.0);
             paramGestureEnd(CPARAM(ENABLE_CHORUS));
         }
 
-        if (ImGui::Selectable("echo", params[CPARAM(ENABLE_ECHO)] != 0.0)) {
-            bool e = params[CPARAM(ENABLE_ECHO)] != 0.0;
+        if (ImGui::Selectable("echo", GET_CPARAM(ENABLE_ECHO) != 0.0)) {
+            bool e = GET_CPARAM(ENABLE_ECHO) != 0.0;
 
             paramGestureBegin(CPARAM(ENABLE_ECHO));
             paramChange(CPARAM(ENABLE_ECHO), (!e) ? 1.0 : 0.0);
             paramGestureEnd(CPARAM(ENABLE_ECHO));
         }
 
-        if (ImGui::Selectable("reverb", params[CPARAM(ENABLE_REVERB)] != 0.0)) {
-            bool e = params[CPARAM(ENABLE_REVERB)] != 0.0;
+        if (ImGui::Selectable("reverb", GET_CPARAM(ENABLE_REVERB) != 0.0)) {
+            bool e = GET_CPARAM(ENABLE_REVERB) != 0.0;
 
             paramGestureBegin(CPARAM(ENABLE_REVERB));
             paramChange(CPARAM(ENABLE_REVERB), (!e) ? 1.0 : 0.0);
@@ -627,7 +676,7 @@ void PluginController::drawEffects() {
     }
 
     // transition type
-    if (params[BPBXSYN_PARAM_ENABLE_TRANSITION_TYPE] != 0.0) {
+    if (getParam(BPBXSYN_PARAM_ENABLE_TRANSITION_TYPE) != 0.0) {
         static const char *transitionTypes[] = {"normal", "interrupt", "continue", "slide", "slide in pattern"};
 
         ImGui::AlignTextToFramePadding();
@@ -635,7 +684,7 @@ void PluginController::drawEffects() {
         sameLineRightCol();
         ImGui::SetNextItemWidth(-FLT_MIN);
 
-        int curItem = (int)params[BPBXSYN_PARAM_TRANSITION_TYPE];
+        int curItem = (int)getParam(BPBXSYN_PARAM_TRANSITION_TYPE);
         if (ImGui::Combo("##TransitionTypes", &curItem, transitionTypes, 4)) {
             paramGestureBegin(BPBXSYN_PARAM_TRANSITION_TYPE);
             paramChange(BPBXSYN_PARAM_TRANSITION_TYPE, (double)curItem);
@@ -645,7 +694,7 @@ void PluginController::drawEffects() {
     }
 
     // chord type
-    if (params[BPBXSYN_PARAM_ENABLE_CHORD_TYPE] != 0.0) {
+    if (getParam(BPBXSYN_PARAM_ENABLE_CHORD_TYPE) != 0.0) {
         static const char *chordTypes[] = {"simultaneous", "strum", "arpeggio", "custom interval"};
 
         ImGui::AlignTextToFramePadding();
@@ -653,7 +702,7 @@ void PluginController::drawEffects() {
         sameLineRightCol();
         ImGui::SetNextItemWidth(-FLT_MIN);
 
-        int curItem = (int)params[BPBXSYN_PARAM_CHORD_TYPE];
+        int curItem = (int)getParam(BPBXSYN_PARAM_CHORD_TYPE);
         if (ImGui::Combo("##ChordTypes", &curItem, chordTypes, 4)) {
             paramGestureBegin(BPBXSYN_PARAM_CHORD_TYPE);
             paramChange(BPBXSYN_PARAM_CHORD_TYPE, (double)curItem);
@@ -661,7 +710,7 @@ void PluginController::drawEffects() {
         }
         paramControls(BPBXSYN_PARAM_CHORD_TYPE);
 
-        if (params[BPBXSYN_PARAM_CHORD_TYPE] == BPBXSYN_CHORD_TYPE_ARPEGGIO) {
+        if (getParam(BPBXSYN_PARAM_CHORD_TYPE) == BPBXSYN_CHORD_TYPE_ARPEGGIO) {
             // arpeggio speed
             ImGui::AlignTextToFramePadding();
             ImGui::Bullet();
@@ -671,7 +720,7 @@ void PluginController::drawEffects() {
             ImGui::SetNextItemWidth(-FLT_MIN);
 
             const bpbxsyn_param_info_s *param_info = bpbxsyn_synth_param_info(inst_type, BPBXSYN_PARAM_ARPEGGIO_SPEED);
-            sliderParameter(BPBXSYN_PARAM_ARPEGGIO_SPEED, "##ArpeggioSpeed", 0.f, 50.f, param_info->enum_values[(int)params[BPBXSYN_PARAM_ARPEGGIO_SPEED]]);
+            sliderParameter(BPBXSYN_PARAM_ARPEGGIO_SPEED, "##ArpeggioSpeed", 0.f, 50.f, param_info->enum_values[(int)getParam(BPBXSYN_PARAM_ARPEGGIO_SPEED)]);
 
             // fast two-note option
             ImGui::AlignTextToFramePadding();
@@ -680,7 +729,7 @@ void PluginController::drawEffects() {
             ImGui::Text("Fast Two-Note");
             ImGui::SameLine();
 
-            bool fast_two_note = params[BPBXSYN_PARAM_FAST_TWO_NOTE_ARPEGGIO] != 0.0;
+            bool fast_two_note = getParam(BPBXSYN_PARAM_FAST_TWO_NOTE_ARPEGGIO) != 0.0;
             if (ImGui::Checkbox("##FastTwoNote", &fast_two_note)) {
                 paramGestureBegin(BPBXSYN_PARAM_FAST_TWO_NOTE_ARPEGGIO);
                 paramChange(BPBXSYN_PARAM_FAST_TWO_NOTE_ARPEGGIO, fast_two_note ? 1.0 : 0.0);
@@ -690,7 +739,7 @@ void PluginController::drawEffects() {
     }
 
     // pitch shift
-    if (params[BPBXSYN_PARAM_ENABLE_PITCH_SHIFT] != 0.0) {
+    if (getParam(BPBXSYN_PARAM_ENABLE_PITCH_SHIFT) != 0.0) {
         ImGui::AlignTextToFramePadding();
         ImGui::Text("Pitch Shift");
         sameLineRightCol();
@@ -700,7 +749,7 @@ void PluginController::drawEffects() {
     }
 
     // detune
-    if (params[BPBXSYN_PARAM_ENABLE_DETUNE] != 0.0) {
+    if (getParam(BPBXSYN_PARAM_ENABLE_DETUNE) != 0.0) {
         ImGui::AlignTextToFramePadding();
         ImGui::Text("Detune");
         sameLineRightCol();
@@ -710,7 +759,7 @@ void PluginController::drawEffects() {
     }
 
     // vibrato
-    if (params[BPBXSYN_PARAM_ENABLE_VIBRATO] != 0.0) {
+    if (getParam(BPBXSYN_PARAM_ENABLE_VIBRATO) != 0.0) {
         static const char *vibratoPresets[] = {"none", "light", "delayed", "heavy", "shaky", "custom"};
 
         ImGui::AlignTextToFramePadding();
@@ -718,7 +767,7 @@ void PluginController::drawEffects() {
         sameLineRightCol();
         ImGui::SetNextItemWidth(-FLT_MIN);
 
-        int curItem = (int)params[BPBXSYN_PARAM_VIBRATO_PRESET];
+        int curItem = (int)getParam(BPBXSYN_PARAM_VIBRATO_PRESET);
         if (ImGui::Combo("##VibratoPresets", &curItem, vibratoPresets, 6)) {
             paramGestureBegin(BPBXSYN_PARAM_VIBRATO_PRESET);
             paramChange(BPBXSYN_PARAM_VIBRATO_PRESET, (double)curItem);
@@ -727,7 +776,7 @@ void PluginController::drawEffects() {
         paramControls(BPBXSYN_PARAM_VIBRATO_PRESET);
 
         // show custom vibrato
-        if (params[BPBXSYN_PARAM_VIBRATO_PRESET] == BPBXSYN_VIBRATO_PRESET_CUSTOM) {
+        if (getParam(BPBXSYN_PARAM_VIBRATO_PRESET) == BPBXSYN_VIBRATO_PRESET_CUSTOM) {
             // vibrato depth
             ImGui::AlignTextToFramePadding();
             ImGui::Bullet();
@@ -760,7 +809,7 @@ void PluginController::drawEffects() {
             ImGui::Bullet();
             ImGui::Text("Type");
 
-            int vibratoType = (int) params[BPBXSYN_PARAM_VIBRATO_TYPE];
+            int vibratoType = (int) getParam(BPBXSYN_PARAM_VIBRATO_TYPE);
 
             sameLineRightCol();
             ImGui::SetNextItemWidth(-FLT_MIN);
@@ -774,7 +823,7 @@ void PluginController::drawEffects() {
     }
 
     // note filter
-    if (params[BPBXSYN_PARAM_ENABLE_NOTE_FILTER] != 0.0) {
+    if (getParam(BPBXSYN_PARAM_ENABLE_NOTE_FILTER) != 0.0) {
         ImGui::AlignTextToFramePadding();
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImGui::GetStyle().ItemInnerSpacing);
         ImGui::Text("Note Filt");
@@ -791,7 +840,7 @@ void PluginController::drawEffects() {
     }
 
     // distortion
-    if (params[CPARAM(ENABLE_DISTORTION)] != 0) {
+    if (GET_CPARAM(ENABLE_DISTORTION) != 0) {
         ImGui::AlignTextToFramePadding();
         ImGui::Text("Distortion");
         sameLineRightCol();
@@ -800,7 +849,7 @@ void PluginController::drawEffects() {
     }
 
     // bitcrusher
-    if (params[CPARAM(ENABLE_BITCRUSHER)] != 0) {
+    if (GET_CPARAM(ENABLE_BITCRUSHER) != 0) {
         ImGui::AlignTextToFramePadding();
         ImGui::Text("Bit Crush");
         sameLineRightCol();
@@ -815,7 +864,7 @@ void PluginController::drawEffects() {
     }
 
     // chorus
-    if (params[CPARAM(ENABLE_CHORUS)] != 0) {
+    if (GET_CPARAM(ENABLE_CHORUS) != 0) {
         ImGui::AlignTextToFramePadding();
         ImGui::Text("Chorus");
         sameLineRightCol();
@@ -824,7 +873,7 @@ void PluginController::drawEffects() {
     }
 
     // echo
-    if (params[CPARAM(ENABLE_ECHO)] != 0) {
+    if (GET_CPARAM(ENABLE_ECHO) != 0) {
         ImGui::AlignTextToFramePadding();
         ImGui::Text("Echo");
         sameLineRightCol();
@@ -839,7 +888,7 @@ void PluginController::drawEffects() {
     }
 
     // reverb
-    if (params[CPARAM(ENABLE_REVERB)] != 0) {
+    if (GET_CPARAM(ENABLE_REVERB) != 0) {
         ImGui::AlignTextToFramePadding();
         ImGui::Text("Reverb");
         sameLineRightCol();
@@ -906,20 +955,20 @@ void PluginController::drawEnvelopes() {
                     targets.push_back(instTargets[i]);
                 }
 
-                if (params[BPBXSYN_PARAM_ENABLE_PITCH_SHIFT])
+                if (getParam(BPBXSYN_PARAM_ENABLE_PITCH_SHIFT))
                     targets.push_back(BPBXSYN_ENV_INDEX_PITCH_SHIFT);
 
-                if (params[BPBXSYN_PARAM_ENABLE_DETUNE])
+                if (getParam(BPBXSYN_PARAM_ENABLE_DETUNE))
                     targets.push_back(BPBXSYN_ENV_INDEX_DETUNE);
 
-                if (params[BPBXSYN_PARAM_ENABLE_VIBRATO])
+                if (getParam(BPBXSYN_PARAM_ENABLE_VIBRATO))
                     targets.push_back(BPBXSYN_ENV_INDEX_VIBRATO_DEPTH);
 
-                if (params[BPBXSYN_PARAM_ENABLE_NOTE_FILTER]) {
+                if (getParam(BPBXSYN_PARAM_ENABLE_NOTE_FILTER)) {
                     targets.push_back(BPBXSYN_ENV_INDEX_NOTE_FILTER_ALL_FREQS);
 
                     for (int i = 0; i < BPBXSYN_FILTER_GROUP_COUNT; i++) {
-                        int filtType = (int)params[BPBXSYN_PARAM_NOTE_FILTER_TYPE0 + FILTER_PARAM_TYPE(i)]; 
+                        int filtType = (int)getParam(BPBXSYN_PARAM_NOTE_FILTER_TYPE0 + FILTER_PARAM_TYPE(i)); 
                         if (filtType != BPBXSYN_FILTER_TYPE_OFF) {
                             targets.push_back(
                                 (bpbxsyn_envelope_compute_index_e)(BPBXSYN_ENV_INDEX_NOTE_FILTER_FREQ0 + i));
@@ -1026,8 +1075,8 @@ void PluginController::drawFadeWidget(const char *id, ImVec2 size) {
     const int steps = FADE_OUT_MAX - FADE_OUT_MIN + FADE_IN_MAX + 2;
     const float pixelsPerStep = size.x / steps;
 
-    const float fadeInVal =  (float) params[BPBXSYN_PARAM_FADE_IN];
-    const float fadeOutVal = (float) params[BPBXSYN_PARAM_FADE_OUT];
+    const float fadeInVal =  (float) getParam(BPBXSYN_PARAM_FADE_IN);
+    const float fadeOutVal = (float) getParam(BPBXSYN_PARAM_FADE_OUT);
 
     float fadeInX = ui_origin.x + pixelsPerStep * fadeInVal;
     float fadeOutRestX = ui_end.x - pixelsPerStep * FADE_OUT_MAX;
@@ -1119,11 +1168,11 @@ void PluginController::drawFadeWidget(const char *id, ImVec2 size) {
 
         if (mouseX < centerX) {
             fadeDragMode = 1;
-            fadeDragInit = params[BPBXSYN_PARAM_FADE_IN];
+            fadeDragInit = getParam(BPBXSYN_PARAM_FADE_IN);
             paramGestureBegin(BPBXSYN_PARAM_FADE_IN);
         } else {
             fadeDragMode = 2;
-            fadeDragInit = params[BPBXSYN_PARAM_FADE_OUT];
+            fadeDragInit = getParam(BPBXSYN_PARAM_FADE_OUT);
             paramGestureBegin(BPBXSYN_PARAM_FADE_OUT);
         }
     }
@@ -1136,13 +1185,13 @@ void PluginController::drawFadeWidget(const char *id, ImVec2 size) {
         if (fadeDragMode == 1) {
             double newValue = clamp(pos, 0.0, (double)FADE_IN_MAX);
 
-            if (newValue != params[BPBXSYN_PARAM_FADE_IN]) {
+            if (newValue != getParam(BPBXSYN_PARAM_FADE_IN)) {
                 paramChange(BPBXSYN_PARAM_FADE_IN, newValue);
             }
         } else if (fadeDragMode == 2) {
             double newValue = clamp(pos, (double)FADE_OUT_MIN, (double)FADE_OUT_MAX);
 
-            if (newValue != params[BPBXSYN_PARAM_FADE_OUT]) {
+            if (newValue != getParam(BPBXSYN_PARAM_FADE_OUT)) {
                 paramChange(BPBXSYN_PARAM_FADE_OUT, newValue);
             }
         }
@@ -1173,9 +1222,9 @@ void PluginController::filterRemovePole(FilterType filter, int control_idx) {
 
     constexpr int lastIdx = BPBXSYN_FILTER_GROUP_COUNT - 1;
     for (int i = control_idx; i < lastIdx; i++) {
-        paramChange(baseEnum + i * 3, params[baseEnum + (i+1) * 3]);
-        paramChange(baseEnum + i * 3 + 1, params[baseEnum + (i+1) * 3 + 1]);
-        paramChange(baseEnum + i * 3 + 2, params[baseEnum + (i+1) * 3 + 2]);
+        paramChange(baseEnum + i * 3, getParam(baseEnum + (i+1) * 3));
+        paramChange(baseEnum + i * 3 + 1, getParam(baseEnum + (i+1) * 3 + 1));
+        paramChange(baseEnum + i * 3 + 2, getParam(baseEnum + (i+1) * 3 + 2));
     }
 
     paramChange(baseEnum + lastIdx * 3, (double)BPBXSYN_FILTER_TYPE_OFF);
@@ -1198,9 +1247,9 @@ void PluginController::filterInsertPole(FilterType filter, int control_idx, bpbx
     }
 
     for (int i = BPBXSYN_FILTER_GROUP_COUNT - 2; i >= control_idx; i--) {
-        paramChange(baseEnum + (i+1) * 3, params[baseEnum + i * 3]);
-        paramChange(baseEnum + (i+1) * 3 + 1, params[baseEnum + i * 3 + 1]);
-        paramChange(baseEnum + (i+1) * 3 + 2, params[baseEnum + i * 3 + 2]);
+        paramChange(baseEnum + (i+1) * 3, getParam(baseEnum + i * 3));
+        paramChange(baseEnum + (i+1) * 3 + 1, getParam(baseEnum + i * 3 + 1));
+        paramChange(baseEnum + (i+1) * 3 + 2, getParam(baseEnum + i * 3 + 2));
     }
 
     paramChange(baseEnum + control_idx * 3, type);
@@ -1232,10 +1281,10 @@ void PluginController::drawEqWidget(FilterType filter, const char *id, ImVec2 si
     ImVec2 polePositions[BPBXSYN_FILTER_GROUP_COUNT];
 
     for (int i = 0; i < BPBXSYN_FILTER_GROUP_COUNT; i++) {
-        int filtType = (int)params[baseEnum + FILTER_PARAM_TYPE(i)];
+        int filtType = (int)getParam(baseEnum + FILTER_PARAM_TYPE(i));
         if (filtType != BPBXSYN_FILTER_TYPE_OFF) {
-            float freqN = params[baseEnum + FILTER_PARAM_FREQ(i)] / BPBXSYN_FILTER_FREQ_MAX;
-            float gainN = params[baseEnum + FILTER_PARAM_GAIN(i)] / BPBXSYN_FILTER_GAIN_MAX;
+            float freqN = getParam(baseEnum + FILTER_PARAM_FREQ(i)) / BPBXSYN_FILTER_FREQ_MAX;
+            float gainN = getParam(baseEnum + FILTER_PARAM_GAIN(i)) / BPBXSYN_FILTER_GAIN_MAX;
 
             float drawX = floor((ui_end.x - ui_origin.x) * freqN + ui_origin.x);
             float drawY = floor((ui_origin.y - ui_end.y) * gainN + ui_end.y);
@@ -1289,7 +1338,7 @@ void PluginController::drawEqWidget(FilterType filter, const char *id, ImVec2 si
         constexpr float maxDist = 16.0;
         float hoveredPoleDistSq = maxDist * maxDist;
         for (int i = 0; i < BPBXSYN_FILTER_GROUP_COUNT; i++) {
-            int filtType = (int)params[baseEnum + FILTER_PARAM_TYPE(i)];
+            int filtType = (int)getParam(baseEnum + FILTER_PARAM_TYPE(i));
             if (filtType != BPBXSYN_FILTER_TYPE_OFF) {
                 ImVec2 drawPos = polePositions[i];
                 float dx = drawPos.x - mpos.x;
@@ -1337,7 +1386,7 @@ void PluginController::drawEqWidget(FilterType filter, const char *id, ImVec2 si
             // left-click to insert pole, and then begin drag of this new pole
             if (poleInsertionType != BPBXSYN_FILTER_TYPE_OFF && ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
                 for (int newIndex = 0; newIndex < BPBXSYN_FILTER_GROUP_COUNT; newIndex++) {
-                    if (params[baseEnum + FILTER_PARAM_TYPE(newIndex)] == BPBXSYN_FILTER_TYPE_OFF) {
+                    if (getParam(baseEnum + FILTER_PARAM_TYPE(newIndex)) == BPBXSYN_FILTER_TYPE_OFF) {
                         tryBeginGesture(baseEnum + FILTER_PARAM_TYPE(newIndex));
                         tryBeginGesture(baseEnum + FILTER_PARAM_FREQ(newIndex));
                         tryBeginGesture(baseEnum + FILTER_PARAM_GAIN(newIndex));
@@ -1350,8 +1399,8 @@ void PluginController::drawEqWidget(FilterType filter, const char *id, ImVec2 si
                         forceDragBegin = true;
                         poleIsNewlyAdded = true;
 
-                        float freqN = params[baseEnum + FILTER_PARAM_FREQ(newIndex)] / BPBXSYN_FILTER_FREQ_MAX;
-                        float gainN = params[baseEnum + FILTER_PARAM_GAIN(newIndex)] / BPBXSYN_FILTER_GAIN_MAX;
+                        float freqN = getParam(baseEnum + FILTER_PARAM_FREQ(newIndex)) / BPBXSYN_FILTER_FREQ_MAX;
+                        float gainN = getParam(baseEnum + FILTER_PARAM_GAIN(newIndex)) / BPBXSYN_FILTER_GAIN_MAX;
 
                         float drawX = floor((ui_end.x - ui_origin.x) * freqN + ui_origin.x);
                         float drawY = floor((ui_origin.y - ui_end.y) * gainN + ui_end.y);
@@ -1439,7 +1488,7 @@ void PluginController::drawEqWidget(FilterType filter, const char *id, ImVec2 si
                     tryBeginGesture(freqParamIdx);
                     tryBeginGesture(gainParamIdx);
 
-                    draggingPoleType = (bpbxsyn_filter_type_e)params[typeParamIdx];
+                    draggingPoleType = (bpbxsyn_filter_type_e)getParam(typeParamIdx);
                 }
 
                 wasDragging = true;
@@ -1504,9 +1553,9 @@ void PluginController::drawEqWidget(FilterType filter, const char *id, ImVec2 si
         for (int ctl = 0; ctl < BPBXSYN_FILTER_GROUP_COUNT; ctl++) {
             bpbxsyn_complex_s cmp;
             bpbxsyn_analyze_freq_response(
-                (bpbxsyn_filter_type_e)params[baseEnum + FILTER_PARAM_TYPE(ctl)],
-                params[baseEnum + FILTER_PARAM_FREQ(ctl)],
-                params[baseEnum + FILTER_PARAM_GAIN(ctl)],
+                (bpbxsyn_filter_type_e)getParam(baseEnum + FILTER_PARAM_TYPE(ctl)),
+                getParam(baseEnum + FILTER_PARAM_FREQ(ctl)),
+                getParam(baseEnum + FILTER_PARAM_GAIN(ctl)),
                 hz, ref_sample_rate, &cmp);
             
             linear_gain *= sqrt(cmp.real * cmp.real + cmp.imag * cmp.imag);
@@ -1535,7 +1584,7 @@ void PluginController::drawEqWidget(FilterType filter, const char *id, ImVec2 si
     ImU32 poleColor = ImGui::GetColorU32(ImGuiCol_HeaderActive);
     ImU32 poleActiveColor = ImGui::GetColorU32(ImGuiCol_Text);
     for (int i = 0; i < BPBXSYN_FILTER_GROUP_COUNT; i++) {
-        int filtType = (int)params[baseEnum + i * 3];
+        int filtType = (int)getParam(baseEnum + i * 3);
         if (filtType != BPBXSYN_FILTER_TYPE_OFF) {
             ImU32 color = i == hoveredPoleIndex ? poleActiveColor : poleColor;
 
@@ -1567,7 +1616,7 @@ void PluginController::drawEqWidget(FilterType filter, const char *id, ImVec2 si
         char textBuf[64];
         const char *poleTypeStr;
         bool insertion = poleInsertionType != BPBXSYN_FILTER_TYPE_OFF;
-        switch (insertion ? poleInsertionType : (bpbxsyn_filter_type_e)params[baseEnum + FILTER_PARAM_TYPE(hoveredPoleIndex)]) {
+        switch (insertion ? poleInsertionType : (bpbxsyn_filter_type_e)getParam(baseEnum + FILTER_PARAM_TYPE(hoveredPoleIndex))) {
             case BPBXSYN_FILTER_TYPE_HP:
                 poleTypeStr = "high-pass";
                 break;
@@ -1687,7 +1736,7 @@ void PluginController::drawHarmonicsEditor(const char *id, uint32_t paramId, ImV
 
     for (int i = 0; i < BPBXSYN_HARMONICS_CONTROL_COUNT - 1; i++) {
         float x = ui_origin.x + columnWidth * i;
-        float size = (float)params[paramId + i] / BPBXSYN_HARMONICS_CONTROL_MAX;
+        float size = (float)getParam(paramId + i) / BPBXSYN_HARMONICS_CONTROL_MAX;
 
         if (size > 0.f) {
             drawList->AddRectFilled(
@@ -1701,7 +1750,7 @@ void PluginController::drawHarmonicsEditor(const char *id, uint32_t paramId, ImV
     {
         int i = BPBXSYN_HARMONICS_CONTROL_COUNT - 1;
         float x0 = ui_origin.x + columnWidth * i;
-        float size = (float)params[paramId + i] / BPBXSYN_HARMONICS_CONTROL_MAX;
+        float size = (float)getParam(paramId + i) / BPBXSYN_HARMONICS_CONTROL_MAX;
 
         for (float x = x0; x < ui_end.x; x += 2) {
             drawList->AddRectFilled(
@@ -1770,7 +1819,7 @@ void PluginController::drawSpectrumEditor(const char *id, uint32_t baseParamId,
     draw_heights[0] = 0.f;
 
     for (uint32_t i = 0; i < BPBXSYN_SPECTRUM_CONTROL_COUNT; ++i) {
-        draw_heights[i+1] = params[baseParamId + i] / BPBXSYN_SPECTRUM_CONTROL_MAX; 
+        draw_heights[i+1] = getParam(baseParamId + i) / BPBXSYN_SPECTRUM_CONTROL_MAX; 
     }
 
     draw_heights[BPBXSYN_SPECTRUM_CONTROL_COUNT + 1] =
@@ -1958,7 +2007,6 @@ void PluginController::drawWaveEditor(const char *id, int8_t *wave, int waveLeng
 
             if (wave[posX] != newVal) {
                 wave[posX] = newVal;
-                log_debug("Change exstate");
             }
         }
     }
@@ -2017,8 +2065,8 @@ void PluginController::drawModulationPad() {
     drawList->AddRectFilled(padTL, padBR, ImGui::GetColorU32(ImGuiCol_FrameBg));
     drawList->AddCircleFilled(
         ImVec2(
-            params[BPBXSYN_PARAM_MOD_X] * padSize.x + padTL.x,
-            padBR.y - params[BPBXSYN_PARAM_MOD_Y] * padSize.y
+            getParam(BPBXSYN_PARAM_MOD_X) * padSize.x + padTL.x,
+            padBR.y - getParam(BPBXSYN_PARAM_MOD_Y) * padSize.y
         ),
         4.f, ImGui::GetColorU32(ImGuiCol_ButtonHovered)
     );
@@ -2072,7 +2120,7 @@ void PluginController::drawEqPage(FilterType targetFilter) {
         sameLineRightCol();
         ImGui::SetNextItemWidth(-FLT_MIN);
 
-        int curType = (int)params[typeParam];
+        int curType = (int)getParam(typeParam);
         if (ImGui::Combo("##NoteFilterType", &curType, filterTypes, 4)) {
             paramGestureBegin(typeParam);
             paramChange(typeParam, (double)curType);
@@ -2113,246 +2161,242 @@ void PluginController::sameLineRightCol() {
 }
 
 void PluginController::draw(platform::Window *window) {
-    updateParams();
     updateColors();
 
-
     // imgui
-    {
-        if (ImGui::BeginMainMenuBar()) {
-            // if (ImGui::BeginMenu("."))
-            {
-                if (ImGui::BeginMenu("Presets")) {
-                    ImGui::MenuItem("Test");
-                    ImGui::EndMenu();
-                }
-
-                if (ImGui::BeginMenu("Control")) {
-                    ImGui::PushStyleVarY(ImGuiStyleVar_FramePadding, 0.f);
-                    ImGui::PushItemWidth(ImGui::GetFontSize() * 9.f);
-
-                    ImGui::BeginGroup();
-                    ImGui::Text("Gain");
-                    ImGui::Text("Tempo Mult.");
-                    ImGui::Text("Force Tempo");
-
-                    if (params[CPARAM(TEMPO_USE_OVERRIDE)])
-                        ImGui::Text("Tempo");
-                    
-                    ImGui::EndGroup();
-
-                    ImGui::SameLine();
-                    ImGui::BeginGroup();
-                    sliderParameter(CPARAM(GAIN), "###gain", -10.0, 10.0, "%.3f dB");
-                    sliderParameter(CPARAM(TEMPO_MULTIPLIER), "###tempomult", 0.0, 10.0, "%.1fx");
-                    
-                    bool useTempoOverride = params[CPARAM(TEMPO_USE_OVERRIDE)] != 0.0;
-                    if (ImGui::Checkbox("##tempooverridetoggle", &useTempoOverride)) {
-                        paramGestureBegin(CPARAM(TEMPO_USE_OVERRIDE));
-                        paramChange(CPARAM(TEMPO_USE_OVERRIDE), useTempoOverride ? 1.0 : 0.0);
-                        paramGestureEnd(CPARAM(TEMPO_USE_OVERRIDE));
-                    }
-                    paramControls(CPARAM(TEMPO_USE_OVERRIDE));
-                    
-                    if (params[CPARAM(TEMPO_USE_OVERRIDE)])
-                        sliderParameter(CPARAM(TEMPO_OVERRIDE), "###tempooverride", 30.0, 500.0, "%.0f");
-                    
-                    ImGui::EndGroup();
-                    
-                    ImGui::PopItemWidth();
-                    ImGui::PopStyleVar();
-
-                    ImGui::EndMenu();
-                }
-
-                if (ImGui::MenuItem("About")) {
-                    showAbout = !showAbout;
-                }
-                
-                // ImGui::EndMenu();
+    if (ImGui::BeginMainMenuBar()) {
+        // if (ImGui::BeginMenu("."))
+        {
+            if (ImGui::BeginMenu("Presets")) {
+                ImGui::MenuItem("Test");
+                ImGui::EndMenu();
             }
 
-            if (currentPage != PAGE_MAIN || showAbout) {
-                const char *label = "×";
-                ImGui::SetCursorPosX(ImGui::GetWindowWidth() - ImGui::GetFrameHeightWithSpacing());
+            if (ImGui::BeginMenu("Control")) {
+                ImGui::PushStyleVarY(ImGuiStyleVar_FramePadding, 0.f);
+                ImGui::PushItemWidth(ImGui::GetFontSize() * 9.f);
 
-                float paddingY = ImGui::GetStyle().FramePadding.y;
-                ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(paddingY, paddingY));
+                ImGui::BeginGroup();
+                ImGui::Text("Gain");
+                ImGui::Text("Tempo Mult.");
+                ImGui::Text("Force Tempo");
 
-                if (ImGui::MenuItem(label)) {
-                    if (showAbout)  showAbout = false;
-                    else            currentPage = PAGE_MAIN;
+                if (GET_CPARAM(TEMPO_USE_OVERRIDE))
+                    ImGui::Text("Tempo");
+                
+                ImGui::EndGroup();
+
+                ImGui::SameLine();
+                ImGui::BeginGroup();
+                sliderParameter(CPARAM(GAIN), "###gain", -10.0, 10.0, "%.3f dB");
+                sliderParameter(CPARAM(TEMPO_MULTIPLIER), "###tempomult", 0.0, 10.0, "%.1fx");
+                
+                bool useTempoOverride = GET_CPARAM(TEMPO_USE_OVERRIDE) != 0.0;
+                if (ImGui::Checkbox("##tempooverridetoggle", &useTempoOverride)) {
+                    paramGestureBegin(CPARAM(TEMPO_USE_OVERRIDE));
+                    paramChange(CPARAM(TEMPO_USE_OVERRIDE), useTempoOverride ? 1.0 : 0.0);
+                    paramGestureEnd(CPARAM(TEMPO_USE_OVERRIDE));
                 }
-
+                paramControls(CPARAM(TEMPO_USE_OVERRIDE));
+                
+                if (GET_CPARAM(TEMPO_USE_OVERRIDE))
+                    sliderParameter(CPARAM(TEMPO_OVERRIDE), "###tempooverride", 30.0, 500.0, "%.0f");
+                
+                ImGui::EndGroup();
+                
+                ImGui::PopItemWidth();
                 ImGui::PopStyleVar();
+
+                ImGui::EndMenu();
             }
-    
-            ImGui::EndMainMenuBar();
-        }
-    
-        ImGuiViewport *viewport = ImGui::GetMainViewport();
-        ImGui::SetNextWindowPos(viewport->WorkPos);
-        ImGui::SetNextWindowSize(viewport->WorkSize);
-        ImGuiWindowFlags winFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar;
 
-        // about window ui
-        if (showAbout) {
-            drawAbout(winFlags);
-
-        // instrument ui
-        } else {
-            uiRightCol = ImGui::GetFontSize() * 7.f;
+            if (ImGui::MenuItem("About")) {
+                showAbout = !showAbout;
+            }
             
-            switch (currentPage) {
-                case PAGE_MAIN:
-                    if (ImGui::Begin("inst", NULL, winFlags)) {
-                        // type
-                        static const char *types[BPBXSYN_SYNTH_COUNT] = {
-                            "chip wave", "pulse width", "supersaw (TODO)",
-                            "harmonics", "picked string", "spectrum", "FM",
-                            "custom chip", "noise"
-                        };
-                        
-                        ImGui::AlignTextToFramePadding();
-                        ImGui::Text("Type");
+            // ImGui::EndMenu();
+        }
 
-                        sameLineRightCol();
-                        ImGui::SetNextItemWidth(-FLT_MIN);
-                        int curType = params[CPARAM(SYNTH_TYPE)];
-                        if (ImGui::Combo("##gentype", &curType, types,
-                                         BPBXSYN_SYNTH_COUNT)
-                        ) {
-                            paramGestureBegin(CPARAM(SYNTH_TYPE));
-                            paramChange(CPARAM(SYNTH_TYPE), (double)curType);
-                            paramGestureEnd(CPARAM(SYNTH_TYPE));
-                        }
+        if (currentPage != PAGE_MAIN || showAbout) {
+            const char *label = "×";
+            ImGui::SetCursorPosX(ImGui::GetWindowWidth() - ImGui::GetFrameHeightWithSpacing());
 
-                        // volume
-                        ImGui::AlignTextToFramePadding();
-                        ImGui::Text("Volume");
-                        sameLineRightCol();
-                        ImGui::SetNextItemWidth(-FLT_MIN);
-                        sliderParameter(PARAM(VOLUME, BPBXSYN_VOLUME_PARAM_VOLUME), "##volume", -25.0, 25.0, "%.0f");
+            float paddingY = ImGui::GetStyle().FramePadding.y;
+            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(paddingY, paddingY));
 
-                        // panning
-                        ImGui::AlignTextToFramePadding();
-                        ImGui::Text("Panning");
-                        ImGui::SameLine();
-                        if (ImGui::SmallButton("v")) {
-                            showPanDelay = !showPanDelay;
-                        }
-
-                        sameLineRightCol();
-                        ImGui::SetNextItemWidth(-FLT_MIN);
-                        sliderParameter(PARAM(PANNING, BPBXSYN_PANNING_PARAM_PAN), "##panning", 0.f, BPBXSYN_PAN_VALUE_MAX, "%.0f");
-
-                        // pan delay
-                        if (showPanDelay) {
-                            ImGui::AlignTextToFramePadding();
-                            ImGui::Bullet();
-                            ImGui::Text("Delay");
-                            sameLineRightCol();
-                            ImGui::SetNextItemWidth(-FLT_MIN);
-                            sliderParameter(PARAM(PANNING, BPBXSYN_PANNING_PARAM_PAN_DELAY), "##panDelay", 0.f, BPBXSYN_PAN_DELAY_MAX, "%.0f");
-                        }
-
-                        // a bit annoying that some uis separated like this
-                        switch (inst_type) {
-                            case BPBXSYN_SYNTH_CHIP:
-                                drawChipGui1();
-                                break;
-
-                            case BPBXSYN_SYNTH_CUSTOM_CHIP:
-                                drawCustomChipGui1();
-                                break;
-                            
-                            case BPBXSYN_SYNTH_NOISE:
-                                drawNoiseGui1();
-                                break;
-
-                            default: break;
-                        }
-
-                        // eq
-                        ImGui::AlignTextToFramePadding();
-                        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImGui::GetStyle().ItemInnerSpacing);
-                        ImGui::Text("EQ Filt");
-
-                        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2.f, 0.f));
-                        ImGui::SameLine();
-                        if (ImGui::SmallButton("+##eqMaximize")) {
-                            currentPage = PAGE_EQ;
-                        }
-                        ImGui::PopStyleVar(2);
-
-                        sameLineRightCol();
-                        drawEqWidget(FILTER_EQ, "eqctl", ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() * 1.75f));
-        
-                        // fade in/out
-                        ImGui::AlignTextToFramePadding();
-                        ImGui::Text("Fade In/Out");
-                        sameLineRightCol();
-                        drawFadeWidget("fadectl", ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() * 1.75f));
-        
-                        // specific instrument
-                        switch (inst_type) {
-                            case BPBXSYN_SYNTH_FM:
-                                drawFmGui();
-                                break;
-
-                            case BPBXSYN_SYNTH_CHIP:
-                                drawChipGui2();
-                                break;
-                            
-                            case BPBXSYN_SYNTH_HARMONICS:
-                                drawHarmonicsGui();
-                                break;
-                            
-                            case BPBXSYN_SYNTH_SPECTRUM:
-                                drawSpectrumGui();
-                                break;
-                            
-                            case BPBXSYN_SYNTH_PULSE_WIDTH:
-                                drawPwmGui();
-                                break;
-
-                            case BPBXSYN_SYNTH_NOISE:
-                                drawNoiseGui2();
-                                break;
-
-                            case BPBXSYN_SYNTH_PICKED_STRING:
-                                drawPickedStringGui();
-                                break;
-
-                            case BPBXSYN_SYNTH_CUSTOM_CHIP:
-                                drawCustomChipGui2();
-                                break;
-
-                            default: break;
-                        }
-        
-                        drawEffects();
-                        drawEnvelopes();
-                        drawModulationPad();
-                    }
-                    ImGui::End();
-
-                    break;
-
-                case PAGE_NOTE_FILTER:
-                    if (ImGui::Begin("eq", NULL, winFlags)) {
-                        drawEqPage(FILTER_NOTE);
-                    }
-                    ImGui::End();
-                    break;
-                
-                case PAGE_EQ:
-                    if (ImGui::Begin("eq", NULL, winFlags)) {
-                        drawEqPage(FILTER_EQ);
-                    }
-                    ImGui::End();
-                    break;
+            if (ImGui::MenuItem(label)) {
+                if (showAbout)  showAbout = false;
+                else            currentPage = PAGE_MAIN;
             }
+
+            ImGui::PopStyleVar();
+        }
+
+        ImGui::EndMainMenuBar();
+    }
+
+    ImGuiViewport *viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(viewport->WorkPos);
+    ImGui::SetNextWindowSize(viewport->WorkSize);
+    ImGuiWindowFlags winFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar;
+
+    // about window ui
+    if (showAbout) {
+        drawAbout(winFlags);
+
+    // instrument ui
+    } else {
+        uiRightCol = ImGui::GetFontSize() * 7.f;
+        
+        switch (currentPage) {
+            case PAGE_MAIN:
+                if (ImGui::Begin("inst", NULL, winFlags)) {
+                    // type
+                    static const char *types[BPBXSYN_SYNTH_COUNT] = {
+                        "chip wave", "pulse width", "supersaw (TODO)",
+                        "harmonics", "picked string", "spectrum", "FM",
+                        "custom chip", "noise"
+                    };
+                    
+                    ImGui::AlignTextToFramePadding();
+                    ImGui::Text("Type");
+
+                    sameLineRightCol();
+                    ImGui::SetNextItemWidth(-FLT_MIN);
+                    int curType = GET_CPARAM(SYNTH_TYPE);
+                    if (ImGui::Combo("##gentype", &curType, types,
+                                        BPBXSYN_SYNTH_COUNT)
+                    ) {
+                        paramGestureBegin(CPARAM(SYNTH_TYPE));
+                        paramChange(CPARAM(SYNTH_TYPE), (double)curType);
+                        paramGestureEnd(CPARAM(SYNTH_TYPE));
+                    }
+
+                    // volume
+                    ImGui::AlignTextToFramePadding();
+                    ImGui::Text("Volume");
+                    sameLineRightCol();
+                    ImGui::SetNextItemWidth(-FLT_MIN);
+                    sliderParameter(PARAM(VOLUME, BPBXSYN_VOLUME_PARAM_VOLUME), "##volume", -25.0, 25.0, "%.0f");
+
+                    // panning
+                    ImGui::AlignTextToFramePadding();
+                    ImGui::Text("Panning");
+                    ImGui::SameLine();
+                    if (ImGui::SmallButton("v")) {
+                        showPanDelay = !showPanDelay;
+                    }
+
+                    sameLineRightCol();
+                    ImGui::SetNextItemWidth(-FLT_MIN);
+                    sliderParameter(PARAM(PANNING, BPBXSYN_PANNING_PARAM_PAN), "##panning", 0.f, BPBXSYN_PAN_VALUE_MAX, "%.0f");
+
+                    // pan delay
+                    if (showPanDelay) {
+                        ImGui::AlignTextToFramePadding();
+                        ImGui::Bullet();
+                        ImGui::Text("Delay");
+                        sameLineRightCol();
+                        ImGui::SetNextItemWidth(-FLT_MIN);
+                        sliderParameter(PARAM(PANNING, BPBXSYN_PANNING_PARAM_PAN_DELAY), "##panDelay", 0.f, BPBXSYN_PAN_DELAY_MAX, "%.0f");
+                    }
+
+                    // a bit annoying that some uis separated like this
+                    switch (inst_type) {
+                        case BPBXSYN_SYNTH_CHIP:
+                            drawChipGui1();
+                            break;
+
+                        case BPBXSYN_SYNTH_CUSTOM_CHIP:
+                            drawCustomChipGui1();
+                            break;
+                        
+                        case BPBXSYN_SYNTH_NOISE:
+                            drawNoiseGui1();
+                            break;
+
+                        default: break;
+                    }
+
+                    // eq
+                    ImGui::AlignTextToFramePadding();
+                    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImGui::GetStyle().ItemInnerSpacing);
+                    ImGui::Text("EQ Filt");
+
+                    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2.f, 0.f));
+                    ImGui::SameLine();
+                    if (ImGui::SmallButton("+##eqMaximize")) {
+                        currentPage = PAGE_EQ;
+                    }
+                    ImGui::PopStyleVar(2);
+
+                    sameLineRightCol();
+                    drawEqWidget(FILTER_EQ, "eqctl", ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() * 1.75f));
+    
+                    // fade in/out
+                    ImGui::AlignTextToFramePadding();
+                    ImGui::Text("Fade In/Out");
+                    sameLineRightCol();
+                    drawFadeWidget("fadectl", ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() * 1.75f));
+    
+                    // specific instrument
+                    switch (inst_type) {
+                        case BPBXSYN_SYNTH_FM:
+                            drawFmGui();
+                            break;
+
+                        case BPBXSYN_SYNTH_CHIP:
+                            drawChipGui2();
+                            break;
+                        
+                        case BPBXSYN_SYNTH_HARMONICS:
+                            drawHarmonicsGui();
+                            break;
+                        
+                        case BPBXSYN_SYNTH_SPECTRUM:
+                            drawSpectrumGui();
+                            break;
+                        
+                        case BPBXSYN_SYNTH_PULSE_WIDTH:
+                            drawPwmGui();
+                            break;
+
+                        case BPBXSYN_SYNTH_NOISE:
+                            drawNoiseGui2();
+                            break;
+
+                        case BPBXSYN_SYNTH_PICKED_STRING:
+                            drawPickedStringGui();
+                            break;
+
+                        case BPBXSYN_SYNTH_CUSTOM_CHIP:
+                            drawCustomChipGui2();
+                            break;
+
+                        default: break;
+                    }
+    
+                    drawEffects();
+                    drawEnvelopes();
+                    drawModulationPad();
+                }
+                ImGui::End();
+
+                break;
+
+            case PAGE_NOTE_FILTER:
+                if (ImGui::Begin("eq", NULL, winFlags)) {
+                    drawEqPage(FILTER_NOTE);
+                }
+                ImGui::End();
+                break;
+            
+            case PAGE_EQ:
+                if (ImGui::Begin("eq", NULL, winFlags)) {
+                    drawEqPage(FILTER_EQ);
+                }
+                ImGui::End();
+                break;
         }
     }
 }
