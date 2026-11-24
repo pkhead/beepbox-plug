@@ -118,8 +118,6 @@ double PluginController::getParam(clap_id id) const {
 }
 
 bool PluginController::updateParams() {
-    log_debug("call updateParams");
-
     bool didWork = false;
     gui_event_queue_item_s item;
 
@@ -208,8 +206,11 @@ void PluginController::vertSliderParameter(uint32_t paramId, const char *id, ImV
 
 void PluginController::sendToPlugin(const gui_event_queue_item_s &item) {
     if (!gui_to_plugin.enqueue(item)) {
-        log_debug("gui_to_plugin overflow");
-        guiToPluginOverflow.push_back(item);
+        if (guiToPluginOverflow.size() >= 512) {
+            log_error("gui_to_plugin message queue overflow exceeded");
+        } else {
+            guiToPluginOverflow.push_back(item);
+        }
     }
     
     // request process in case plugin is sleeping
@@ -221,17 +222,6 @@ void PluginController::paramGestureBegin(uint32_t param_id) {
     gui_event_queue_item_s item = {};
     item.type = GUI_EVENT_PARAM_GESTURE_BEGIN;
     item.gesture.param_id = param_id;
-
-    // TODO: if queue is full then poll every few ms (using the pre-existing
-    //       PUGL timer) checking if the queue has opened up in order to send
-    //       the data
-    // TODO: if the plugin_to_gui queue is full (which could be likely) uhhh how tf
-    //       ok maybe don't use the queue maybe there's an atomic flag to be set
-    //       from the plugin indicating that the GUI needs to sync. there will
-    //       also be a bool array indicating which parameters were dirty.
-    // TODO: actually gui->plugin message queue is unnecessary, just have an
-    //       array of atomic parameter values written to only by main thread and
-    //       read from only by audio thread.
 
     sendToPlugin(item);
 #ifndef _NDEBUG
@@ -263,15 +253,10 @@ void PluginController::paramGestureEnd(uint32_t param_id) {
 void PluginController::event(platform::Event ev, platform::Window *window) {
     while (guiToPluginOverflow.size() != 0) {
         gui_event_queue_item_s &item = guiToPluginOverflow.back();
-        if (!gui_to_plugin.enqueue(item)) {
-            log_warn("gui_to_plugin queue still full...");
+        if (!gui_to_plugin.enqueue(item))
             break;
-        }
-        guiToPluginOverflow.pop_back();
 
-        if (guiToPluginOverflow.size() == 0) {
-            log_warn("gui_to_plugin queue: emptied overflow buffer :)");
-        }
+        guiToPluginOverflow.pop_back();
     }
 
     bool forceRefresh = needRefresh.exchange(false, std::memory_order_acquire);
