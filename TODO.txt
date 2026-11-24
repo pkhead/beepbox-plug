@@ -32,6 +32,7 @@ src/cbeepsynth/TODO.txt
   (currently they don't). so go do that.
 - maybe rewrite entire plugin to be in C++
   (better MSVC support and makes project simpler...)
+- "monophonic" control option
 
 BUGS:
 - vibrato starts from wrong beat in fl studio. Could either clap-wrapper not
