@@ -79,7 +79,7 @@ private:
     void drawModulationPad();
     void drawHarmonicsEditor(const char *id, uint32_t paramId, ImVec2 size);
     void drawSpectrumEditor(const char *id, uint32_t baseParamId, ImVec2 size);
-    void drawWaveEditor(const char *id, int8_t *wave, int waveLength, ImVec2 size);
+    void drawWaveEditor(const char *id, int8_t *wave, int waveLength, float uiWidth);
     void drawEqPage(FilterType targetFilter);
 
     void filterRemovePole(FilterType filter, int control_idx);

@@ -788,13 +788,40 @@ static int64_t stream_read_prim(const clap_istream_t *stream, void *data, size_t
    }
 }
 
+static int bbsyn_stream_writer(const void *data, size_t size, void *userdata) {
+    const clap_ostream_t *stream = (const clap_ostream_t *)userdata;
+
+    const uint8_t *p = data;
+    while (size) {
+        int64_t res = stream->write(stream, p, size);
+        if (res == -1) return 1;
+        size -= res;
+        p += res;
+    }
+
+    return 0;
+}
+
+static int bbsyn_stream_reader(void *data, size_t size, void *userdata) {
+    const clap_istream_t *stream = (const clap_istream_t *)userdata;
+
+    uint8_t *p = data;
+    while (size) {
+        int64_t res = stream->read(stream, p, size);
+        if (res == 0 || res == -1) return 1;
+        size -= res;
+        p += res;
+    }
+
+    return 0;
+}
+
 #define STATE_SAVE_VER 0
 
 #define ERRCHK(v) if ((v) == -1) goto error
 bool plugin_state_save(const plugin_s *plug, const clap_ostream_t *stream) {
     // declarations of temporary allocations
     instr_param_id *param_ids = NULL;
-    uint8_t *exstate = NULL;
 
     // write save format revision (single number)
     uint32_t save_version = STATE_SAVE_VER;
@@ -883,28 +910,19 @@ bool plugin_state_save(const plugin_s *plug, const clap_ostream_t *stream) {
 
     // write exstate data
     size_t exstate_sz = bpbxsyn_synth_get_exstate_size(type);
-    assert(exstate_sz <= UINT32_MAX);
-    if (exstate_sz > UINT32_MAX) goto error;
+    bool has_exstate = exstate_sz != 0;
+    ERRCHK(stream_write_prim(stream, &has_exstate, 1));
 
-    uint32_t exstate_sz32 = (uint32_t)exstate_sz;
-    ERRCHK(stream_write_prim(stream, &exstate_sz32, sizeof(uint32_t)));
-
-    if (exstate_sz != 0) {
-        exstate = malloc(exstate_sz);
-        if (!exstate) goto error;
-
-        bpbxsyn_synth_get_exstate(plug->instrument.synth, exstate);
-        // TODO: exstate data is endian-dependent... should i care?
-        stream->write(stream, exstate, exstate_sz);
-
-        free(exstate);
-        exstate = NULL;
+    if (has_exstate) {
+        int stat = bpbxsyn_synth_serialize_exstate(plug->instrument.synth,
+                                                   bbsyn_stream_writer,
+                                                   (void *)stream);
+        if (stat) goto error;
     }
 
     return true;
     error:
         free(param_ids);
-        free(exstate);
         return false;
 }
 
@@ -1064,25 +1082,14 @@ bool plugin_state_load(plugin_s *plug, const clap_istream_t *stream) {
     }
 
     // read exstate data
-    uint32_t exstate_sz32;
-    READCHK(stream, &exstate_sz32, sizeof(exstate_sz32));
-    size_t exstate_sz = (size_t)exstate_sz32;
+    bool has_exstate;
+    READCHK(stream, &has_exstate, 1);
 
-    if (exstate_sz != 0) {
-        if (exstate_sz != bpbxsyn_synth_get_exstate_size(plug->instrument.type))
-            goto error;
-
-        void *exstate = malloc(exstate_sz);
-        if (!exstate) goto error;
-
-        int64_t err = stream->read(stream, exstate, exstate_sz);
-        if (err != exstate_sz) {
-            free(exstate);
-            goto error;
-        }
-
-        bpbxsyn_synth_set_exstate(plug->instrument.synth, exstate);
-        free(exstate);
+    if (has_exstate) {
+        int stat = bpbxsyn_synth_deserialize_exstate(plug->instrument.synth,
+                                                     bbsyn_stream_reader,
+                                                     (void *)stream);
+        if (stat) goto error;
     }
 
     goto end;

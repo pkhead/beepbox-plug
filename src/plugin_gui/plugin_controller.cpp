@@ -495,7 +495,7 @@ void PluginController::drawCustomChipGui1() {
 
     drawWaveEditor(
         "##wave", chipWave, (int)(sizeof(chipWave) / sizeof(*chipWave)),
-        ImVec2(ImGui::GetContentRegionAvail().x - padX, ImGui::GetFrameHeight() * 4.0f));
+        ImGui::GetContentRegionAvail().x - padX);
 }
 
 void PluginController::drawCustomChipGui2() {
@@ -1973,7 +1973,9 @@ void PluginController::drawSpectrumEditor(const char *id, uint32_t baseParamId,
     drawList->PopClipRect();
 }
 
-void PluginController::drawWaveEditor(const char *id, int8_t *wave, int waveLength, ImVec2 uiSize) {
+void PluginController::drawWaveEditor(const char *id, int8_t *wave, int waveLength, float uiWidth) {
+    ImVec2 uiSize(uiWidth, uiWidth * 0.4f);
+
     ImDrawList *drawList = ImGui::GetWindowDrawList();
     ImVec2 uiOrigin = ImGui::GetCursorScreenPos();
     uiOrigin = ImVec2(floorf(uiOrigin.x), floorf(uiOrigin.y));
