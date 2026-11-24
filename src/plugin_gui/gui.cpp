@@ -332,6 +332,8 @@ void gui_destroy(plugin_gui_s *gui) {
     if (--openGuiCount == 0) {
         platform::shutdown();
     }
+
+    delete gui;
 }
 
 void gui_sync_state(plugin_gui_s *gui) {

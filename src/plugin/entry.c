@@ -243,6 +243,7 @@ void plugin_gui_destroy(const clap_plugin_t *plugin) {
    plugin_s *plug = plugin->plugin_data;
    assert(plug->gui);
    gui_destroy(plug->gui);
+   plug->gui = NULL;
 }
 
 bool plugin_gui_set_scale(const clap_plugin_t *plugin, double scale) {
