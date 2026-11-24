@@ -28,6 +28,8 @@ private:
     const clap_plugin_t *const plugin;
     const clap_host_t *const host;
     instrument_s *const instrument;
+    bpbxsyn_context *const bb_context;
+
     Page currentPage;
 
     bool showAbout;
@@ -126,7 +128,8 @@ public:
     show_context_menu_f popupContextMenu;
     void *pluginUserdata;
 
-    PluginController(const clap_plugin_t *plugin, const clap_host_t *host, instrument_s *instrument);
+    PluginController(const clap_plugin_t *plugin, const clap_host_t *host,
+                     instrument_s *instrument, bpbxsyn_context_s *bb_context);
 
     void graphicsInit();
     void graphicsClose();

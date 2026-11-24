@@ -75,6 +75,7 @@ typedef struct {
     const clap_plugin_t *plugin;
     const clap_host_t *host;
     instrument_s *instrument;
+    bpbxsyn_context_s *bb_context;
 
     show_context_menu_f show_context_menu;
     void *userdata;

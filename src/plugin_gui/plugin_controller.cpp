@@ -47,10 +47,14 @@ void PluginController::graphicsClose() {
     #endif
 }
 
-PluginController::PluginController(const clap_plugin_t *plugin, const clap_host_t *host, instrument_s *instrument) :
+PluginController::PluginController(const clap_plugin_t *plugin,
+                                   const clap_host_t *host,
+                                   instrument_s *instrument,
+                                   bpbxsyn_context_s *bb_context) :
     plugin(plugin),
     host(host),
     instrument(instrument),
+    bb_context(bb_context),
     plugin_to_gui(),
     gui_to_plugin()
 {
