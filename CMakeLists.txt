@@ -8,6 +8,10 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 project(BeepBox VERSION 0.4.0)
 
+if (APPLE)
+    enable_language(OBJC OBJCXX)
+endif()
+
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 
@@ -88,8 +92,21 @@ target_link_libraries(${CLAP_TARGET} PRIVATE ${LIBRARIES} plugin_gui)
 set_target_properties(${CLAP_TARGET} PROPERTIES
     SUFFIX ".clap"
     PREFIX ""
-    VERSION ${PROJECT_VERSION}
 )
+
+if (APPLE)
+    set_target_properties(${CLAP_TARGET} PROPERTIES
+        BUNDLE TRUE
+        BUNDLE_EXTENSION "clap"
+    )
+else()
+    # this is separate from the initial declaration because on macOS setting
+    # the version causes it to fail at build time.
+    # TODO: figure out a better way to fix version set err when building on macOS
+    set_target_properties(${CLAP_TARGET} PROPERTIES
+        VERSION ${PROJECT_VERSION}
+    )
+endif()
 
 #######################
 ## standalone target ##
