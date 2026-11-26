@@ -348,6 +348,8 @@ void PluginController::drawAbout(ImGuiWindowFlags winFlags) {
     ImGui::TextLinkOpenURL("clap-wrapper", "https://github.com/free-audio/clap-wrapper/tree/main");
     ImGui::Bullet();
     ImGui::TextLinkOpenURL("Dear ImGui", "https://github.com/ocornut/imgui");
+    ImGui::Bullet();
+    ImGui::TextLinkOpenURL("Pugl", "https://codeberg.org/lv2/pugl/");
 
     // show vst3-compatible logo
     #ifdef PLUGIN_VST3
