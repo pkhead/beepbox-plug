@@ -279,9 +279,12 @@ static PuglStatus puglEventFunc(PuglView *view, const PuglEvent *rawEvent) {
                 // call ImGui new frame
                 gfx::beginFrame(window);
 
+                double scaleFac = (float)window->displayScale;
+
                 ImGuiIO &io = ImGui::GetIO();
                 io.DisplaySize.x = window->width;
                 io.DisplaySize.y = window->height;
+                io.DisplayFramebufferScale = ImVec2(scaleFac, scaleFac);
                 ImGui::NewFrame();
 
                 // then, the window callback
@@ -309,6 +312,7 @@ platform::Window* platform::createWindow(int width, int height, const char *name
     platform->height = height;
     platform->evCallback = evCallback;
     platform->drawCallback = drawCallback;
+    platform->displayScale = 0.0;
 
     MUTEX_GUARD;
     PuglView *view = platform->puglView = puglNewView(puglWorld);
@@ -340,6 +344,12 @@ void platform::closeWindow(Window *platform) {
 
 static bool realizeWindow(platform::Window *window) {
     if (window->isRealized) return true;
+
+    double scale = puglGetScaleFactor(window->puglView);
+    window->displayScale = scale;
+    puglSetSizeHint(window->puglView, PUGL_DEFAULT_SIZE,
+                    (unsigned int)(window->width * scale),
+                    (unsigned int)(window->height * scale));
 
     PuglStatus status = puglRealize(window->puglView);
     if (status) {

@@ -240,7 +240,8 @@ void eventHandler(platform::Event ev, platform::Window *window) {
 
     switch (ev.type) {
         case platform::Event::MouseMove:
-            io.AddMousePosEvent((float)ev.x, (float)ev.y);
+            io.AddMousePosEvent((float)(ev.x / window->displayScale),
+                                (float)(ev.y / window->displayScale));
             platform::requestRedraw(window);
             break;
 
@@ -301,20 +302,26 @@ void drawHandler(platform::Window *window) {
 int openGuiCount = 0;
 
 bool gui_is_api_supported(const char *api, bool is_floating) {
-#ifdef _WIN32
+#ifdef API_WIN32
     return !strcmp(api, CLAP_WINDOW_API_WIN32);
-#else
+#elif defined(API_COCOA)
+    return !strcmp(api, CLAP_WINDOW_API_COCOA);
+#elif defined(API_X11)
     return !strcmp(api, CLAP_WINDOW_API_X11);
+#else
+#   error "No graphics API chosen"
 #endif
 }
 
 bool gui_get_preferred_api(const char **api, bool *is_floating) {
-#ifdef _WIN32
+#ifdef API_WIN32
     *api = CLAP_WINDOW_API_WIN32;
-#elif defined(__APPLE__)
+#elif defined(API_COCOA)
     *api = CLAP_WINDOW_API_COCOA;
-#else
+#elif defined(API_X11)
     *api = CLAP_WINDOW_API_X11;
+#else
+#   error "No graphics API chosen"
 #endif
 
     *is_floating = false;
@@ -360,22 +367,32 @@ bool gui_get_size(const plugin_gui_s *iface, uint32_t *width, uint32_t *height) 
 }
 
 bool gui_set_parent(plugin_gui_s *iface, const clap_window_t *window) {
-#ifdef _WIN32
+#ifdef API_WIN32
     assert(!strcmp(window->api, CLAP_WINDOW_API_WIN32));
     return platform::setParent(iface->window, window->win32);
-#else
+#elif defined(API_COCOA)
+    assert(!strcmp(window->api, CLAP_WINDOW_API_COCOA));
+    return platform::setParent(iface->window, (void*)window->cocoa);
+#elif defined(API_X11)
     assert(!strcmp(window->api, CLAP_WINDOW_API_X11));
     return platform::setParent(iface->window, (void*)window->x11);
+#else
+#   error "No graphics API chosen"
 #endif
 }
 
 bool gui_set_transient(plugin_gui_s *iface, const clap_window_t *window) {
-#ifdef _WIN32
+#ifdef API_WIN32
     assert(!strcmp(window->api, CLAP_WINDOW_API_WIN32));
     return platform::setTransientParent(iface->window, window->win32);
-#else
+#elif defined(API_COCOA)
+    assert(!strcmp(window->api, CLAP_WINDOW_API_COCOA));
+    return platform::setTransientParent(iface->window, window->cocoa);
+#elif defined(API_X11)
     assert(!strcmp(window->api, CLAP_WINDOW_API_X11));
     return platform::setTransientParent(iface->window, (void*)window->x11);
+#else
+#   error "No graphics API chosen"
 #endif
 }
 

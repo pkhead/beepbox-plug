@@ -2,6 +2,14 @@
 #include <pugl/pugl.h>
 #include <imgui/imgui.h>
 
+#ifdef _WIN32
+#define API_WIN32
+#elif defined(__APPLE__)
+#define API_COCOA
+#else
+#define API_X11
+#endif
+
 // forward declaration of gfx::WindowData
 namespace gfx {
     struct WindowData;
@@ -184,6 +192,7 @@ namespace platform {
 
         int width;
         int height;
+        double displayScale;
         platform::EventHandler evCallback;
         platform::DrawHandler drawCallback;
 
