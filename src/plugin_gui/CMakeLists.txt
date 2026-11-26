@@ -21,7 +21,7 @@ if (WIN32)
         ../pugl/src/win_stub.c
     )
 
-    set(EXTRA_LIBS ${EXTRA_LIBS} dwmapi)
+    set(EXTRA_LIBS ${EXTRA_LIBS} dwmapi shlwapi)
 
     if (${GRAPHICS_BACKEND} STREQUAL "gl")
         set(PUGL_SOURCES ${PUGL_SOURCES} ../pugl/src/win_gl.c)

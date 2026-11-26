@@ -316,7 +316,7 @@ platform::Window* platform::createWindow(int width, int height, const char *name
 
     MUTEX_GUARD;
     PuglView *view = platform->puglView = puglNewView(puglWorld);
-    puglSetHandle(view, (PuglHandle*) platform);
+    puglSetHandle(view, (void *)platform);
     puglSetSizeHint(view, PUGL_DEFAULT_SIZE, width, height);
     puglSetViewHint(view, PUGL_RESIZABLE, false);
     puglSetEventFunc(view, puglEventFunc);
