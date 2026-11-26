@@ -696,6 +696,32 @@ void PluginController::drawPickedStringGui() {
     }
 }
 
+void PluginController::drawSupersawGui() {
+    ImGui::PushItemWidth(-FLT_MIN);
+
+    ImGui::AlignTextToFramePadding();
+    ImGui::Text("Dynamism");
+    sameLineRightCol();
+    sliderParameter(BBXS_SUPERSAW_PARAM_DYNAMISM, "##dyn", 0.f, BBXS_SUPERSAW_DYNAMISM_MAX, "%.0f");
+
+    ImGui::AlignTextToFramePadding();
+    ImGui::Text("Spread");
+    sameLineRightCol();
+    sliderParameter(BBXS_SUPERSAW_PARAM_SPREAD, "##spread", 0.f, BBXS_SUPERSAW_SPREAD_MAX, "%.0f");
+
+    ImGui::AlignTextToFramePadding();
+    ImGui::Text("Saw↔Pulse");
+    sameLineRightCol();
+    sliderParameter(BBXS_SUPERSAW_PARAM_SHAPE, "##shape", 0.f, BBXS_SUPERSAW_SHAPE_MAX, "%.0f");
+
+    ImGui::AlignTextToFramePadding();
+    ImGui::Text("Pulse Width");
+    sameLineRightCol();
+    sliderParameter(BBXS_SUPERSAW_PARAM_PULSE_WIDTH, "##width", 0.f, BBXS_PULSE_WIDTH_MAX, "%.0f");
+
+    ImGui::PopItemWidth();
+}
+
 void PluginController::drawEffects() {
     centeredText("Effects");
 
@@ -2348,7 +2374,7 @@ void PluginController::draw(platform::Window *window) {
                 if (ImGui::Begin("inst", NULL, winFlags)) {
                     // type
                     static const char *types[BBXS_SYNTH_COUNT] = {
-                        "chip wave", "pulse width", "supersaw (TODO)",
+                        "chip wave", "pulse width", "supersaw",
                         "harmonics", "picked string", "spectrum", "FM",
                         "custom chip", "noise"
                     };
@@ -2466,6 +2492,10 @@ void PluginController::draw(platform::Window *window) {
 
                         case BBXS_SYNTH_CUSTOM_CHIP:
                             drawCustomChipGui2();
+                            break;
+
+                        case BBXS_SYNTH_SUPERSAW:
+                            drawSupersawGui();
                             break;
 
                         default: break;

@@ -971,7 +971,7 @@ static const bbxs_param_info_s unused_param_info = {
 
 static const char *bool_enum_values[] = { "off", "on" };
 const bbxs_synth_type_e instr_synth_type_values[BBXS_SYNTH_COUNT] = {
-    BBXS_SYNTH_CHIP, BBXS_SYNTH_PULSE_WIDTH, /*BBXS_SYNTH_SUPERSAW*/-1,
+    BBXS_SYNTH_CHIP, BBXS_SYNTH_PULSE_WIDTH, BBXS_SYNTH_SUPERSAW,
     BBXS_SYNTH_HARMONICS, BBXS_SYNTH_PICKED_STRING,
     BBXS_SYNTH_SPECTRUM, BBXS_SYNTH_FM, BBXS_SYNTH_CUSTOM_CHIP,
     BBXS_SYNTH_NOISE

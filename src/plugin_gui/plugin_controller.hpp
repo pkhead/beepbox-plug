@@ -75,6 +75,7 @@ private:
     void drawNoiseGui2();
     void drawPwmGui();
     void drawPickedStringGui();
+    void drawSupersawGui();
 
     void drawFadeWidget(const char *id, ImVec2 size);
     void drawEqWidget(FilterType filter, const char *id, ImVec2 size);
