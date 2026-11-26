@@ -81,51 +81,51 @@ static uint8_t feedbackSymbol[] = {
     0b000000,
 };
 
+static uint16_t leftRightArrowSymbol[] = {
+    0b0000000000000,
+    0b0000000000000,
+    0b0001000000100,
+    0b0010000000010,
+    0b0111111111111,
+    0b0010000000010,
+    0b0001000000100,
+    0b0000000000000,
+    0b0000000000000,
+    0b0000000000000,
+    0b0000000000000,
+    0b0000000000000,
+};
+
 #define GET_PIXEL(x, y) (((y) * width) + (x)) * 4
 static void symbol_patch(unsigned char *pixels, int width, int height, void *userdata) {
     int *idList = (int*)userdata;
 
     ImGuiIO &io = ImGui::GetIO();
 
+    #define CREATE_SIZE(SYMBOL, INDEX, WIDTH, HEIGHT)                          \
+        rect = io.Fonts->GetCustomRectByIndex(idList[INDEX]);                  \
+        for (int y = 0; y < HEIGHT; y++) {                                     \
+            for (int x = 0; x < WIDTH; x++) {                                  \
+                int pixIndex = GET_PIXEL(rect->X + x, rect->Y + y);            \
+                                                                               \
+                pixels[pixIndex] = 255;                                        \
+                pixels[pixIndex+1] = 255;                                      \
+                pixels[pixIndex+2] = 255;                                      \
+                pixels[pixIndex+3] =                                           \
+                    ((SYMBOL[y] >> ((WIDTH - 1) - x)) & 1) ? 255 : 0;          \
+            }                                                                  \
+        }
+    #define CREATE(SYMBOL, INDEX) CREATE_SIZE(SYMBOL, INDEX, 6, 12)
+
     // left arrow
-    ImFontAtlasCustomRect *rect = io.Fonts->GetCustomRectByIndex(idList[0]);
-    
-    for (int y = 0; y < 12; y++) {
-        for (int x = 0; x < 6; x++) {
-            int pixIndex = GET_PIXEL(rect->X + x, rect->Y + y);
+    ImFontAtlasCustomRect *rect;
+    CREATE(leftArrowSymbol, 0);
+    CREATE(rightArrowSymbol, 1);
+    CREATE(feedbackSymbol, 2);
+    CREATE_SIZE(leftRightArrowSymbol, 3, 13, 12);
 
-            pixels[pixIndex] = 255;
-            pixels[pixIndex+1] = 255;
-            pixels[pixIndex+2] = 255;
-            pixels[pixIndex+3] = ((leftArrowSymbol[y] >> (5 - x)) & 1) ? 255 : 0;
-        }
-    }
-
-    // right arrow
-    rect = io.Fonts->GetCustomRectByIndex(idList[1]);
-    for (int y = 0; y < 12; y++) {
-        for (int x = 0; x < 6; x++) {
-            int pixIndex = GET_PIXEL(rect->X + x, rect->Y + y);
-
-            pixels[pixIndex] = 255;
-            pixels[pixIndex+1] = 255;
-            pixels[pixIndex+2] = 255;
-            pixels[pixIndex+3] = ((rightArrowSymbol[y] >> (5 - x)) & 1) ? 255 : 0;
-        }
-    }
-
-    // loop symbol
-    rect = io.Fonts->GetCustomRectByIndex(idList[2]);
-    for (int y = 0; y < 12; y++) {
-        for (int x = 0; x < 6; x++) {
-            int pixIndex = GET_PIXEL(rect->X + x, rect->Y + y);
-
-            pixels[pixIndex] = 255;
-            pixels[pixIndex+1] = 255;
-            pixels[pixIndex+2] = 255;
-            pixels[pixIndex+3] = ((feedbackSymbol[y] >> (5 - x)) & 1) ? 255 : 0;
-        }
-    }
+    #undef CREATE_SIZE
+    #undef CREATE
 }
 
 static void setUpGraphics(platform::Window *window) {
@@ -134,10 +134,11 @@ static void setUpGraphics(platform::Window *window) {
     
     ImFont *font = io.Fonts->AddFontDefault();
 
-    int glyphIds[3];
+    int glyphIds[4];
     glyphIds[0] = io.Fonts->AddCustomRectFontGlyph(font, 0x2190, 6, 12, 7.f, ImVec2(0.f, 2.f)); // left arrow
     glyphIds[1] = io.Fonts->AddCustomRectFontGlyph(font, 0x2192, 6, 12, 7.f, ImVec2(0.f, 2.f)); // right arrow
     glyphIds[2] = io.Fonts->AddCustomRectFontGlyph(font, 0x27F2, 6, 12, 7.f, ImVec2(0.f, 2.f)); // loop symbol
+    glyphIds[3] = io.Fonts->AddCustomRectFontGlyph(font, 0x2194, 13, 12, 14.f, ImVec2(0.f, 2.f)); // <-> symbol
     io.Fonts->Build();
 
     uint8_t *pixels;
