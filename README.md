@@ -8,14 +8,14 @@ This plugin library includes (or will include) several synthesizer plugins:
 |-|-|
 | Chip | A chiptune synthesizer from preset wavetables |
 | Noise | A generator for several types of noise |
-| Custom Chip *(planned)* | A chiptune synthesizer from a configurable wavetable |
+| Custom Chip | A chiptune synthesizer from a configurable wavetable |
 | Pulse Width | Generates pulse waves of a freely configurable duty cycle |
-| Supersaw *(planned)* | Sawtooth/pulse waves with a more powerful unison effect |
+| Supersaw | Sawtooth/pulse waves with a more powerful unison effect |
 | Harmonics | An additive synthesizer |
 | Picked String | Harmonics + an algorithm based off Karplus-Strong |
 | Spectrum | A noise-based spectral synthesizer |
-| FM | A four-operator FM synthesizer |
-| FM6 *(planned)* | A six-operator FM synthesizer |
+| FM | A four-operator FM (pulse modulation) synthesizer |
+| FM6 *(planned)* | A six-operator FM (pulse modulation) synthesizer |
 | Drumset *(planned)* | A Spectrum + filter envelope for each of the 12 keys in one octave |
 
 This library also includes these audio effects bundled into the synthesizer:
@@ -37,9 +37,8 @@ The project's source code is located within three subdirectories of the `src` fo
 - Themes
 - Mac support (?)
 - Instruments:
-    - Custom chip
     - FM6
-    - Supersaw
+    - Drumset
 
 # Building
 Requirements:
