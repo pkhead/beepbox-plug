@@ -6,7 +6,7 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 set(CMAKE_OSX_DEPLOYMENT_TARGET 10.14 CACHE STRING "Build for 10.14")
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-project(BeepBox VERSION 0.4.0)
+project(BeepBox VERSION 0.5.0)
 
 if (APPLE)
     enable_language(OBJC OBJCXX)
