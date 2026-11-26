@@ -68,6 +68,7 @@ set_target_properties(imgui PROPERTIES
 set(BEEPBOX_SYNTH_BUILD_STATIC 1)
 add_subdirectory(src/cbeepsynth)
 add_subdirectory(src/clap)
+add_subdirectory(src/plugin ${CMAKE_BINARY_DIR}/src/plugin)
 add_subdirectory(src/plugin_gui ${CMAKE_BINARY_DIR}/src/plugin_gui)
 
 if(BUILD_STANDALONE OR BUILD_VST3)
@@ -78,15 +79,15 @@ endif()
 
 # plugin_gui is not added to LIBRARIES because i want a variation of the plugin_gui
 # library when building vst3 (it will add the vst3 trademark to the about page)
-set(LIBRARIES ${LIBRARIES} clap beepbox_synth_static)
+set(LIBRARIES ${LIBRARIES} clap beepbox_synth_static plugin)
 
 #################
 ## clap target ##
 #################
 
-set(CLAP_SOURCES src/plugin/entry.c src/plugin/plugin.c src/plugin/instrument.c)
+set(ROOT_SOURCES src/plugin/entry.cpp)
 set(CLAP_TARGET ${PROJECT_NAME}_clap)
-add_library(${CLAP_TARGET} MODULE ${CLAP_SOURCES})
+add_library(${CLAP_TARGET} MODULE ${ROOT_SOURCES})
 target_compile_definitions(${CLAP_TARGET} PRIVATE PLUGIN_VERSION="${PROJECT_VERSION}")
 target_link_libraries(${CLAP_TARGET} PRIVATE ${LIBRARIES} plugin_gui)
 set_target_properties(${CLAP_TARGET} PROPERTIES
@@ -115,7 +116,7 @@ endif()
 if(BUILD_STANDALONE)
     set(STANDALONE_TARGET ${PROJECT_NAME}_standalone)
     add_executable(${STANDALONE_TARGET})
-    target_sources(${STANDALONE_TARGET} PRIVATE ${CLAP_SOURCES})
+    target_sources(${STANDALONE_TARGET} PRIVATE ${ROOT_SOURCES})
     target_compile_definitions(${STANDALONE_TARGET} PRIVATE PLUGIN_VERSION="${PROJECT_VERSION}")
     target_link_libraries(${STANDALONE_TARGET} PRIVATE ${LIBRARIES} plugin_gui)
     target_add_standalone_wrapper(TARGET ${STANDALONE_TARGET}
@@ -135,7 +136,7 @@ if(BUILD_VST3)
 
     set(VST3_TARGET ${PROJECT_NAME}_vst3)
     add_library(${VST3_TARGET} MODULE)
-    target_sources(${VST3_TARGET} PRIVATE ${CLAP_SOURCES})
+    target_sources(${VST3_TARGET} PRIVATE ${ROOT_SOURCES})
     target_compile_definitions(${VST3_TARGET} PRIVATE PLUGIN_VERSION="${PROJECT_VERSION}")
     target_link_libraries(${VST3_TARGET} PRIVATE ${LIBRARIES} plugin_gui_vst3)
     target_add_vst3_wrapper(TARGET ${VST3_TARGET}

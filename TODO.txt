@@ -10,15 +10,29 @@ src/cbeepsynth/TODO.txt
   have a logging function. maybe just don't hook up the library to the plugin's
   logging system? it's not like it logs out anything useful anyway, aside from
   allocation errors that should never happen.
-- standalone plugins for effects:
-	- BeepBox Distortion (M)  (for mono)
-	- BeepBox Distortion (S)  (for stereo)
-	- BeepBox Bitcrusher (M)
-	- BeepBox Bitcrusher (S)
-	- BeepBox Chorus
-	- BeepBox Echo
-	- BeepBox Reverb
-	- BeepBox Compressor/Limiter
+
+- planned plugin list:
+  - BeepBox
+  - BeepBox FX    (does not include limiter)
+  - BeepBox: Chip Wave
+  - BeepBox: Pulse Width
+  - BeepBox: Supersaw
+  - BeepBox: Harmonics
+  - BeepBox: Picked String
+  - BeepBox: Spectrum
+  - BeepBox: FM
+  - BeepBox: FM (6-op)
+  - Beepbox: Custom Chip
+  - BeepBox: Noise
+  - BeepBox: Drumset
+	- BeepBox FX: Distortion (M)
+	- BeepBox FX: Distortion (S)
+	- BeepBox FX: Bitcrusher (M)
+	- BeepBox FX: Bitcrusher (S)
+	- BeepBox FX: Chorus
+	- BeepBox FX: Echo
+	- BeepBox FX: Reverb
+	- BeepBox FX: Limiter
 
 
 	or, perhaps:

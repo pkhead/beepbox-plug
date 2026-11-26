@@ -1,0 +1,11 @@
+IndentWidth: 4
+AlignAfterOpenBracket: true
+Cpp11BracedListStyle: true
+AllowShortIfStatementsOnASingleLine: WithoutElse
+IncludeBlocks: Regroup
+IncludeCategories:
+  - Regex: '^<.*>'
+    Priority: 1
+  - Regex: '^".*"'
+    Priority: 2
+IndentPPDirectives: AfterHash
