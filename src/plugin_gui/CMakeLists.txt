@@ -63,12 +63,12 @@ endif()
 
 # create the library target
 add_library(${PROJECT_NAME} STATIC
-    log.cpp
-    gui.cpp
-    lib_impl.cpp
-    platform.cpp
-    plugin_controller.cpp
-    ${PUGL_SOURCES}
+    # log.cpp
+    # gui.cpp
+    # lib_impl.cpp
+    # platform.cpp
+    # plugin_controller.cpp
+    # ${PUGL_SOURCES}
 )
 
 # choose correct gfx_*.cpp graphics backend
