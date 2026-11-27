@@ -27,7 +27,7 @@ class instr_device : public device {
 
     bool activate(bbxs_context_s *ctx, double sample_rate,
                   uint32_t max_frames_count) override;
-    bool deactivate() override;
+    void deactivate() override;
 
     void set_effect_active(bbxs_effect_type_e effect, bool value);
     // bool instr_is_module_active(const instrument_s *instr, instr_module_e

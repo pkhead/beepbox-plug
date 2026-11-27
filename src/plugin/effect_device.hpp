@@ -15,7 +15,7 @@ class effect_device : public device {
 
     bool activate(bbxs_context_s *ctx, double sample_rate,
                   uint32_t max_frames_count) override;
-    bool deactivate() override;
+    void deactivate() override;
 
     uint32_t param_count() override;
     param_id get_param_id(uint32_t index) const override;

@@ -28,7 +28,7 @@ class device {
 
     virtual bool activate(bbxs_context_s *ctx, double sample_rate,
                           uint32_t max_frames_count) = 0;
-    virtual bool deactivate() = 0;
+    virtual void deactivate() = 0;
 
     virtual void begin_note(int16_t key, double velocity, int32_t note_id,
                             int16_t port_index, int16_t channel) {};

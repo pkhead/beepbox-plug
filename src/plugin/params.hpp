@@ -98,10 +98,10 @@ static constexpr void param_local_id(param_id global_id,
 }
 
 #define BBXPLUG_CTLPARAM(MODULE, NAME)                                         \
-    param_global_id(bbxplug::MODULE_ ## MODULE ## _CONTROL,                        \
-                    bbxplug::MODULE ## _CONTROL_PARAM_ ## NAME)
+    param_global_id(bbxplug::MODULE_##MODULE##_CONTROL,                        \
+                    bbxplug::MODULE##_CONTROL_PARAM_##NAME)
 #define BBXPLUG_SYNPARAM(SYNTYPE, NAME)                                        \
-    param_global_id(bbxplug::MODULE_SYNTH, BBXS_ ## SYNTYPE ## _PARAM_ ## NAME)
+    param_global_id(bbxplug::MODULE_SYNTH, BBXS_##SYNTYPE##_PARAM_##NAME)
 
 extern const bbxs_param_info_s
     synth_control_param_info[SYNTH_CONTROL_PARAM__COUNT];

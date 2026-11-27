@@ -21,3 +21,8 @@ target_include_directories(${PROJECT_NAME}
 target_link_libraries(${PROJECT_NAME}
     PRIVATE beepbox_synth_static
 )
+
+if (CMAKE_C_COMPILER_ID STREQUAL "MSVC")
+    # standards-conforming preprocessor
+    target_compile_options(${PROJECT_NAME} PRIVATE /Zc:preprocessor)
+endif()

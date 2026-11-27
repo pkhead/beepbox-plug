@@ -35,60 +35,60 @@ static const clap_plugin_descriptor_t g_synth_plug_desc = {
 namespace clap_api::plugin {
 
 static bool init(const clap_plugin_t *plugin) {
-    ::plugin *plug = (::plugin *)plugin->plugin_data;
+    bbxplug::plugin *plug = (bbxplug::plugin *)plugin->plugin_data;
     return plug->init();
 }
 
 static void destroy(const clap_plugin_t *plugin) {
-    ::plugin *plug = (::plugin *)plugin->plugin_data;
+    bbxplug::plugin *plug = (bbxplug::plugin *)plugin->plugin_data;
     delete plug;
 }
 
 static bool activate(const struct clap_plugin *plugin, double sample_rate,
                      uint32_t min_frames_count, uint32_t max_frames_count) {
-    ::plugin *plug = (::plugin *)plugin->plugin_data;
+    bbxplug::plugin *plug = (bbxplug::plugin *)plugin->plugin_data;
     return plug->activate(sample_rate, min_frames_count, max_frames_count);
 }
 
 static void deactivate(const struct clap_plugin *plugin) {
-    ::plugin *plug = (::plugin *)plugin->plugin_data;
+    bbxplug::plugin *plug = (bbxplug::plugin *)plugin->plugin_data;
     plug->deactivate();
 }
 
 static bool start_processing(const struct clap_plugin *plugin) {
-    ::plugin *plug = (::plugin *)plugin->plugin_data;
+    bbxplug::plugin *plug = (bbxplug::plugin *)plugin->plugin_data;
     return plug->start_processing();
 }
 
 static void stop_processing(const struct clap_plugin *plugin) {
-    ::plugin *plug = (::plugin *)plugin->plugin_data;
+    bbxplug::plugin *plug = (bbxplug::plugin *)plugin->plugin_data;
     return plug->stop_processing();
 }
 
 static void reset(const struct clap_plugin *plugin) {
-    ::plugin *plug = (::plugin *)plugin->plugin_data;
+    bbxplug::plugin *plug = (bbxplug::plugin *)plugin->plugin_data;
     return plug->reset();
 }
 
 static clap_process_status process(const clap_plugin_t *plugin,
                                    const clap_process_t *process) {
-    ::plugin *plug = (::plugin *)plugin->plugin_data;
+    bbxplug::plugin *plug = (bbxplug::plugin *)plugin->plugin_data;
     return plug->process(process);
 }
 
 static const void *get_extension(const struct clap_plugin *plugin,
                                  const char *id) {
-    ::plugin *plug = (::plugin *)plugin->plugin_data;
+    bbxplug::plugin *plug = (bbxplug::plugin *)plugin->plugin_data;
     return plug->get_extension(id);
 }
 
 static void on_main_thread(const struct clap_plugin *plugin) {
-    ::plugin *plug = (::plugin *)plugin->plugin_data;
+    bbxplug::plugin *plug = (bbxplug::plugin *)plugin->plugin_data;
     plug->on_main_thread();
 }
 
 clap_plugin_t *create(const clap_host_t *host) {
-    ::plugin *data = new ::plugin(host);
+    bbxplug::plugin *data = new bbxplug::plugin(host);
     clap_plugin_t *clap_plug = &data->clap_plugin;
 
     clap_plug->desc = &g_synth_plug_desc;

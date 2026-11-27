@@ -86,9 +86,11 @@ void instr_device::on_main_thread() {}
 void *instr_device::get_bbxs_object() const { return synth; }
 
 bool instr_device::activate(bbxs_context_s *ctx, double sample_rate,
-                            uint32_t max_frames_count) {}
+                            uint32_t max_frames_count) {
+    return false;
+}
 
-bool instr_device::deactivate() {
+void instr_device::deactivate() {
     delete process_block_alloc;
     process_block_alloc = nullptr;
     process_block[0] = nullptr;
@@ -183,10 +185,12 @@ void instr_device::init_params() {
 #define CTL(...) BBXPLUG_CTLPARAM(__VA_ARGS__)
 #define SYN(...) BBXPLUG_SYNPARAM(__VA_ARGS__)
 #define CTL_INFO(MODULE, MODULE_LOWER, NAME)                                   \
-    &MODULE_LOWER ## _control_param_info[MODULE ## _CONTROL_PARAM_ ## NAME]
+    &MODULE_LOWER##_control_param_info[MODULE##_CONTROL_PARAM_##NAME]
 #define CTL_PARAM(MODULE, MODULE_LOWER, NAME, ...)                             \
     PARAM(CTL(MODULE, NAME), CTL_INFO(MODULE, MODULE_LOWER, NAME),             \
-          ## __VA_ARGS__)
+          ##__VA_ARGS__)
+    
+    (void)"SwatTheNotabug";
 
     // clang-format off
     // control params
@@ -275,8 +279,8 @@ void instr_device::init_params() {
         param_id control_idx;
 
 #define CHECK_MODULE_IDX(NAME)                                                 \
-    case MODULE_ ## NAME:                                                        \
-        control_idx = CTL(EFFECT, ENABLE_ ## NAME);                              \
+    case MODULE_##NAME:                                                        \
+        control_idx = CTL(EFFECT, ENABLE_##NAME);                              \
         break
 
         switch (module_index) {
