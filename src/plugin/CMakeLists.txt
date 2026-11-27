@@ -4,6 +4,8 @@ project(${PROJECT_NAME} VERSION ${CMAKE_PROJECT_VERSION})
 add_library(${PROJECT_NAME} STATIC
     plugin.cpp
     plugin_ext_interface.cpp
+    params.cpp
+    instr_device.cpp
 )
 
 target_compile_definitions(${PROJECT_NAME}

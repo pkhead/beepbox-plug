@@ -4,7 +4,7 @@
 
 #define REGISTER(RET, NAME, ...)                                               \
     static RET clap_##NAME(const struct clap_plugin *plugin, ##__VA_ARGS__) {  \
-        ::plugin *plug = (::plugin *)plugin->plugin_data;                      \
+        bbxplug::plugin *plug = (bbxplug::plugin *)plugin->plugin_data;        \
         return plug->NAME(
 #define WITH_CALL_ARGS(...) __VA_ARGS__ );                                     \
     }
@@ -131,7 +131,7 @@ EXTENSION(track_info, TRACK_INFO) {
 };
 // clang-format on
 
-const void *plugin::get_extension(const char *id) {
+const void *bbxplug::plugin::get_extension(const char *id) {
     QUERY_EXTENSION(AUDIO_PORTS)
     QUERY_EXTENSION(NOTE_PORTS)
     QUERY_EXTENSION(STATE)

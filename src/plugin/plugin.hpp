@@ -5,11 +5,11 @@
 #include <clap/clap.h>
 #include <cstdint>
 
-
 #ifndef _NDEBUG
 #    define PLUGIN_TRACK_MEMORY
 #endif
 
+namespace bbxplug {
 class plugin {
   protected:
     // plugin_gui_s *gui;
@@ -123,3 +123,4 @@ class plugin {
 
     const void *get_extension(const char *id);
 };
+} // namespace bbxplug

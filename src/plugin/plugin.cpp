@@ -5,9 +5,9 @@
 #include <cstdlib>
 
 
-plugin::plugin(const clap_host_t *host) : host(host) {}
+bbxplug::plugin::plugin(const clap_host_t *host) : host(host) {}
 
-bool plugin::init() {
+bool bbxplug::plugin::init() {
     // Fetch host's extensions here
     // Make sure to check that the interface functions are not null pointers
     host_log = (const clap_host_log_t *)host->get_extension(host, CLAP_EXT_LOG);
@@ -57,7 +57,7 @@ bool plugin::init() {
     return true;
 }
 
-plugin::~plugin() {
+bbxplug::plugin::~plugin() {
     // instr_destroy(&plug->instrument);
     bbxs_context_destroy(bbxs_ctx);
 }
@@ -66,13 +66,13 @@ plugin::~plugin() {
 //------------------------------------------------------------------------------
 // audio ports
 //------------------------------------------------------------------------------
-uint32_t plugin::audio_ports_count(bool is_input) {
+uint32_t bbxplug::plugin::audio_ports_count(bool is_input) {
     // no inputs, 1 output
     if (is_input) return 0;
     return 1;
 }
 
-bool plugin::audio_ports_get(uint32_t index, bool is_input,
+bool bbxplug::plugin::audio_ports_get(uint32_t index, bool is_input,
                              clap_audio_port_info_t *info) {
     if (is_input || index > 0) return false;
 
@@ -88,12 +88,12 @@ bool plugin::audio_ports_get(uint32_t index, bool is_input,
 //------------------------------------------------------------------------------
 // note ports
 //------------------------------------------------------------------------------
-uint32_t plugin::note_ports_count(bool is_input) {
+uint32_t bbxplug::plugin::note_ports_count(bool is_input) {
     if (!is_input) return 0;
     return 1;
 }
 
-bool plugin::note_ports_get(uint32_t index, bool is_input,
+bool bbxplug::plugin::note_ports_get(uint32_t index, bool is_input,
                             clap_note_port_info_t *info) {
     if (!is_input || index > 0) return false;
 
@@ -108,17 +108,17 @@ bool plugin::note_ports_get(uint32_t index, bool is_input,
 //------------------------------------------------------------------------------
 // latency
 //------------------------------------------------------------------------------
-uint32_t plugin::latency_get() { return 0; }
+uint32_t bbxplug::plugin::latency_get() { return 0; }
 
 //------------------------------------------------------------------------------
 // context menu
 //------------------------------------------------------------------------------
-bool plugin::context_menu_populate(const clap_context_menu_target_t *target,
+bool bbxplug::plugin::context_menu_populate(const clap_context_menu_target_t *target,
                                    const clap_context_menu_builder_t *builder) {
     return true;
 }
 
-bool plugin::context_menu_perform(const clap_context_menu_target_t *target,
+bool bbxplug::plugin::context_menu_perform(const clap_context_menu_target_t *target,
                                   clap_id action_id) {
     return true;
 }
@@ -126,8 +126,8 @@ bool plugin::context_menu_perform(const clap_context_menu_target_t *target,
 //------------------------------------------------------------------------------
 
 #ifdef PLUGIN_TRACK_MEMORY
-void *plugin::bbxs_mem_alloc(size_t size, void *userdata) {
-    ::plugin *self = (::plugin *)userdata;
+void *bbxplug::plugin::bbxs_mem_alloc(size_t size, void *userdata) {
+    bbxplug::plugin *self = (bbxplug::plugin *)userdata;
     alloc_struct *alloc = (alloc_struct *)std::malloc(sizeof(alloc_struct) + size);
     if (!alloc) return NULL;
 
@@ -136,8 +136,8 @@ void *plugin::bbxs_mem_alloc(size_t size, void *userdata) {
     return (void *)alloc->data;
 }
 
-void plugin::bbxs_mem_free(void *ptr, void *userdata) {
-    ::plugin *self = (::plugin *)userdata;
+void bbxplug::plugin::bbxs_mem_free(void *ptr, void *userdata) {
+    bbxplug::plugin *self = (bbxplug::plugin *)userdata;
     if (!ptr) return;
 
     alloc_struct *alloc =
