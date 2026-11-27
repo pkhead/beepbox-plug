@@ -1,6 +1,7 @@
 #include "instr_device.hpp"
 
 #include <cassert>
+#include <cstring>
 
 using namespace bbxplug;
 
@@ -157,26 +158,28 @@ bool instr_device::get_param(param_id id, double *value,
 #    define BBXS_FM6_PARAM_COUNT 0 // in case I forget to add this type later on
 #endif
 
-#define MAX_SYNTH_PARAM_COUNT                                                  \
-    BBXS_BASE_PARAM_COUNT +                                                    \
-        MAX(BBXS_CHIP_PARAM_COUNT,                                             \
-            MAX(BBXS_FM_PARAM_COUNT,                                           \
-                MAX(BBXS_NOISE_PARAM_COUNT,                                    \
-                    MAX(BBXS_PULSE_WIDTH_PARAM_COUNT,                          \
-                        MAX(BBXS_CUSTOM_CHIP_PARAM_COUNT,                      \
-                            MAX(BBXS_HARMONICS_PARAM_COUNT,                    \
-                                MAX(BBXS_SPECTRUM_PARAM_COUNT,                 \
-                                    MAX(BBXS_PICKED_STRING_PARAM_COUNT,        \
-                                        MAX(BBXS_FM6_PARAM_COUNT,              \
-                                            BBXS_SUPERSAW_PARAM_COUNT)))))))))
+static constexpr int MAX_SYNTH_PARAM_COUNT =
+    BBXS_BASE_PARAM_COUNT +
+    MAX(BBXS_CHIP_PARAM_COUNT,
+        MAX(BBXS_FM_PARAM_COUNT,
+            MAX(BBXS_NOISE_PARAM_COUNT,
+                MAX(BBXS_PULSE_WIDTH_PARAM_COUNT,
+                    MAX(BBXS_CUSTOM_CHIP_PARAM_COUNT,
+                        MAX(BBXS_HARMONICS_PARAM_COUNT,
+                            MAX(BBXS_SPECTRUM_PARAM_COUNT,
+                                MAX(BBXS_PICKED_STRING_PARAM_COUNT,
+                                    MAX(BBXS_FM6_PARAM_COUNT,
+                                        BBXS_SUPERSAW_PARAM_COUNT)))))))));
 
 void instr_device::init_params() {
     param_id_list.clear();
     param_database.clear();
 
 #define PARAM(ID, INFO, ...)                                                   \
-    param_database[ID] = {false, INFO, __VA_ARGS__};                           \
-    param_id_list.push_back(ID);
+    do {                                                                       \
+        param_database[ID] = {false, INFO, __VA_ARGS__};                       \
+        param_id_list.push_back(ID);                                           \
+    } while (false);
 #define CTL(...) BBXPLUG_CTLPARAM(__VA_ARGS__)
 #define SYN(...) BBXPLUG_SYNPARAM(__VA_ARGS__)
 #define CTL_INFO(MODULE, MODULE_LOWER, NAME)                                   \
@@ -221,13 +224,13 @@ void instr_device::init_params() {
         param_cookie::TYPE_FLOAT64,
         &gain,
     });
-    CTL_PARAM(TEMPO, tempo, USE_OVERRIDE, {
-        param_cookie::TYPE_BOOL,
-        &tempo_use_override,
-    });
     CTL_PARAM(TEMPO, tempo, MULTIPLIER, {
         param_cookie::TYPE_FLOAT64,
         &tempo_multiplier,
+    });
+    CTL_PARAM(TEMPO, tempo, USE_OVERRIDE, {
+        param_cookie::TYPE_BOOL,
+        &tempo_use_override,
     });
     CTL_PARAM(TEMPO, tempo, OVERRIDE, {
         param_cookie::TYPE_FLOAT64,
@@ -256,21 +259,72 @@ void instr_device::init_params() {
         }
     };
 
-    // TODO: show "General" category first, and then type-specific parameters,
-    //       and then effects. also investigate why it shows "Unused Paramter"
-    //       in instrument settings.
-    for (int i = 0; i < synth_param_count; i++) {
-        register_synth_param(i);
-    }
+    auto register_effect_param = [&](param_module module, int index) -> bool {
+        int efi = module - MODULE_FIRST_EFFECT;
 
+        bbxs_effect_s *effect = effect_modules[efi];
+        assert(effect);
+        if (!effect) return false;
+
+        bbxs_effect_type_e effect_type = bbxs_effect_type(effect);
+        const bbxs_param_info_s *info =
+            bbxs_effect_param_info(effect_type, index);
+        assert(info);
+        if (!info) return false;
+
+        switch (info->type) {
+        case BBXS_PARAM_DOUBLE:
+            PARAM(param_global_id(module, index), info,
+                  {param_cookie::TYPE_BBXS_EFFECT_PARAM_DOUBLE, effect});
+            break;
+
+        case BBXS_PARAM_INT:
+        case BBXS_PARAM_UINT8:
+            PARAM(param_global_id(module, index), info,
+                  {param_cookie::TYPE_BBXS_EFFECT_PARAM_INT, effect});
+            break;
+        }
+
+        return true;
+    };
+
+    // everything from the "General" category, neatly ordered
+    register_effect_param(MODULE_VOLUME, BBXS_VOLUME_PARAM_VOLUME);
+    register_synth_param(BBXS_PARAM_FADE_IN);
+    register_synth_param(BBXS_PARAM_FADE_OUT);
+    register_effect_param(MODULE_PANNING, BBXS_PANNING_PARAM_PAN);
+    register_effect_param(MODULE_PANNING, BBXS_PANNING_PARAM_PAN_DELAY);
+
+    // modulation targets
+    register_synth_param(BBXS_PARAM_MOD_X);
+    register_synth_param(BBXS_PARAM_MOD_Y);
+
+    // synth type-specific parameters
+    for (int i = BBXS_BASE_PARAM_COUNT; i < synth_param_count; i++)
+        register_synth_param(i);
+
+    // filler
     for (int i = synth_param_count; i < MAX_SYNTH_PARAM_COUNT; i++) {
         param_id id = param_global_id(MODULE_SYNTH, i);
-
         param_database[id] = {true, &unused_param_info};
         param_id_list.push_back(id);
     }
 
-    // effect parameters
+    // note effects
+    for (int i = 0; i < synth_param_count; i++) {
+        const bbxs_param_info_s *info = bbxs_synth_param_info(type, i);
+        assert(info);
+        if (!info || !info->group) return;
+
+        const char *group = info->group;
+        size_t slen = strlen(group);
+        if (slen == 7 && !strcmp(group, "Effects") ||
+            slen > 7 && !memcmp(group, "Effects/", 8)) {
+            register_synth_param(i);
+        }
+    }
+
+    // all the audio effects
     for (int efi = 0; efi < MODULE_EFFECT_COUNT; efi++) {
         bbxs_effect_s *effect = effect_modules[efi];
         assert(effect);
@@ -278,51 +332,33 @@ void instr_device::init_params() {
 
         param_module module_index = (param_module)(MODULE_FIRST_EFFECT + efi);
 
-        // effect controls
-        param_id control_idx = INVALID_PARAMETER_ID;
+        // these modules were already accounted for
+        if (module_index == MODULE_PANNING || module_index == MODULE_VOLUME)
+            continue;
 
-#define CHECK_MODULE_IDX(NAME)                                                 \
+            // add associated effect enable control param if it exists
+#define HANDLE_CONTROL_PARAM(NAME, IDX)                                        \
     case MODULE_##NAME:                                                        \
-        control_idx = CTL(EFFECT, ENABLE_##NAME);                              \
+        PARAM(CTL(EFFECT, ENABLE_##NAME), &effect_control_param_info[IDX],     \
+              {param_cookie::TYPE_BOOL, &enabled_effects[module_index]});      \
         break
 
         switch (module_index) {
-            CHECK_MODULE_IDX(DISTORTION);
-            CHECK_MODULE_IDX(BITCRUSHER);
-            CHECK_MODULE_IDX(CHORUS);
-            CHECK_MODULE_IDX(ECHO);
-            CHECK_MODULE_IDX(REVERB);
+            HANDLE_CONTROL_PARAM(DISTORTION, 0);
+            HANDLE_CONTROL_PARAM(BITCRUSHER, 1);
+            HANDLE_CONTROL_PARAM(CHORUS, 2);
+            HANDLE_CONTROL_PARAM(ECHO, 3);
+            HANDLE_CONTROL_PARAM(REVERB, 4);
         default:
             break;
         }
+#undef HANDLE_CONTROL_PARAM
 
-#undef CHECK_MODULE_IDX
-
-        if (control_idx != INVALID_PARAMETER_ID) {
-            PARAM(control_idx, &effect_control_param_info[efi],
-                  {param_cookie::TYPE_BOOL, &enabled_effects[module_index]});
-        }
-
+        // add all parameters of the effect
         bbxs_effect_type_e effect_type = bbxs_effect_type(effect);
         int effect_param_count = (int)bbxs_effect_param_count(effect_type);
         for (int i = 0; i < effect_param_count; i++) {
-            const bbxs_param_info_s *info =
-                bbxs_effect_param_info(effect_type, i);
-            assert(info);
-            if (!info) continue;
-
-            switch (info->type) {
-            case BBXS_PARAM_DOUBLE:
-                PARAM(param_global_id(module_index, i), info,
-                      {param_cookie::TYPE_BBXS_EFFECT_PARAM_DOUBLE, effect});
-                break;
-
-            case BBXS_PARAM_INT:
-            case BBXS_PARAM_UINT8:
-                PARAM(param_global_id(module_index, i), info,
-                      {param_cookie::TYPE_BBXS_EFFECT_PARAM_INT, effect});
-                break;
-            }
+            register_effect_param(module_index, i);
         }
     }
 
