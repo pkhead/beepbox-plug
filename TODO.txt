@@ -65,6 +65,50 @@ BUGS:
   (...does it? )
 - "arpeggio" chord type seems to be buggy
 
+CPP-REWRITE:
+- enabled_effects and running_effects only for effect modules that can be
+  configured on/off (currently panning, volume, and eq are allocated space but
+  they are no-ops)
+
+NEW STATE LOAD PASSING:
+
+    struct state_load_data_s {
+      std::atomic_bool free;
+      std::vector<struct { param_id param; double value; }> params;
+      std::vector<envelope_data> envelopes;
+    }
+
+    // used by main thread
+    std::vector<state_load_data *> allocated_state_loads;
+    // the next two are shared between threads
+    std::atomic<state_load_data_s *> state_load;
+    std::atomic_bool state_load_request;
+
+
+  when loading state:
+    allocated_state_loads.push_back(new_state_load);
+    state_load.store(new_state_load, memory_order::relaxed);
+    state_load_request.store(true, memory_order::release);
+
+  on audio process callback:
+    if (state_load_request.exchange(false, memory_order::acquire)) {
+      state_load_data_s *data = state_load.load(memory_order::relaxed);
+      do_stuff_with(data);
+      data->free.store(true, memory_order::relaxed);
+
+      // try to poke main thread again so that it can free the data later
+      host->request_callback();
+    }
+
+  on main thread callback:
+    for (int i = allocated_state_loads.size()-1; i >= 0; --i) {
+      state_load_data_s *data = allocated_state_loads[i];
+      if (data->free.load(memory_order::relaxed)) {
+        delete data;
+        allocated_state_loads.erase(allocated_state_loads.begin() + i);
+      }
+    }
+
 FM6 CONCURRENCY WRT CODE GENERATION:
   Problem: Because of W^X, in order to generate the machine code specialized for
   a certain routing configuration, I need to invoke the OS to change the
