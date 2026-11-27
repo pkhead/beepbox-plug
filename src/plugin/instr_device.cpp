@@ -390,7 +390,7 @@ void instr_device::init_params() {
 #define HANDLE_CONTROL_PARAM(NAME, IDX)                                        \
     case MODULE_##NAME:                                                        \
         PARAM(CTL(EFFECT, ENABLE_##NAME), &effect_control_param_info[IDX],     \
-              {param_cookie::TYPE_BOOL, &enabled_effects[module_index]});      \
+              {param_cookie::TYPE_BOOL, &enabled_effects[efi]});      \
         break
 
         switch (module_index) {
@@ -428,7 +428,7 @@ bool instr_device::param_cookie_set(const param_cookie *cookie, param_id id,
         return true;
 
     case param_cookie::TYPE_BOOL:
-        *((bool *)cookie->userdata) = value < 0.5;
+        *((bool *)cookie->userdata) = value >= 0.5;
         return true;
 
     case param_cookie::TYPE_FUNC:
@@ -591,8 +591,8 @@ clap_process_status instr_device::run(float **output, uint32_t frame_count,
 
         // convert mono audio from process_block[1] into process_block[0]
         float *process_block[2];
-        process_block[0] = process_block[0] + i;
-        process_block[1] = process_block[1] + i;
+        process_block[0] = this->process_block[0] + i;
+        process_block[1] = this->process_block[1] + i;
 
         for (uint32_t j = 0; j < frames_to_process; ++j) {
             const float v = synth_mono_buffer[i + j];
