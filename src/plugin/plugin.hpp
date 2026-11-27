@@ -17,7 +17,7 @@ class plugin {
     plugin(const clap_host_t *host);
     ~plugin();
 
-    clap_plugin_t clap_plugin;
+    clap_plugin_t clap_plugin {};
 
     bool init();
     bool activate(double sample_rate, uint32_t min_frames_count,
@@ -96,8 +96,8 @@ class plugin {
     // plugin_gui_s *gui;
     std::atomic_bool is_active;
 
-    bool has_track_color;
-    clap_color_t track_color;
+    bool has_track_color = false;
+    clap_color_t track_color {};
 
     const clap_host_t *host;
     const clap_host_latency_t *host_latency;
@@ -116,7 +116,7 @@ class plugin {
     // internal_event_queue_s event_queue;
 
 #ifdef PLUGIN_TRACK_MEMORY
-    size_t mem_allocated;
+    size_t mem_allocated = 0;
     static void *bbxs_mem_alloc(size_t size, void *userdata);
     static void bbxs_mem_free(void *ptr, void *userdata);
     struct alloc_struct {

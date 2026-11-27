@@ -39,11 +39,6 @@ bool instr_device::init(bbxs_synth_type_e p_type, bool enable_switching) {
     this->type_index = (uint8_t)type_idx;
     this->new_type_index = (uint8_t)type_idx;
 
-    bpm = 150.0;
-    tempo_multiplier = 1.0;
-    tempo_override = 150.0;
-    tempo_use_override = false;
-
     synth = bbxs_synth_new(bbxs_ctx, type);
     if (!synth) return false;
 
@@ -55,6 +50,9 @@ bool instr_device::init(bbxs_synth_type_e p_type, bool enable_switching) {
     };
 
     for (int i = 0; i < sizeof(EFFECTS) / sizeof(*EFFECTS); ++i) {
+        enabled_effects[i] = false;
+        running_effects[i] = false;
+
         effect_modules[i] = bbxs_effect_new(bbxs_ctx, EFFECTS[i]);
         if (!effect_modules[i]) return false;
     }
@@ -71,8 +69,6 @@ instr_device::~instr_device() {
     for (int i = 0; i < MODULE_EFFECT_COUNT; i++) {
         bbxs_effect_destroy(effect_modules[i]);
     }
-
-    bbxs_context_destroy(bbxs_ctx);
 }
 
 device::type instr_device::get_type() const { return device::TYPE_SYNTH; }
@@ -86,7 +82,7 @@ void instr_device::on_main_thread() {}
 void *instr_device::get_bbxs_object() const { return synth; }
 
 bool instr_device::activate(double sample_rate, uint32_t max_frames_count) {
-    return false;
+    return true;
 }
 
 void instr_device::deactivate() {
@@ -241,10 +237,10 @@ void instr_device::init_params() {
 
     // synth parameters
     int synth_param_count = (int)bbxs_synth_param_count(type);
-    for (int i = 0; i < synth_param_count; i++) {
+    auto register_synth_param = [&](int i) {
         const bbxs_param_info_s *info = bbxs_synth_param_info(type, i);
         assert(info);
-        if (!info) continue;
+        if (!info) return;
 
         switch (info->type) {
         case BBXS_PARAM_DOUBLE:
@@ -258,7 +254,15 @@ void instr_device::init_params() {
                   {param_cookie::TYPE_BBXS_SYNTH_PARAM_INT, synth});
             break;
         }
+    };
+
+    // TODO: show "General" category first, and then type-specific parameters,
+    //       and then effects. also investigate why it shows "Unused Paramter"
+    //       in instrument settings.
+    for (int i = 0; i < synth_param_count; i++) {
+        register_synth_param(i);
     }
+
     for (int i = synth_param_count; i < MAX_SYNTH_PARAM_COUNT; i++) {
         param_id id = param_global_id(MODULE_SYNTH, i);
 
@@ -275,7 +279,7 @@ void instr_device::init_params() {
         param_module module_index = (param_module)(MODULE_FIRST_EFFECT + efi);
 
         // effect controls
-        param_id control_idx;
+        param_id control_idx = INVALID_PARAMETER_ID;
 
 #define CHECK_MODULE_IDX(NAME)                                                 \
     case MODULE_##NAME:                                                        \
@@ -289,13 +293,15 @@ void instr_device::init_params() {
             CHECK_MODULE_IDX(ECHO);
             CHECK_MODULE_IDX(REVERB);
         default:
-            assert(false);
+            break;
         }
 
 #undef CHECK_MODULE_IDX
 
-        PARAM(control_idx, &effect_control_param_info[efi],
-              {param_cookie::TYPE_BOOL, &enabled_effects[module_index]});
+        if (control_idx != INVALID_PARAMETER_ID) {
+            PARAM(control_idx, &effect_control_param_info[efi],
+                  {param_cookie::TYPE_BOOL, &enabled_effects[module_index]});
+        }
 
         bbxs_effect_type_e effect_type = bbxs_effect_type(effect);
         int effect_param_count = (int)bbxs_effect_param_count(effect_type);

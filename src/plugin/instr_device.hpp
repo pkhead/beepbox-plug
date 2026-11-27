@@ -13,8 +13,8 @@ namespace bbxplug {
 // synth + effect chain
 class instr_device : public device {
   public:
-    const clap_host_t *clap_host;
-    const clap_host_params_t *clap_host_params;
+    const clap_host_t *clap_host = nullptr;
+    const clap_host_params_t *clap_host_params = nullptr;
 
     instr_device(bbxs_context_s *ctx);
     ~instr_device();
@@ -61,8 +61,8 @@ class instr_device : public device {
     uint8_t type_index;
     uint8_t new_type_index;
 
-    bbxs_context_s *bbxs_ctx;
-    bbxs_synth_s *synth;
+    bbxs_context_s *bbxs_ctx = nullptr;
+    bbxs_synth_s *synth = nullptr;
 
     bbxs_effect_s *effect_modules[MODULE_EFFECT_COUNT];
     bool enabled_effects[MODULE_EFFECT_COUNT];
@@ -71,34 +71,34 @@ class instr_device : public device {
     // active or not.
     bool running_effects[MODULE_EFFECT_COUNT];
 
-    uint32_t frames_until_next_tick;
+    uint32_t frames_until_next_tick = 0;
 
     // mono output buffer for the synth (is nullptr if the synth module is not
     // present)
-    float *synth_mono_buffer;
+    float *synth_mono_buffer = nullptr;
 
     // stereo processing block (effect processing is done in-place)
     // process_block[0] is the left channel, and process_block[1] is the right.
-    float *process_block[2];
-    float *process_block_alloc;
+    float *process_block[2] = {nullptr, nullptr};
+    float *process_block_alloc = nullptr;
 
-    double sample_rate;
-    double bpm;
-    double cur_beat;
-    bool is_playing;
-    std::atomic_bool need_param_rescan;
+    double sample_rate = 0.0;
+    double bpm = 150.0;
+    double cur_beat = 0.0;
+    bool is_playing = false;
+    std::atomic_bool need_param_rescan = false;
 
-    double gain;
-    bool tempo_use_override;
-    double tempo_multiplier;
-    double tempo_override;
+    double gain = 0.0;
+    bool tempo_use_override = false;
+    double tempo_multiplier = 1.0;
+    double tempo_override = 150.0;
 
     // derived from gain property
-    double linear_gain;
+    double linear_gain = 1.0;
 
     // tracked voices
     voice voices[BBXS_SYNTH_MAX_VOICES];
-    int8_t active_voice_count;
+    int8_t active_voice_count = 0;
 
     struct param_cookie {
         enum param_type {
