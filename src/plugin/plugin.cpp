@@ -86,7 +86,7 @@ void plugin::reset() {
 }
 
 clap_process_status plugin::process(const clap_process_t *process) {
-    return CLAP_PROCESS_ERROR;
+    return instrument->process(process);
 }
 
 void plugin::on_main_thread() {

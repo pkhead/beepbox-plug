@@ -23,8 +23,6 @@ class instr_device : public device {
 
     bool init(bbxs_synth_type_e type, bool enable_switching);
 
-    void process(float **output, uint32_t frame_count, uint32_t start_frame,
-                 const clap_output_events_t *out_events) override;
     void on_main_thread() override;
     void *get_bbxs_object() const override;
 
@@ -35,11 +33,6 @@ class instr_device : public device {
     // bool instr_is_module_active(const instrument_s *instr, instr_module_e
     // module);
 
-    void begin_note(int16_t key, double velocity, int32_t note_id,
-                    int16_t port_index, int16_t channel) override;
-    void end_notes(int16_t key, int32_t note_id, int16_t port_index,
-                   int16_t channel) override;
-
     uint32_t param_count() override;
     param_id get_param_id(uint32_t index) const override;
     param_info get_param_info(param_id id) const override;
@@ -48,13 +41,19 @@ class instr_device : public device {
                    const void *cookie) const override;
 
   protected:
-    struct voice {
+    struct voice_data {
         bool active;
 
         int32_t note_id;
         int16_t port_index;
         int16_t channel;
         int16_t key;
+    };
+
+    struct process_userdata {
+        instr_device *self;
+        uint32_t cur_sample;
+        const clap_output_events_t *out_events;
     };
 
     bbxs_synth_type_e type;
@@ -97,7 +96,7 @@ class instr_device : public device {
     double linear_gain = 1.0;
 
     // tracked voices
-    voice voices[BBXS_SYNTH_MAX_VOICES];
+    voice_data voices[BBXS_SYNTH_MAX_VOICES];
     int8_t active_voice_count = 0;
 
     struct param_cookie {
@@ -132,5 +131,27 @@ class instr_device : public device {
     static bool param_cookie_get(const param_cookie *cookie, param_id id,
                                  double *value);
     void init_params();
+
+    inline bbxs_effect_s *
+    get_effect_module(param_module module) const noexcept {
+        return effect_modules[module - MODULE_FIRST_EFFECT];
+    }
+
+    void begin_note(int16_t key, double velocity, int32_t note_id,
+                    int16_t port_index, int16_t channel);
+    void end_notes(int16_t key, int32_t note_id, int16_t port_index,
+                   int16_t channel);
+
+    clap_process_status run(float **output, uint32_t frame_count,
+                            uint32_t start_frame,
+                            const clap_output_events_t *out_events) override;
+    void process_transport(const clap_event_transport *transport) override;
+    void process_event(const clap_event_header_t *hdr,
+                       const clap_output_events_t *out_events) override;
+
+    static inline bool voice_match(const voice_data *voice, int32_t note_id,
+                                   int16_t channel, int16_t port_index,
+                                   int16_t key);
+    static void bbxs_voice_end_cb(bbxs_synth_s *inst, bbxs_voice_id id);
 };
 } // namespace bbxplug

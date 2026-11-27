@@ -5,6 +5,7 @@ add_library(${PROJECT_NAME} STATIC
     plugin.cpp
     plugin_ext_interface.cpp
     params.cpp
+    device.cpp
     instr_device.cpp
 )
 
