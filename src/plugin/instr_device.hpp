@@ -13,6 +13,9 @@ namespace bbxplug {
 // synth + effect chain
 class instr_device : public device {
   public:
+    const clap_host_t *clap_host;
+    const clap_host_params_t *clap_host_params;
+
     instr_device(bbxs_context_s *ctx);
     ~instr_device();
 
@@ -25,8 +28,7 @@ class instr_device : public device {
     void on_main_thread() override;
     void *get_bbxs_object() const override;
 
-    bool activate(bbxs_context_s *ctx, double sample_rate,
-                  uint32_t max_frames_count) override;
+    bool activate(double sample_rate, uint32_t max_frames_count) override;
     void deactivate() override;
 
     void set_effect_active(bbxs_effect_type_e effect, bool value);
@@ -97,9 +99,6 @@ class instr_device : public device {
     // tracked voices
     voice voices[BBXS_SYNTH_MAX_VOICES];
     int8_t active_voice_count;
-
-    const clap_host_t *clap_host;
-    const clap_host_params_t *clap_host_params;
 
     struct param_cookie {
         enum param_type {

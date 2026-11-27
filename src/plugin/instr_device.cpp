@@ -85,8 +85,7 @@ void instr_device::on_main_thread() {}
 
 void *instr_device::get_bbxs_object() const { return synth; }
 
-bool instr_device::activate(bbxs_context_s *ctx, double sample_rate,
-                            uint32_t max_frames_count) {
+bool instr_device::activate(double sample_rate, uint32_t max_frames_count) {
     return false;
 }
 
@@ -189,7 +188,7 @@ void instr_device::init_params() {
 #define CTL_PARAM(MODULE, MODULE_LOWER, NAME, ...)                             \
     PARAM(CTL(MODULE, NAME), CTL_INFO(MODULE, MODULE_LOWER, NAME),             \
           ##__VA_ARGS__)
-    
+
     (void)"SwatTheNotabug";
 
     // clang-format off

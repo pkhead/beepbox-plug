@@ -5,45 +5,14 @@
 #include <clap/clap.h>
 #include <cstdint>
 
+#include "instr_device.hpp"
+
 #ifndef _NDEBUG
 #    define PLUGIN_TRACK_MEMORY
 #endif
 
 namespace bbxplug {
 class plugin {
-  protected:
-    // plugin_gui_s *gui;
-    std::atomic_bool is_active;
-
-    bool has_track_color;
-    clap_color_t track_color;
-
-    const clap_host_t *host;
-    const clap_host_latency_t *host_latency;
-    const clap_host_log_t *host_log;
-    const clap_host_thread_check_t *host_thread_check;
-    const clap_host_params_t *host_params;
-    const clap_host_state_t *host_state;
-    const clap_host_track_info_t *host_track_info;
-    const clap_host_context_menu_t *host_context_menu;
-
-    bbxs_context_s *bbxs_ctx;
-    // instrument_s instrument;
-
-    // main->audio CLAP event queue
-    // (used when loading state)
-    // internal_event_queue_s event_queue;
-
-#ifdef PLUGIN_TRACK_MEMORY
-    size_t mem_allocated;
-    static void *bbxs_mem_alloc(size_t size, void *userdata);
-    static void bbxs_mem_free(void *ptr, void *userdata);
-    struct alloc_struct {
-        size_t size;
-        alignas(16) std::byte data[];
-    };
-#endif
-
   public:
     plugin(const clap_host_t *host);
     ~plugin();
@@ -56,7 +25,7 @@ class plugin {
     void deactivate();
     bool start_processing();
     void stop_processing();
-    void reset() {}
+    void reset();
     clap_process_status process(const clap_process_t *process);
     void on_main_thread();
 
@@ -122,5 +91,41 @@ class plugin {
     //! END
 
     const void *get_extension(const char *id);
+
+  protected:
+    // plugin_gui_s *gui;
+    std::atomic_bool is_active;
+
+    bool has_track_color;
+    clap_color_t track_color;
+
+    const clap_host_t *host;
+    const clap_host_latency_t *host_latency;
+    const clap_host_log_t *host_log;
+    const clap_host_thread_check_t *host_thread_check;
+    const clap_host_params_t *host_params;
+    const clap_host_state_t *host_state;
+    const clap_host_track_info_t *host_track_info;
+    const clap_host_context_menu_t *host_context_menu;
+
+    bbxs_context_s *bbxs_ctx;
+    bbxplug::instr_device *instrument;
+
+    // main->audio CLAP event queue
+    // (used when loading state)
+    // internal_event_queue_s event_queue;
+
+#ifdef PLUGIN_TRACK_MEMORY
+    size_t mem_allocated;
+    static void *bbxs_mem_alloc(size_t size, void *userdata);
+    static void bbxs_mem_free(void *ptr, void *userdata);
+    struct alloc_struct {
+        size_t size;
+        alignas(16) std::byte data[];
+    };
+#endif
+
+    static void bpbx_log_cb(bbxs_log_severity_e severity, const char *msg,
+                            void *userdata);
 };
 } // namespace bbxplug

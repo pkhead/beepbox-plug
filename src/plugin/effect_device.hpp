@@ -13,8 +13,7 @@ class effect_device : public device {
                  const clap_output_events_t *out_events) override;
     void *get_bbxs_object() const override;
 
-    bool activate(bbxs_context_s *ctx, double sample_rate,
-                  uint32_t max_frames_count) override;
+    bool activate(double sample_rate, uint32_t max_frames_count) override;
     void deactivate() override;
 
     uint32_t param_count() override;

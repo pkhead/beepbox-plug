@@ -16,16 +16,16 @@ const char *g_synth_plug_features[] = {CLAP_PLUGIN_FEATURE_INSTRUMENT,
                                        CLAP_PLUGIN_FEATURE_SYNTHESIZER,
                                        CLAP_PLUGIN_FEATURE_STEREO, NULL};
 static const clap_plugin_descriptor_t g_synth_plug_desc = {
-    CLAP_VERSION_INIT,
-    /*id:*/ "us.pkhead.beepbox",
-    /*name:*/ "BeepBox",
-    /*vendor:*/ "pkhead",
-    /*url:*/ "https://github.com/pkhead/beepbox-plug",
-    /*manual_url:*/ "",
-    /*support_url:*/ "",
-    /*version:*/ PLUGIN_VERSION,
-    /*description:*/ "BeepBox synthesizers",
-    /*features:*/ g_synth_plug_features,
+    .clap_version = CLAP_VERSION_INIT,
+    .id = "us.pkhead.beepbox",
+    .name = "BeepBox",
+    .vendor = "pkhead",
+    .url = "https://github.com/pkhead/beepbox-plug",
+    .manual_url = "",
+    .support_url = "",
+    .version = PLUGIN_VERSION,
+    .description = "BeepBox synthesizers",
+    .features = g_synth_plug_features,
 };
 
 //------------------------------------------------------------------------------
@@ -120,8 +120,8 @@ static struct {
     clap_plugin_t *(CLAP_ABI *create)(const clap_host_t *host);
 } g_plugins[] = {
     {
-        &g_synth_plug_desc,
-        clap_api::plugin::create,
+        .desc = &g_synth_plug_desc,
+        .create = clap_api::plugin::create,
     },
 };
 
@@ -151,9 +151,9 @@ create_plugin(const struct clap_plugin_factory *factory,
 }
 
 static const clap_plugin_factory_t clap_interface = {
-    get_plugin_count,
-    get_plugin_descriptor,
-    create_plugin,
+    .get_plugin_count = get_plugin_count,
+    .get_plugin_descriptor = get_plugin_descriptor,
+    .create_plugin = create_plugin,
 };
 
 } // namespace clap_api::plugin_factory
@@ -220,9 +220,9 @@ static void entry_deinit_guard(void) {
 extern "C" {
 // This symbol will be resolved by the host
 CLAP_EXPORT const clap_plugin_entry_t clap_entry = {
-    CLAP_VERSION_INIT,
-    entry_init_guard,
-    entry_deinit_guard,
-    entry_get_factory,
+    .clap_version = CLAP_VERSION_INIT,
+    .init = entry_init_guard,
+    .deinit = entry_deinit_guard,
+    .get_factory = entry_get_factory,
 };
 }

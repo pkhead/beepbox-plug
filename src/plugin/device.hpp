@@ -26,8 +26,7 @@ class device {
                          const clap_output_events_t *out_events) = 0;
     virtual void on_main_thread() {};
 
-    virtual bool activate(bbxs_context_s *ctx, double sample_rate,
-                          uint32_t max_frames_count) = 0;
+    virtual bool activate(double sample_rate, uint32_t max_frames_count) = 0;
     virtual void deactivate() = 0;
 
     virtual void begin_note(int16_t key, double velocity, int32_t note_id,

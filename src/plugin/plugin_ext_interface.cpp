@@ -10,7 +10,7 @@
     }
 #define EXTENSION(LOWER, UPPER)                                                \
     static const clap_plugin_##LOWER##_t g_plugin_##UPPER =
-#define EXT_FUNC(EXT, NAME) clap_##EXT##_##NAME
+#define EXT_FUNC(EXT, NAME) .NAME = clap_##EXT##_##NAME
 #define QUERY_EXTENSION(EXT)                                                   \
     if (!std::strcmp(id, CLAP_EXT_##EXT)) return &g_plugin_##EXT;
 
@@ -136,8 +136,8 @@ const void *bbxplug::plugin::get_extension(const char *id) {
     QUERY_EXTENSION(NOTE_PORTS)
     QUERY_EXTENSION(STATE)
     QUERY_EXTENSION(PARAMS)
-    QUERY_EXTENSION(GUI)
+    // QUERY_EXTENSION(GUI)
     QUERY_EXTENSION(CONTEXT_MENU)
-    QUERY_EXTENSION(TRACK_INFO)
+    // QUERY_EXTENSION(TRACK_INFO)
     return nullptr;
 }
